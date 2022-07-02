@@ -1,0 +1,58 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "alwaysStrict": true,
+    "baseUrl": ".",
+    "checkJs": false,
+    // ? Only for Next.js
+    "jsx": "preserve",
+    "declaration": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "incremental": true,
+    "inlineSourceMap": true,
+    "isolatedModules": true,
+    "lib": [
+      "ESNext",
+      "DOM",
+      //"WebWorker.ImportScripts",
+      "DOM.Iterable"
+    ],
+    "module": "esnext",
+    "moduleResolution": "node",
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "paths": {
+      // ! If changed, also update these aliases in jest.config.js,
+      // ! webpack.config.js, and .eslintrc.js
+      "externals/*": ["external-scripts/*"],
+      "multiverse/*": ["lib/*"],
+      "package": ["package.json"],
+      "pkgverse/*": ["packages/*"],
+      "testverse/*": ["test/*"],
+      "types/*": ["types/*"],
+      "universe/*": ["src/*"],
+      // ? These are used at various points (including at compile time by
+      // ? Next.js) to get mongo schema configuration and/or test dummy data.
+      // ! Must be defined if using @xunnamius/mongo-schema
+      "configverse/get-schema-config": ["src/backend/db.ts"],
+      // ! Must be defined if using @xunnamius/mongo-test
+      "configverse/get-dummy-data": ["test/db.ts"]
+    },
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "esnext"
+  },
+  "exclude": ["node_modules"],
+  "include": [
+    "types/**/*",
+    "lib/**/*",
+    "src/**/*",
+    "test/**/*",
+    "external-scripts/**/*",
+    "packages/**/*"
+  ]
+}
