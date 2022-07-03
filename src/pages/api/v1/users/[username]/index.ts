@@ -14,13 +14,13 @@ export default withMiddleware(
     } else if (req.method == 'DELETE') {
       await deleteUser({ username });
       sendHttpOk(res);
-    } // * PUT
+    } // * PATCH
     else {
       await updateUser({ username, data: req.body });
       sendHttpOk(res);
     }
   },
   {
-    options: { allowedMethods: ['GET', 'DELETE', 'PUT'], apiVersion: '1' }
+    options: { allowedMethods: ['GET', 'DELETE', 'PATCH'], apiVersion: '1' }
   }
 );

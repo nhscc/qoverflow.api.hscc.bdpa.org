@@ -78,15 +78,15 @@ describe('api/v1/users', () => {
     });
   });
 
-  describe('/:username [PUT]', () => {
-    it('accepts PUT requests', async () => {
+  describe('/:username [PATCH]', () => {
+    it('accepts PATCH requests', async () => {
       expect.hasAssertions();
 
       await testApiHandler({
         handler: api.v1.usersUsername,
         params: { username: 'User1' },
         test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'PUT' }).then(
+          const [status, json] = await fetch({ method: 'PATCH' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
           );
 
@@ -154,55 +154,13 @@ describe('api/v1/users', () => {
       });
     });
   });
-});
 
-describe('api/v2/users', () => {
-  describe('/ [GET]', () => {
+  describe('/:username/questions [GET]', () => {
     it('accepts GET requests', async () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v2.users,
-        test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'GET' }).then(
-            async (r) => [r.status, await r.json()] as [status: number, json: any]
-          );
-
-          expect(status).toBe(200);
-          expect(json.success).toBeTrue();
-          expect(json.users).toBeArray();
-          expect(Object.keys(json)).toHaveLength(2);
-        }
-      });
-    });
-  });
-
-  describe('/ [POST]', () => {
-    it('accepts POST requests', async () => {
-      expect.hasAssertions();
-
-      await testApiHandler({
-        handler: api.v2.users,
-        test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'POST' }).then(
-            async (r) => [r.status, await r.json()] as [status: number, json: any]
-          );
-
-          expect(status).toBe(200);
-          expect(json.success).toBeTrue();
-          expect(json.user).toBeObject();
-          expect(Object.keys(json)).toHaveLength(2);
-        }
-      });
-    });
-  });
-
-  describe('/:username [GET]', () => {
-    it('accepts GET requests', async () => {
-      expect.hasAssertions();
-
-      await testApiHandler({
-        handler: api.v2.usersUsername,
+        handler: api.v1.usersUsernameQuestions,
         params: { username: 'User1' },
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'GET' }).then(
@@ -211,79 +169,43 @@ describe('api/v2/users', () => {
 
           expect(status).toBe(200);
           expect(json.success).toBeTrue();
-          expect(json.user).toBeObject();
+          expect(json.questions).toBeArray();
           expect(Object.keys(json)).toHaveLength(2);
         }
       });
     });
   });
 
-  describe('/:username [PUT]', () => {
-    it('accepts PUT requests', async () => {
+  describe('/:username/answers [GET]', () => {
+    it('accepts GET requests', async () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v2.usersUsername,
+        handler: api.v1.usersUsernameAnswers,
         params: { username: 'User1' },
         test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'PUT' }).then(
+          const [status, json] = await fetch({ method: 'GET' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
           );
 
           expect(status).toBe(200);
           expect(json.success).toBeTrue();
-          expect(Object.keys(json)).toHaveLength(1);
-        }
-      });
-    });
-  });
-
-  describe('/:username [DELETE]', () => {
-    it('accepts DELETE requests', async () => {
-      expect.hasAssertions();
-
-      await testApiHandler({
-        handler: api.v2.usersUsername,
-        params: { username: 'User1' },
-        test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'DELETE' }).then(
-            async (r) => [r.status, await r.json()] as [status: number, json: any]
-          );
-
-          expect(status).toBe(200);
-          expect(json.success).toBeTrue();
-          expect(Object.keys(json)).toHaveLength(1);
-        }
-      });
-    });
-  });
-
-  describe('/:username/auth [GET]', () => {
-    it('accepts POST requests', async () => {
-      expect.hasAssertions();
-
-      await testApiHandler({
-        handler: api.v2.usersUsernameAuth,
-        params: { username: 'User1' },
-        test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'POST' }).then(
-            async (r) => [r.status, await r.json()] as [status: number, json: any]
-          );
-
-          expect(status).toBe(403);
-          expect(json.success).toBeFalse();
-          expect(json.error).toBeString();
+          expect(json.answers).toBeArray();
           expect(Object.keys(json)).toHaveLength(2);
         }
       });
+    });
+  });
 
-      mockedAuthAppUser.mockReturnValue(Promise.resolve(true));
+  describe('/:username/points [PATCH]', () => {
+    it('accepts PATCH requests', async () => {
+      expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v2.usersUsernameAuth,
+        handler: api.v1.usersUsernamePoints,
         params: { username: 'User1' },
         test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'POST' }).then(
+          const [status, json] = await fetch({ method: 'PATCH' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
           );
 

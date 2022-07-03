@@ -10,7 +10,6 @@ import {
 } from 'testverse/setup';
 
 import { TrialError } from 'named-app-errors';
-import { InternalFileNode, InternalMetaNode } from 'universe/backend/db';
 
 // * Follow the steps (below) to tailor these tests to this specific project 😉
 
@@ -23,11 +22,12 @@ const testCollectionsMap = {
   'root.request-log': dummyRootData['request-log'].length,
   'root.limited-log': dummyRootData['limited-log'].length,
   // * Step 1: Add new collections here w/ keys of the form: database.collection
-  'hscc-api-qoverflow.file-nodes': dummyAppData['file-nodes'].length,
-  'hscc-api-qoverflow.meta-nodes': dummyAppData['meta-nodes'].length,
+  'hscc-api-qoverflow.mail': dummyAppData['mail'].length,
+  'hscc-api-qoverflow.questions': dummyAppData['questions'].length,
   'hscc-api-qoverflow.users': dummyAppData['users'].length
 };
 
+// TODO: replace with byte versions
 const withMockedEnv = mockEnvFactory({
   NODE_ENV: 'test',
   PRUNE_DATA_MAX_LOGS: '200000',
@@ -50,9 +50,11 @@ const importPruneData = protectedImportFactory<
 setupMemoryServerOverride();
 useMockDateNow();
 
+// TODO: create a collection byte size version
 /**
  * Accepts one or more database and collection names in the form
- * `database.collection` and returns their size.
+ * `database.collection` and returns the number of documents contained in each
+ * collection.
  */
 async function countCollection(collections: string): Promise<number>;
 async function countCollection(
@@ -145,23 +147,15 @@ it('rejects on bad environment', async () => {
   });
 });
 
-it('ensures at most PRUNE_DATA_MAX_X entries exist', async () => {
+it('respects the limits imposed by PRUNE_DATA_MAX_X environment variables', async () => {
   expect.hasAssertions();
 
   await expect(countCollection(testCollections)).resolves.toStrictEqual(
     testCollectionsMap
   );
 
+  // TODO: retrofit for total collection byte size considerations
   // * Step 4: Add new env vars low-prune-threshold tests below
-
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
-
-  await db
-    .collection<InternalFileNode>('file-nodes')
-    .updateOne(
-      { _id: dummyAppData['file-nodes'][2]._id },
-      { $set: { permissions: { User3: 'view', User1: 'edit' } } }
-    );
 
   await withMockedEnv(importPruneData, {
     PRUNE_DATA_MAX_LOGS: '10',
@@ -174,8 +168,8 @@ it('ensures at most PRUNE_DATA_MAX_X entries exist', async () => {
   await expect(countCollection(testCollections)).resolves.toStrictEqual({
     'root.request-log': 10,
     'root.limited-log': 2,
-    'hscc-api-qoverflow.file-nodes': 1,
-    'hscc-api-qoverflow.meta-nodes': 1,
+    'hscc-api-qoverflow.mail': 1,
+    'hscc-api-qoverflow.questions': 1,
     'hscc-api-qoverflow.users': 1
   });
 
@@ -187,30 +181,14 @@ it('ensures at most PRUNE_DATA_MAX_X entries exist', async () => {
   await expect(countCollection(testCollections)).resolves.toStrictEqual({
     'root.request-log': 1,
     'root.limited-log': 1,
-    'hscc-api-qoverflow.file-nodes': 1,
-    'hscc-api-qoverflow.meta-nodes': 1,
+    'hscc-api-qoverflow.mail': 1,
+    'hscc-api-qoverflow.questions': 1,
     'hscc-api-qoverflow.users': 1
   });
-
-  await expect(
-    db
-      .collection<InternalFileNode>('file-nodes')
-      .findOne(
-        { _id: dummyAppData['file-nodes'][2]._id },
-        { projection: { _id: false, permissions: true } }
-      )
-  ).resolves.toStrictEqual({ permissions: { User3: 'view' } });
-
-  await expect(
-    db
-      .collection<InternalMetaNode>('meta-nodes')
-      .findOne(
-        { _id: dummyAppData['meta-nodes'][0]._id },
-        { projection: { _id: false, contents: true } }
-      )
-  ).resolves.toStrictEqual({ contents: [] });
 });
 
+// TODO: create a collection document count version and a total collection byte
+// TODO: size version
 it('only deletes entries if necessary', async () => {
   expect.hasAssertions();
 

@@ -111,7 +111,7 @@ export type TestFixture = {
   /**
    * The method of the mock request.
    */
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /**
    * Represents mock "processed" dynamic route components and query params.
    */
@@ -243,7 +243,7 @@ export function getFixtures(
     {
       subject: 'update user',
       handler: api.v1.usersUsername,
-      method: 'PUT',
+      method: 'PATCH',
       params: { username: 'the-hill' },
       body: {
         salt: '2a9e8128c6641c2fe7642abd14b09e14',
@@ -403,7 +403,7 @@ export function getFixtures(
     {
       subject: 'update user',
       handler: api.v2.usersUsername,
-      method: 'PUT',
+      method: 'PATCH',
       params: { username: 'baracko' },
       body: {
         salt: '2a9e8128c6641c2fe7642abd14b09e14',
@@ -502,7 +502,7 @@ export function getFixtures(
       subject: 'attempt to update deleted user',
       handler: api.v2.usersUsername,
       params: { username: dummyAppData.users[1].username },
-      method: 'PUT',
+      method: 'PATCH',
       body: { email: 'some@new.email' },
       response: { status: 404 }
     },
@@ -510,7 +510,7 @@ export function getFixtures(
       subject: 'attempt to update using a bad email',
       handler: api.v2.usersUsername,
       params: { username: dummyAppData.users[2].username },
-      method: 'PUT',
+      method: 'PATCH',
       body: { email: 'bad email address' },
       response: { status: 400 }
     },
@@ -518,7 +518,7 @@ export function getFixtures(
       subject: 'attempt to update using a too-long email',
       handler: api.v2.usersUsername,
       params: { username: dummyAppData.users[2].username },
-      method: 'PUT',
+      method: 'PATCH',
       body: { email: 'x'.repeat(getEnv().MAX_USER_EMAIL_LENGTH) + '@aol.com' },
       response: { status: 400 }
     },
@@ -526,7 +526,7 @@ export function getFixtures(
       subject: 'attempt to update using a short non-hex salt',
       handler: api.v2.usersUsername,
       params: { username: dummyAppData.users[2].username },
-      method: 'PUT',
+      method: 'PATCH',
       body: { salt: 'xyz' },
       response: { status: 400 }
     },
@@ -534,7 +534,7 @@ export function getFixtures(
       subject: 'attempt to update using a short non-hex key',
       handler: api.v2.usersUsername,
       params: { username: dummyAppData.users[2].username },
-      method: 'PUT',
+      method: 'PATCH',
       body: { key: 'xyz' },
       response: { status: 400 }
     },
@@ -542,7 +542,7 @@ export function getFixtures(
       subject: 'no-op updates are okay',
       handler: api.v2.usersUsername,
       params: { username: dummyAppData.users[2].username },
-      method: 'PUT',
+      method: 'PATCH',
       body: {},
       response: { status: 200 }
     },
@@ -642,7 +642,7 @@ export function getFixtures(
     {
       subject: 'update target node name and lock',
       handler: api.v1.filesystemUsernameNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: dummyAppData.users[2].username,
@@ -662,7 +662,7 @@ export function getFixtures(
     {
       subject: 'update target node permissions (v2)',
       handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: dummyAppData.users[2].username,
@@ -675,7 +675,7 @@ export function getFixtures(
     {
       subject: 'no-op updates are ok',
       handler: api.v1.filesystemUsernameNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: dummyAppData.users[2].username,
@@ -887,7 +887,7 @@ export function getFixtures(
     {
       subject: 'add permissions to file node #1 for the-hill as baracko',
       handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: 'baracko',
@@ -900,7 +900,7 @@ export function getFixtures(
     {
       subject: 'attempt to edit file node #1 as the-hill',
       handler: api.v1.filesystemUsernameNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: 'the-hill',
@@ -913,7 +913,7 @@ export function getFixtures(
     {
       subject: 'edit file node #2 as the-hill',
       handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: 'the-hill',
@@ -998,7 +998,7 @@ export function getFixtures(
       subject:
         "attempt to update the-hill's symlink to point to file nodes #1 and #2",
       handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: 'the-hill',
@@ -1018,7 +1018,7 @@ export function getFixtures(
     {
       subject: "update the-hill's symlink to point to file node #1",
       handler: api.v1.filesystemUsernameNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: 'the-hill',
@@ -1063,7 +1063,7 @@ export function getFixtures(
       subject:
         'update dir node name, permissions, and make dir node self-referential',
       handler: api.v1.filesystemUsernameNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: 'the-hill',
@@ -1107,7 +1107,7 @@ export function getFixtures(
     {
       subject: 'update dir node to contain file nodes #1 and #2',
       handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: 'the-hill',
@@ -1127,7 +1127,7 @@ export function getFixtures(
     {
       subject: 'attempt to update dir node to contain non-existent node_ids',
       handler: api.v1.filesystemUsernameNodeId,
-      method: 'PUT',
+      method: 'PATCH',
       params: ({ getResultAt }) => {
         return {
           username: 'the-hill',

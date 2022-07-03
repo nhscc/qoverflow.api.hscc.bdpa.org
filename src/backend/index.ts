@@ -5,7 +5,11 @@ import { itemExists } from 'multiverse/mongo-item';
 import { getEnv } from 'universe/backend/env';
 import { toss } from 'toss-expression';
 
-import { publicUserProjection, VotesUpdateOperation } from 'universe/backend/db';
+import {
+  publicQuestionProjection,
+  publicUserProjection,
+  VotesUpdateOperation
+} from 'universe/backend/db';
 
 import {
   ItemNotFoundError,
@@ -41,11 +45,8 @@ const usernameRegex = /^[a-zA-Z0-9_-]+$/;
 const hexadecimalRegex = /^[a-fA-F0-9]+$/;
 
 /**
- * Node properties that can be matched against with `searchNodes()` matchers.
- * Proxied properties should be listed in their final form.
- *
- * Specifically does not include tags or permissions, which are handled
- * specially.
+ * Question properties that can be matched against with `searchQuestions()`
+ * matchers. Proxied properties should be listed in their final form.
  */
 const matchableStrings = [
   'type',
@@ -58,12 +59,9 @@ const matchableStrings = [
 ];
 
 /**
- * Node properties that can be matched against with `searchNodes()`
+ * Question properties that can be matched against with `searchQuestions()`
  * regexMatchers. Must be string fields. Proxied properties should be listed in
  * their final form.
- *
- * Specifically does not include tags or permissions, which are handled
- * specially.
  */
 const regexMatchableStrings = [
   'type',
@@ -73,40 +71,33 @@ const regexMatchableStrings = [
 ];
 
 /**
- * Whitelisted MongoDB sub-matchers that can be used with `searchNodes()`, not
- * including the special "$or" sub-matcher.
+ * Whitelisted MongoDB sub-matchers that can be used with `searchQuestions()`,
+ * not including the special "$or" sub-matcher.
  */
 const matchableSubStrings = ['$gt', '$lt', '$gte', '$lte'];
 
 /**
  * Whitelisted MongoDB-esque sub-specifiers that can be used with
- * `searchNodes()` via the "$or" sub-matcher.
+ * `searchQuestions()` via the "$or" sub-matcher.
  */
 type SubSpecifierObject = {
   [subspecifier in '$gt' | '$lt' | '$gte' | '$lte']?: number;
 };
 
 /**
- * Convert an array of node_id strings into a set of node_id ObjectIds.
+ * Convert an array of X_id strings into a set of X_id ObjectIds.
  * TODO: replace with ItemToObjectIds
  */
-const normalizeNodeIds = (ids: string[]) => {
-  let node_id = '<uninitialized>';
+const normalizeIds = (ids: string[]) => {
+  let _id = '<uninitialized>';
   try {
     return Array.from(new Set(ids)).map((id) => {
-      node_id = id;
+      _id = id;
       return new ObjectId(id);
     });
   } catch {
-    throw new ValidationError(ErrorMessage.InvalidObjectId(node_id));
+    throw new ValidationError(ErrorMessage.InvalidObjectId(_id));
   }
-};
-
-/**
- * Convert an array of strings into a set of proper node tags (still strings).
- */
-const normalizeTags = (tags: string[]) => {
-  return Array.from(new Set(tags.map((tag) => tag.toLowerCase())));
 };
 
 /**
@@ -268,7 +259,10 @@ export async function createUser({
       username,
       email,
       salt: salt.toLowerCase(),
-      key: key.toLowerCase()
+      key: key.toLowerCase(),
+      points: 1,
+      answerIds: [],
+      questionIds: []
     });
   } catch (e) {
     /* istanbul ignore else */
@@ -355,22 +349,11 @@ export async function deleteUser({
 
   const db = await getDb({ name: 'hscc-api-qoverflow' });
   const users = db.collection<InternalUser>('users');
-  const fileNodes = db.collection<InternalNode>('file-nodes');
-  const metaNodes = db.collection<InternalNode>('meta-nodes');
   const result = await users.deleteOne({ username });
 
   if (!result.deletedCount) {
     throw new ItemNotFoundError(username, 'user');
   }
-
-  await Promise.all(
-    [fileNodes, metaNodes].map((col) =>
-      col.updateMany(
-        { [`permissions.${username}`]: { $exists: true } },
-        { $unset: { [`permissions.${username}`]: '' } }
-      )
-    )
-  );
 }
 
 export async function authAppUser({
@@ -399,7 +382,6 @@ export async function searchQuestions({
   match: {
     [specifier: string]:
       | string
-      | string[]
       | number
       | boolean
       | SubSpecifierObject
@@ -413,7 +395,9 @@ export async function searchQuestions({
     throw new InvalidItemError('username', 'parameter');
   }
 
-  const { MAX_SEARCHABLE_TAGS, RESULTS_PER_PAGE } = getEnv();
+  // TODO: fix me
+
+  const { RESULTS_PER_PAGE } = getEnv();
 
   // ? Derive the actual after_id
   const afterId: UserId | undefined = (() => {
@@ -436,10 +420,6 @@ export async function searchQuestions({
     if (typeof matchSpec.name == 'string') {
       matchSpec['name-lowercase'] = matchSpec.name.toLowerCase();
       delete matchSpec.name;
-    }
-
-    if (Array.isArray(matchSpec.tags)) {
-      matchSpec.tags = normalizeTags(matchSpec.tags);
     }
   });
 
@@ -465,106 +445,83 @@ export async function searchQuestions({
   // ? Validate the match object
   let sawPermissionsSpecifier = false;
   for (const [key, val] of Object.entries(match)) {
-    if (key == 'tags') {
-      if (!Array.isArray(val)) {
-        throw new ValidationError(
-          ErrorMessage.InvalidSpecifierValueType(key, 'an array')
-        );
-      }
+    if (!matchableStrings.includes(key)) {
+      throw new ValidationError(ErrorMessage.UnknownSpecifier(key));
+    }
 
-      if (val.length > MAX_SEARCHABLE_TAGS) {
-        throw new ValidationError(
-          ErrorMessage.TooManyItemsRequested('searchable tags')
-        );
-      }
-    } else if (key == 'permissions') {
-      throw new ValidationError(ErrorMessage.UnknownPermissionsSpecifier());
-    } else if (key.startsWith('permissions.')) {
-      if (sawPermissionsSpecifier) {
-        throw new ValidationError(
-          ErrorMessage.TooManyItemsRequested('permissions specifiers')
-        );
-      }
-      sawPermissionsSpecifier = true;
-    } else {
-      if (!matchableStrings.includes(key)) {
-        throw new ValidationError(ErrorMessage.UnknownSpecifier(key));
-      }
+    if (isPlainObject(val)) {
+      let valNotEmpty = false;
 
-      if (isPlainObject(val)) {
-        let valNotEmpty = false;
+      for (const [subkey, subval] of Object.entries(val)) {
+        if (subkey == '$or') {
+          if (!Array.isArray(subval) || subval.length != 2) {
+            throw new ValidationError(ErrorMessage.InvalidOrSpecifier());
+          }
 
-        for (const [subkey, subval] of Object.entries(val)) {
-          if (subkey == '$or') {
-            if (!Array.isArray(subval) || subval.length != 2) {
-              throw new ValidationError(ErrorMessage.InvalidOrSpecifier());
-            }
+          if (
+            subval.every((sv, ndx) => {
+              if (!isPlainObject(sv)) {
+                throw new ValidationError(
+                  ErrorMessage.InvalidOrSpecifierNonObject(ndx)
+                );
+              }
 
-            if (
-              subval.every((sv, ndx) => {
-                if (!isPlainObject(sv)) {
+              const entries = Object.entries(sv);
+
+              if (!entries.length) return false;
+              if (entries.length != 1) {
+                throw new ValidationError(
+                  ErrorMessage.InvalidOrSpecifierBadLength(ndx)
+                );
+              }
+
+              entries.forEach(([k, v]) => {
+                if (!matchableSubStrings.includes(k)) {
                   throw new ValidationError(
-                    ErrorMessage.InvalidOrSpecifierNonObject(ndx)
+                    ErrorMessage.InvalidOrSpecifierInvalidKey(ndx, k)
                   );
                 }
 
-                const entries = Object.entries(sv);
-
-                if (!entries.length) return false;
-                if (entries.length != 1) {
+                if (typeof v != 'number') {
                   throw new ValidationError(
-                    ErrorMessage.InvalidOrSpecifierBadLength(ndx)
+                    ErrorMessage.InvalidOrSpecifierInvalidValueType(ndx, k)
                   );
                 }
+              });
 
-                entries.forEach(([k, v]) => {
-                  if (!matchableSubStrings.includes(k)) {
-                    throw new ValidationError(
-                      ErrorMessage.InvalidOrSpecifierInvalidKey(ndx, k)
-                    );
-                  }
-
-                  if (typeof v != 'number') {
-                    throw new ValidationError(
-                      ErrorMessage.InvalidOrSpecifierInvalidValueType(ndx, k)
-                    );
-                  }
-                });
-
-                return true;
-              })
-            ) {
-              valNotEmpty = true;
-            }
-          } else {
+              return true;
+            })
+          ) {
             valNotEmpty = true;
-            if (!matchableSubStrings.includes(subkey)) {
-              throw new ValidationError(ErrorMessage.UnknownSpecifier(subkey, true));
-            }
+          }
+        } else {
+          valNotEmpty = true;
+          if (!matchableSubStrings.includes(subkey)) {
+            throw new ValidationError(ErrorMessage.UnknownSpecifier(subkey, true));
+          }
 
-            if (typeof subval != 'number') {
-              throw new ValidationError(
-                ErrorMessage.InvalidSpecifierValueType(subkey, 'a number', true)
-              );
-            }
+          if (typeof subval != 'number') {
+            throw new ValidationError(
+              ErrorMessage.InvalidSpecifierValueType(subkey, 'a number', true)
+            );
           }
         }
-
-        if (!valNotEmpty)
-          throw new ValidationError(
-            ErrorMessage.InvalidSpecifierValueType(key, 'a non-empty object')
-          );
-      } else if (
-        val !== null &&
-        !['number', 'string', 'boolean'].includes(typeof val)
-      ) {
-        throw new ValidationError(
-          ErrorMessage.InvalidSpecifierValueType(
-            key,
-            'a number, string, boolean, or sub-specifier object'
-          )
-        );
       }
+
+      if (!valNotEmpty)
+        throw new ValidationError(
+          ErrorMessage.InvalidSpecifierValueType(key, 'a non-empty object')
+        );
+    } else if (
+      val !== null &&
+      !['number', 'string', 'boolean'].includes(typeof val)
+    ) {
+      throw new ValidationError(
+        ErrorMessage.InvalidSpecifierValueType(
+          key,
+          'a number, string, boolean, or sub-specifier object'
+        )
+      );
     }
   }
 
@@ -598,13 +555,6 @@ export async function searchQuestions({
   }, {} as Record<string, unknown>);
 
   const orMatcher: { [key: string]: SubSpecifierObject }[] = [];
-  const tagsMatcher: { tags?: { $in: string[] } } = {};
-
-  // ? Special handling for tags matching
-  if (match.tags) {
-    tagsMatcher.tags = { $in: match.tags as string[] };
-    delete match.tags;
-  }
 
   // ? Separate out the $or sub-specifiers for special treatment
   Object.entries(match).forEach(([spec, val]) => {
@@ -634,29 +584,18 @@ export async function searchQuestions({
       },
       ...(orMatcher.length ? [{ $or: orMatcher }] : [])
     ],
-    ...tagsMatcher,
     ...finalRegexMatch
   };
 
   const pipeline = [
     { $match },
-    { $project: { ...publicFileNodeProjection, _id: true } },
-    {
-      $unionWith: {
-        coll: 'meta-nodes',
-        pipeline: [
-          { $match },
-          { $project: { ...publicMetaNodeProjection, _id: true } }
-        ]
-      }
-    },
     { $sort: { _id: -1 } },
     { $limit: RESULTS_PER_PAGE },
-    { $project: { _id: false } }
+    { $project: publicQuestionProjection }
   ];
 
   // ? Run the aggregation and return the result
-  return db.collection('file-nodes').aggregate<PublicNode>(pipeline).toArray();
+  return db.collection('questions').aggregate<PublicQuestion>(pipeline).toArray();
 }
 
 export async function getUserQuestions({
