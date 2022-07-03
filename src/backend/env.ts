@@ -12,7 +12,7 @@ export function getEnv<T extends Environment = Environment>() {
   const env = getDefaultEnv({
     MAX_PARAMS_PER_REQUEST: Number(process.env.MAX_PARAMS_PER_REQUEST) || 100,
     MIN_USER_NAME_LENGTH: Number(process.env.MIN_USER_NAME_LENGTH) || 4,
-    MAX_USER_NAME_LENGTH: Number(process.env.MAX_USER_NAME_LENGTH) || 25,
+    MAX_USER_NAME_LENGTH: Number(process.env.MAX_USER_NAME_LENGTH) || 16,
     MIN_USER_EMAIL_LENGTH: Number(process.env.MIN_USER_EMAIL_LENGTH) || 4,
     MAX_USER_EMAIL_LENGTH: Number(process.env.MAX_USER_EMAIL_LENGTH) || 75,
     USER_SALT_LENGTH: Number(process.env.USER_SALT_LENGTH) || 32,
@@ -23,18 +23,17 @@ export function getEnv<T extends Environment = Environment>() {
       parseAsBytes(process.env.MAX_QUESTION_BODY_LENGTH_BYTES ?? '-Infinity') || 3000,
     MAX_ANSWER_BODY_LENGTH_BYTES:
       parseAsBytes(process.env.MAX_ANSWER_BODY_LENGTH_BYTES ?? '-Infinity') || 3000,
+    MAX_MAIL_SUBJECT_LENGTH:
+      parseAsBytes(process.env.MAX_MAIL_SUBJECT_LENGTH ?? '-Infinity') || 75,
     MAX_MAIL_BODY_LENGTH_BYTES:
-      parseAsBytes(process.env.MAX_MAIL_BODY_LENGTH_BYTES ?? '-Infinity') || 150,
+      parseAsBytes(process.env.MAX_MAIL_BODY_LENGTH_BYTES ?? '-Infinity') || 512,
 
-    PRUNE_DATA_MAX_MAIL: !!process.env.PRUNE_DATA_MAX_MAIL
-      ? Number(process.env.PRUNE_DATA_MAX_MAIL)
-      : null,
-    PRUNE_DATA_MAX_QUESTIONS: !!process.env.PRUNE_DATA_MAX_QUESTIONS
-      ? Number(process.env.PRUNE_DATA_MAX_QUESTIONS)
-      : null,
-    PRUNE_DATA_MAX_USERS: !!process.env.PRUNE_DATA_MAX_USERS
-      ? Number(process.env.PRUNE_DATA_MAX_USERS)
-      : null
+    PRUNE_DATA_MAX_MAIL_BYTES:
+      parseAsBytes(process.env.PRUNE_DATA_MAX_MAIL ?? '-Infinity') || null,
+    PRUNE_DATA_MAX_QUESTIONS_BYTES:
+      parseAsBytes(process.env.PRUNE_DATA_MAX_QUESTIONS ?? '-Infinity') || null,
+    PRUNE_DATA_MAX_USERS_BYTES:
+      parseAsBytes(process.env.PRUNE_DATA_MAX_USERS ?? '-Infinity') || null
   });
 
   // TODO: retire all of the following logic when expect-env is created. Also,

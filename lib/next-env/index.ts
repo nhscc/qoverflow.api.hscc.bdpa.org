@@ -102,12 +102,11 @@ export function getEnv<T extends Environment>(customizedEnv?: T) {
       .BAN_HAMMER_RECIDIVISM_PUNISH_MULTIPLIER
       ? Number(process.env.BAN_HAMMER_RECIDIVISM_PUNISH_MULTIPLIER)
       : null,
-    PRUNE_DATA_MAX_LOGS: !!process.env.PRUNE_DATA_MAX_LOGS
-      ? Number(process.env.PRUNE_DATA_MAX_LOGS)
-      : null,
-    PRUNE_DATA_MAX_BANNED: !!process.env.PRUNE_DATA_MAX_BANNED
-      ? Number(process.env.PRUNE_DATA_MAX_BANNED)
-      : null,
+
+    PRUNE_DATA_MAX_LOGS_BYTES:
+      parseAsBytes(process.env.PRUNE_DATA_MAX_LOGS_BYTES ?? '-Infinity') || null,
+    PRUNE_DATA_MAX_BANNED_BYTES:
+      parseAsBytes(process.env.PRUNE_DATA_MAX_BANNED_BYTES ?? '-Infinity') || null,
 
     ...customizedEnv
   };

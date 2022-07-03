@@ -27,8 +27,8 @@ describe('::getEnv', () => {
           BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: null,
           BAN_HAMMER_DEFAULT_BAN_TIME_MINUTES: null,
           BAN_HAMMER_RECIDIVISM_PUNISH_MULTIPLIER: null,
-          PRUNE_DATA_MAX_LOGS: null,
-          PRUNE_DATA_MAX_BANNED: null
+          PRUNE_DATA_MAX_LOGS_BYTES: null,
+          PRUNE_DATA_MAX_BANNED_BYTES: null
         });
       },
       {
@@ -74,8 +74,8 @@ describe('::getEnv', () => {
           BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: 20,
           BAN_HAMMER_DEFAULT_BAN_TIME_MINUTES: 25,
           BAN_HAMMER_RECIDIVISM_PUNISH_MULTIPLIER: 30,
-          PRUNE_DATA_MAX_LOGS: 35,
-          PRUNE_DATA_MAX_BANNED: 40
+          PRUNE_DATA_MAX_LOGS_BYTES: 35,
+          PRUNE_DATA_MAX_BANNED_BYTES: 1024
         });
       },
       {
@@ -97,8 +97,8 @@ describe('::getEnv', () => {
         BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: '20',
         BAN_HAMMER_DEFAULT_BAN_TIME_MINUTES: '25',
         BAN_HAMMER_RECIDIVISM_PUNISH_MULTIPLIER: '30',
-        PRUNE_DATA_MAX_LOGS: '35',
-        PRUNE_DATA_MAX_BANNED: '40'
+        PRUNE_DATA_MAX_LOGS_BYTES: '35',
+        PRUNE_DATA_MAX_BANNED_BYTES: '1kb'
       }
     );
   });
@@ -130,8 +130,8 @@ describe('::getEnv', () => {
         BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: '20',
         BAN_HAMMER_DEFAULT_BAN_TIME_MINUTES: '25',
         BAN_HAMMER_RECIDIVISM_PUNISH_MULTIPLIER: '30',
-        PRUNE_DATA_MAX_LOGS: '35',
-        PRUNE_DATA_MAX_BANNED: '40'
+        PRUNE_DATA_MAX_LOGS_BYTES: '35b',
+        PRUNE_DATA_MAX_BANNED_BYTES: '40b'
       }
     );
 
@@ -159,8 +159,8 @@ describe('::getEnv', () => {
         BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: '20',
         BAN_HAMMER_DEFAULT_BAN_TIME_MINUTES: '25',
         BAN_HAMMER_RECIDIVISM_PUNISH_MULTIPLIER: '30',
-        PRUNE_DATA_MAX_LOGS: '35',
-        PRUNE_DATA_MAX_BANNED: '40'
+        PRUNE_DATA_MAX_LOGS_BYTES: '35b',
+        PRUNE_DATA_MAX_BANNED_BYTES: '40b'
       }
     );
   });
