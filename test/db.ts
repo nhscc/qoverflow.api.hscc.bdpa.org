@@ -265,7 +265,7 @@ const questions: InternalQuestion[] = [
     title: 'Where is the NHSCC GitHub page?',
     'title-lowercase': 'where is the nhscc github page?',
     createdAt: mockDateNowMs - 5000,
-    text: "As the title says, I'm looking for the BDPA NHSCC GitHub page, but I can't seem to find it. Any help would be appreciated.",
+    text: `As the title says, I'm looking for the BDPA NHSCC GitHub page, but I can't seem to find it. Any help would be appreciated.\n\nAlso: ![XSS attack!]("onerror="alert('your app has been hacked'))`,
     status: 'open',
     hasAcceptedAnswer: true,
     upvotes: 0,
@@ -285,8 +285,9 @@ const questions: InternalQuestion[] = [
 ];
 
 users[0].questionIds.push(questions[0]._id, questions[1]._id);
-users[0].answerIds.push(questions[0].answerItems[2]._id);
 users[1].questionIds.push(questions[2]._id);
+
+users[0].answerIds.push(questions[0].answerItems[2]._id);
 
 users[1].answerIds.push(
   questions[0].answerItems[0]._id,

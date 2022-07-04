@@ -41,7 +41,7 @@ export function getSchemaConfig(): DbSchema {
             indices: [
               { spec: 'creator' },
               { spec: 'title-lowercase' },
-              { spec: { createdAt: -1 } },
+              { spec: 'createdAt' },
               { spec: 'status' },
               { spec: 'upvotes' },
               { spec: 'upvoteIds' },
@@ -83,17 +83,22 @@ export interface AnswerId extends ObjectId {}
 export interface CommentId extends ObjectId {}
 
 /**
- * The shape of a simple update operation.
+ * The shape of a generic update operation.
  */
-export type SimpleUpdateOperation = {
+export type UpdateOperation = {
   operation: 'increment' | 'decrement';
 };
 
 /**
- * The shape of an update operation on upvotes/downvotes.
+ * The shape of an update operation on a question's views total.
+ */
+export type ViewsUpdateOperation = 'increment';
+
+/**
+ * The shape of an update operation on a question or comment's upvotes/downvotes.
  */
 export type VotesUpdateOperation = Simplify<
-  SimpleUpdateOperation & {
+  UpdateOperation & {
     target: 'upvotes' | 'downvotes';
   }
 >;
@@ -102,7 +107,7 @@ export type VotesUpdateOperation = Simplify<
  * The shape of an update operation on a user's points total.
  */
 export type PointsUpdateOperation = Simplify<
-  SimpleUpdateOperation & {
+  UpdateOperation & {
     amount: number;
   }
 >;
@@ -144,7 +149,10 @@ export type NewUser = Partial<
  * The shape of a patch application user.
  */
 export type PatchUser = Partial<
-  Omit<WithoutId<InternalUser>, 'username' | 'questionIds' | 'answerIds'>
+  Omit<
+    WithoutId<InternalUser>,
+    'username' | 'questionIds' | 'answerIds' | 'points'
+  > & { points: InternalUser['points'] | PointsUpdateOperation }
 >;
 
 /**
@@ -245,21 +253,23 @@ export type NewQuestion = Omit<
  * The shape of a patch question.
  */
 export type PatchQuestion = Simplify<
-  Omit<
-    WithoutId<InternalQuestion>,
-    | 'creator'
-    | 'title-lowercase'
-    | 'createdAt'
-    | 'hasAcceptedAnswer'
-    | 'upvoteIds'
-    | 'downvoteIds'
-    | 'answers'
-    | 'answerItems'
-    | 'comments'
-    | 'commentItems'
-    | 'views'
-    | 'sorter'
-  > & { view: SimpleUpdateOperation }
+  Partial<
+    Omit<
+      WithoutId<InternalQuestion>,
+      | 'creator'
+      | 'title-lowercase'
+      | 'createdAt'
+      | 'hasAcceptedAnswer'
+      | 'upvoteIds'
+      | 'downvoteIds'
+      | 'answers'
+      | 'answerItems'
+      | 'comments'
+      | 'commentItems'
+      | 'views'
+      | 'sorter'
+    > & { views: InternalQuestion['views'] | ViewsUpdateOperation }
+  >
 >;
 
 /**
@@ -306,9 +316,11 @@ export type NewAnswer = Omit<
 /**
  * The shape of a patch answer.
  */
-export type PatchAnswer = Omit<
-  WithoutId<InternalAnswer>,
-  'createdAt' | 'upvoteIds' | 'downvoteIds' | 'commentItems'
+export type PatchAnswer = Partial<
+  Omit<
+    WithoutId<InternalAnswer>,
+    'creator' | 'createdAt' | 'upvoteIds' | 'downvoteIds' | 'commentItems'
+  >
 >;
 
 /**
@@ -433,8 +445,8 @@ export const publicUserProjection = {
   salt: true,
   email: true,
   points: true,
-  answers: true,
-  questions: true
+  answers: { $size: '$answerIds' },
+  questions: { $size: '$questionIds' }
 } as const;
 
 /**
@@ -483,7 +495,7 @@ export const publicAnswerProjection = {
   text: true,
   upvotes: true,
   downvotes: true,
-  comments: true
+  comments: { $size: '$commentItems' }
 } as const;
 
 /**
