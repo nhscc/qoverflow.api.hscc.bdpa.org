@@ -7,16 +7,37 @@ export * from 'named-app-errors';
  */
 export const ErrorMessage = {
   ...NamedErrorMessage,
-  TooManyItemsRequested: (itemsName: string) => `too many ${itemsName} requested`,
   DuplicateFieldValue: (prop: string) => `an item with that "${prop}" already exists`,
-  InvalidFieldValue: (prop: string) =>
-    `\`${prop}\` field has a missing, invalid, or illegal value`,
-  InvalidArrayValue: (prop: string, value: string) =>
-    `the \`${prop}\` array element "${value}" is invalid or illegal`,
-  InvalidObjectKeyValue: (prop: string) =>
-    `a \`${prop}\` object key has an invalid or illegal value`,
-  IllegalUsername: () => 'a user with that username cannot be created',
+  InvalidFieldValue: (prop: string, value?: string, validValues?: string[]) =>
+    `\`${prop}\` field has ${
+      value
+        ? `invalid or illegal value "${value}"`
+        : 'a missing, invalid, or illegal value'
+    }${validValues ? `. Valid values: ${validValues.join(', ')}` : ''}`,
+  InvalidArrayValue: (prop: string, value: string, validValues?: string[]) =>
+    `the \`${prop}\` array element "${value}" is invalid or illegal${
+      validValues ? `. Valid values: ${validValues.join(', ')}` : ''
+    }`,
+  InvalidObjectKeyValue: (prop: string, value?: string, validValues?: string[]) =>
+    `a \`${prop}\` object key has ${
+      value
+        ? `invalid or illegal value "${value}"`
+        : 'a missing, invalid, or illegal value'
+    }${validValues ? `. Valid values: ${validValues.join(', ')}` : ''}`,
   InvalidJSON: () => 'encountered invalid JSON',
+  InvalidNumberValue: (
+    prop: string,
+    min: number | string,
+    max: number | string | null,
+    type: 'number' | 'integer' = 'integer',
+    nullable = false,
+    isArray = false
+  ) =>
+    `${isArray ? `each \`${prop}\` element` : `\`${prop}\``} must be a${
+      type == 'integer' ? 'n integer' : ' number'
+    } ${max ? `between ${min} and ${max} (inclusive)` : `>= ${min}`}${
+      nullable ? ' or null' : ''
+    }`,
   InvalidStringLength: (
     prop: string,
     min: number | string,
@@ -42,8 +63,6 @@ export const ErrorMessage = {
   UnknownField: (prop: string) => `encountered unknown or illegal field \`${prop}\``,
   UnknownSpecifier: (prop: string, sub = false) =>
     `encountered unknown or illegal ${sub ? 'sub-' : ''}specifier \`${prop}\``,
-  UnknownPermissionsSpecifier: () =>
-    'encountered unknown specifier `permissions`. Did you mean to use `permissions.username-goes-here`?',
   InvalidSpecifierValueType: (prop: string, type: string, sub = false) =>
     `\`${prop}\` has invalid ${
       sub ? 'sub-' : ''
@@ -60,5 +79,7 @@ export const ErrorMessage = {
   InvalidOrSpecifierInvalidKey: (index: number, key: string) =>
     `invalid "$or" sub-specifier at index ${index}: invalid sub-key "${key}"`,
   InvalidOrSpecifierInvalidValueType: (index: number, key: string) =>
-    `invalid "$or" sub-specifier at index ${index}: sub-key "${key}" has invalid value type (must be number)`
+    `invalid "$or" sub-specifier at index ${index}: sub-key "${key}" has invalid value type (must be number)`,
+  UserAlreadyAnswered: () => 'user cannot answer the same question more than once',
+  QuestionAlreadyAcceptedAnswer: () => 'question already has an accepted answer'
 };
