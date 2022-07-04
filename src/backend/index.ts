@@ -737,17 +737,34 @@ export async function deleteComment({
   void question_id, answer_id, comment_id;
 }
 
+export async function getHowUserVoted({
+  username,
+  question_id,
+  answer_id,
+  comment_id
+}: {
+  username: string | undefined;
+  question_id: string | undefined;
+  answer_id: string | undefined;
+  comment_id: string | undefined;
+}): Promise<void> {
+  // TODO
+  void username, question_id, answer_id, comment_id;
+}
+
 export async function applyVotesUpdateOperation({
+  username,
   question_id,
   answer_id,
   comment_id,
   operation
 }: {
+  username: string | undefined;
   question_id: string | undefined;
   answer_id: string | undefined;
   comment_id: string | undefined;
   operation: Partial<VotesUpdateOperation> | undefined;
 }): Promise<void> {
   // TODO
-  void question_id, answer_id, comment_id, operation;
+  void username, question_id, answer_id, comment_id, operation;
 }

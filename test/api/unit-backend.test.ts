@@ -34,7 +34,6 @@ import { dummyAppData } from 'testverse/db';
 import { mockEnvFactory } from 'testverse/setup';
 
 import type { PublicUser, NewUser, PatchUser } from 'universe/backend/db';
-import Question_id from 'universe/pages/api/v1/questions/[question_id]';
 
 setupMemoryServerOverride();
 useMockDateNow();
@@ -576,7 +575,7 @@ describe('::updateUser', () => {
 
     await Backend.updateUser({
       username: dummyAppData.users[0].username,
-      data: { points: { operation: 'increment', amount: 1000 } }
+      data: { points: { op: 'increment', amount: 1000 } }
     });
 
     await expect(
@@ -588,7 +587,7 @@ describe('::updateUser', () => {
 
     await Backend.updateUser({
       username: dummyAppData.users[0].username,
-      data: { points: { operation: 'decrement', amount: 456 } }
+      data: { points: { op: 'decrement', amount: 456 } }
     });
 
     await expect(
@@ -750,18 +749,18 @@ describe('::updateUser', () => {
         {
           points: {
             amount: '5',
-            operation: 'decrement'
+            op: 'decrement'
           } as unknown as PointsUpdateOperation
         },
         ErrorMessage.InvalidNumberValue('points.amount', 0, null)
       ],
       [
-        { points: { operation: 'decrement' } as PointsUpdateOperation },
+        { points: { op: 'decrement' } as PointsUpdateOperation },
         ErrorMessage.InvalidNumberValue('points.amount', 0, null)
       ],
       [
         {
-          points: { amount: 5, operation: 'nope' } as unknown as PointsUpdateOperation
+          points: { amount: 5, op: 'nope' } as unknown as PointsUpdateOperation
         },
         ErrorMessage.InvalidFieldValue('points.operation', 'decrement', [
           'increment',
@@ -772,7 +771,7 @@ describe('::updateUser', () => {
         {
           points: {
             amount: 'x',
-            operation: 'nope'
+            op: 'nope'
           } as unknown as PointsUpdateOperation
         },
         ErrorMessage.InvalidNumberValue('points.amount', 0, null)
@@ -781,7 +780,7 @@ describe('::updateUser', () => {
         {
           points: {
             amount: 5,
-            operation: 'increment',
+            op: 'increment',
             bad: 'bad not good'
           } as unknown as PointsUpdateOperation
         },
@@ -1108,7 +1107,7 @@ describe('::createMessage', () => {
           sender: dummyAppData.users[0].username,
           subject: 'x'
         } as NewMail,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
@@ -1117,7 +1116,7 @@ describe('::createMessage', () => {
           subject: 'x',
           text: ''
         } as NewMail,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
@@ -1126,7 +1125,7 @@ describe('::createMessage', () => {
           subject: 'x',
           text: 'x'.repeat(maxBodyLen + 1)
         } as NewMail,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
@@ -1409,7 +1408,7 @@ describe('::searchQuestions', () => {
     expect.hasAssertions();
   });
 
-  it('rejects if after_id is not a valid ObjectId', async () => {
+  it('rejects if after_id is not a valid ObjectId (undefined is okay)', async () => {
     expect.hasAssertions();
 
     await expect(
@@ -1831,28 +1830,28 @@ describe('::createQuestion', () => {
         {
           creator: dummyAppData.users[0].username
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('title', maxTitleLen, null, 'string')
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           title: ''
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('title', maxTitleLen, null, 'string')
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           title: 'x'.repeat(maxTitleLen + 1)
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('title', maxTitleLen, null, 'string')
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           title: 'x'
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
@@ -1860,7 +1859,7 @@ describe('::createQuestion', () => {
           title: 'x',
           text: ''
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
@@ -1868,7 +1867,7 @@ describe('::createQuestion', () => {
           title: 'x',
           text: 'x'.repeat(maxBodyLen + 1)
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
@@ -2027,62 +2026,101 @@ describe('::updateQuestion', () => {
     const patchQuestions: [PatchQuestion, string][] = [
       [undefined as unknown as PatchQuestion, ErrorMessage.InvalidJSON()],
       ['string data' as unknown as PatchQuestion, ErrorMessage.InvalidJSON()],
-      [{} as PatchQuestion, ErrorMessage.InvalidFieldValue('creator')],
       [
         { creator: 'does-not-exist' } as PatchQuestion,
-        ErrorMessage.ItemNotFound('does-not-exist', 'user')
+        ErrorMessage.UnknownField('creator')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username
-        } as PatchQuestion,
-        ErrorMessage.InvalidStringLength('title', maxTitleLen, null, 'string')
+        { title: null } as unknown as PatchQuestion,
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username,
-          title: ''
-        } as PatchQuestion,
-        ErrorMessage.InvalidStringLength('title', maxTitleLen, null, 'string')
+        { title: '' } as PatchQuestion,
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username,
-          title: 'x'.repeat(maxTitleLen + 1)
-        } as PatchQuestion,
-        ErrorMessage.InvalidStringLength('title', maxTitleLen, null, 'string')
+        { title: 'x'.repeat(maxTitleLen + 1) } as PatchQuestion,
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username,
-          title: 'x'
-        } as PatchQuestion,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        { text: 5 } as unknown as PatchQuestion,
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username,
-          title: 'x',
-          text: ''
-        } as PatchQuestion,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        { text: '' } as PatchQuestion,
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username,
-          title: 'x',
-          text: 'x'.repeat(maxBodyLen + 1)
-        } as PatchQuestion,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        { text: 'x'.repeat(maxBodyLen + 1) } as PatchQuestion,
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username,
-          title: 'x',
-          text: 'x',
-          hasAcceptedAnswer: true
-        } as PatchQuestion,
-        ErrorMessage.UnknownField('hasAcceptedAnswer')
+        { upvotes: null } as unknown as PatchQuestion,
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+      ],
+      [
+        { upvotes: -1 } as PatchQuestion,
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+      ],
+      [
+        { upvotes: '5' } as unknown as PatchQuestion,
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+      ],
+      [
+        { downvotes: null } as unknown as PatchQuestion,
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+      ],
+      [
+        { downvotes: -1 } as PatchQuestion,
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+      ],
+      [
+        { downvotes: '5' } as unknown as PatchQuestion,
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+      ],
+      [
+        { views: null } as unknown as PatchQuestion,
+        ErrorMessage.InvalidNumberValue('views', 0, null)
+      ],
+      [
+        { views: -1 } as PatchQuestion,
+        ErrorMessage.InvalidNumberValue('views', 0, null)
+      ],
+      [
+        { views: '5' } as unknown as PatchQuestion,
+        ErrorMessage.InvalidNumberValue('views', 0, null)
+      ],
+      [
+        { status: null } as unknown as PatchQuestion,
+        ErrorMessage.InvalidFieldValue('status', undefined, [
+          'closed',
+          'open',
+          'protected'
+        ])
+      ],
+      [
+        { status: -1 } as unknown as PatchQuestion,
+        ErrorMessage.InvalidFieldValue('status', undefined, [
+          'closed',
+          'open',
+          'protected'
+        ])
+      ],
+      [
+        { status: '5' } as unknown as PatchQuestion,
+        ErrorMessage.InvalidFieldValue('status', undefined, [
+          'closed',
+          'open',
+          'protected'
+        ])
+      ],
+      [
+        { status: '' } as unknown as PatchQuestion,
+        ErrorMessage.InvalidFieldValue('status', undefined, [
+          'closed',
+          'open',
+          'protected'
+        ])
       ]
     ];
 
@@ -2397,21 +2435,21 @@ describe('::createAnswer', () => {
         {
           creator: dummyAppData.users[0].username
         } as NewAnswer,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           text: ''
         } as NewAnswer,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           text: 'x'.repeat(maxBodyLen + 1)
         } as NewAnswer,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
@@ -2659,38 +2697,45 @@ describe('::updateAnswer', () => {
     const patchAnswers: [PatchAnswer, string][] = [
       [undefined as unknown as PatchAnswer, ErrorMessage.InvalidJSON()],
       ['string data' as unknown as PatchAnswer, ErrorMessage.InvalidJSON()],
-      [{} as PatchAnswer, ErrorMessage.InvalidFieldValue('creator')],
       [
         { creator: 'does-not-exist' } as PatchAnswer,
-        ErrorMessage.ItemNotFound('does-not-exist', 'user')
+        ErrorMessage.UnknownField('creator')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username
-        } as PatchAnswer,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        { text: '' } as PatchAnswer,
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username,
-          text: ''
-        } as PatchAnswer,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        { text: 'x'.repeat(maxBodyLen + 1) } as PatchAnswer,
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username,
-          text: 'x'.repeat(maxBodyLen + 1)
-        } as PatchAnswer,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        { text: null } as unknown as PatchAnswer,
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
-        {
-          creator: dummyAppData.users[0].username,
-          text: 'x',
-          accepted: true
-        } as PatchAnswer,
-        ErrorMessage.UnknownField('accepted')
+        { upvotes: null } as unknown as PatchAnswer,
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+      ],
+      [
+        { upvotes: -1 } as PatchAnswer,
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+      ],
+      [
+        { upvotes: '5' } as unknown as PatchAnswer,
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+      ],
+      [
+        { downvotes: null } as unknown as PatchAnswer,
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+      ],
+      [
+        { downvotes: -1 } as PatchAnswer,
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+      ],
+      [
+        { downvotes: '5' } as unknown as PatchAnswer,
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
       ]
     ];
 
@@ -3176,21 +3221,21 @@ describe('::createComment', () => {
         {
           creator: dummyAppData.users[0].username
         } as NewComment,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           text: ''
         } as NewComment,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           text: 'x'.repeat(maxBodyLen + 1)
         } as NewComment,
-        ErrorMessage.InvalidStringLength('text', maxBodyLen, null, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
         {
@@ -3368,6 +3413,16 @@ describe('::deleteComment', () => {
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidObjectId(comment_id)
     });
+
+    await expect(
+      Backend.deleteComment({
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id: undefined
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidItem('comment_id', 'parameter')
+    });
   });
 
   it('rejects if question_id not found', async () => {
@@ -3419,8 +3474,333 @@ describe('::deleteComment', () => {
   });
 });
 
-describe('::applyVotesUpdateOperation', () => {
-  it('', async () => {
+describe('::getHowUserVoted', () => {
+  it('returns how the user voted on a question or null if there is no vote', async () => {
     expect.hasAssertions();
+  });
+
+  it('returns how the user voted on an answer or null if there is no vote', async () => {
+    expect.hasAssertions();
+  });
+
+  it('returns how the user voted on a comment or null if there is no vote', async () => {
+    expect.hasAssertions();
+  });
+
+  it('rejects if question_id is not a valid ObjectId', async () => {
+    expect.hasAssertions();
+
+    const question_id = 'does-not-exist';
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id,
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id: new ObjectId().toString()
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidObjectId(question_id)
+    });
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id: undefined,
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id: new ObjectId().toString()
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidItem('question_id', 'parameter')
+    });
+  });
+
+  it('rejects if answer_id is not a valid ObjectId (undefined is okay)', async () => {
+    expect.hasAssertions();
+
+    const answer_id = 'does-not-exist';
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id,
+        comment_id: new ObjectId().toString()
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidObjectId(answer_id)
+    });
+  });
+
+  it('rejects if comment_id is not a valid ObjectId (undefined is okay)', async () => {
+    expect.hasAssertions();
+
+    const comment_id = 'does-not-exist';
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidObjectId(comment_id)
+    });
+  });
+
+  it('rejects if question_id not found', async () => {
+    expect.hasAssertions();
+
+    const question_id = new ObjectId().toString();
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id,
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id: new ObjectId().toString()
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+    });
+  });
+
+  it('rejects if answer_id not found', async () => {
+    expect.hasAssertions();
+
+    const answer_id = new ObjectId().toString();
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id,
+        comment_id: new ObjectId().toString()
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(answer_id, 'answer_id')
+    });
+  });
+
+  it('rejects if comment_id not found', async () => {
+    expect.hasAssertions();
+
+    const comment_id = new ObjectId().toString();
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(comment_id, 'comment_id')
+    });
+  });
+
+  it('rejects if username is missing or not found', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: 'does-not-exist',
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id:
+          dummyAppData.questions[0].answerItems[0].commentItems[0]._id.toString()
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound('does-not-exist', 'user')
+    });
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: undefined,
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id:
+          dummyAppData.questions[0].answerItems[0].commentItems[0]._id.toString()
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidItem('username', 'parameter')
+    });
+  });
+});
+
+describe('::applyVotesUpdateOperation', () => {
+  it('applies increment/decrement operation to question and updates ids', async () => {
+    expect.hasAssertions();
+  });
+
+  it('applies increment/decrement operation to answer and updates ids', async () => {
+    expect.hasAssertions();
+  });
+
+  it('applies increment/decrement operation to comment and updates ids', async () => {
+    expect.hasAssertions();
+  });
+
+  it('rejects when duplicating an operation to an entry by a user', async () => {
+    expect.hasAssertions();
+  });
+
+  it('does not reject when duplicating an operation after first undoing it', async () => {
+    expect.hasAssertions();
+  });
+
+  it('rejects when a decrement operation would result in a negative value', async () => {
+    expect.hasAssertions();
+  });
+
+  it('rejects if question_id is not a valid ObjectId', async () => {
+    expect.hasAssertions();
+
+    const question_id = 'does-not-exist';
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id,
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id: new ObjectId().toString(),
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidObjectId(question_id)
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: undefined,
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id: new ObjectId().toString(),
+        operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidItem('question_id', 'parameter')
+    });
+  });
+
+  it('rejects if answer_id is not a valid ObjectId (undefined is okay)', async () => {
+    expect.hasAssertions();
+
+    const answer_id = 'does-not-exist';
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id,
+        comment_id: new ObjectId().toString(),
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidObjectId(answer_id)
+    });
+  });
+
+  it('rejects if comment_id is not a valid ObjectId (undefined is okay)', async () => {
+    expect.hasAssertions();
+
+    const comment_id = 'does-not-exist';
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id,
+        operation: { op: 'decrement', target: 'downvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidObjectId(comment_id)
+    });
+  });
+
+  it('rejects if question_id not found', async () => {
+    expect.hasAssertions();
+
+    const question_id = new ObjectId().toString();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id,
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id: new ObjectId().toString(),
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+    });
+  });
+
+  it('rejects if answer_id not found', async () => {
+    expect.hasAssertions();
+
+    const answer_id = new ObjectId().toString();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id,
+        comment_id: new ObjectId().toString(),
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(answer_id, 'answer_id')
+    });
+  });
+
+  it('rejects if comment_id not found', async () => {
+    expect.hasAssertions();
+
+    const comment_id = new ObjectId().toString();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id,
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(comment_id, 'comment_id')
+    });
+  });
+
+  it('rejects if username is missing or not found', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: 'does-not-exist',
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id:
+          dummyAppData.questions[0].answerItems[0].commentItems[0]._id.toString(),
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound('does-not-exist', 'user')
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: undefined,
+        question_id: dummyAppData.questions[0]._id.toString(),
+        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        comment_id:
+          dummyAppData.questions[0].answerItems[0].commentItems[0]._id.toString(),
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidItem('username', 'parameter')
+    });
   });
 });
