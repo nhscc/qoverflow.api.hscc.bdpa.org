@@ -83,13 +83,6 @@ export interface AnswerId extends ObjectId {}
 export interface CommentId extends ObjectId {}
 
 /**
- * The shape of a generic update operation.
- */
-export type UpdateOperation = {
-  operation: 'increment' | 'decrement';
-};
-
-/**
  * The shape of an update operation on a question's views total.
  */
 export type ViewsUpdateOperation = 'increment';
@@ -97,20 +90,18 @@ export type ViewsUpdateOperation = 'increment';
 /**
  * The shape of an update operation on a question or comment's upvotes/downvotes.
  */
-export type VotesUpdateOperation = Simplify<
-  UpdateOperation & {
-    target: 'upvotes' | 'downvotes';
-  }
->;
+export type VotesUpdateOperation = {
+  op: 'increment' | 'decrement';
+  target: 'upvotes' | 'downvotes';
+};
 
 /**
  * The shape of an update operation on a user's points total.
  */
-export type PointsUpdateOperation = Simplify<
-  UpdateOperation & {
-    amount: number;
-  }
->;
+export type PointsUpdateOperation = {
+  op: 'increment' | 'decrement';
+  amount: number;
+};
 
 /**
  * The shape of an internal application user.
