@@ -171,15 +171,15 @@ function validateUserData(
 }
 
 export async function getAllUsers({
-  after
+  after_id
 }: {
-  after: string | undefined;
+  after_id: string | undefined;
 }): Promise<PublicUser[]> {
   const afterId: UserId | undefined = (() => {
     try {
-      return after ? new ObjectId(after) : undefined;
+      return after_id ? new ObjectId(after_id) : undefined;
     } catch {
-      throw new ValidationError(ErrorMessage.InvalidObjectId(after as string));
+      throw new ValidationError(ErrorMessage.InvalidObjectId(after_id as string));
     }
   })();
 
@@ -187,7 +187,7 @@ export async function getAllUsers({
   const users = db.collection<InternalUser>('users');
 
   if (afterId && !(await itemExists(users, afterId))) {
-    throw new ItemNotFoundError(after, 'user_id');
+    throw new ItemNotFoundError(after_id, 'user_id');
   }
 
   return users
@@ -218,6 +218,30 @@ export async function getUser({
   );
 }
 
+export async function getUserQuestions({
+  username,
+  after_id
+}: {
+  username: string | undefined;
+  after_id: string | undefined;
+}): Promise<PublicQuestion[]> {
+  // TODO
+  void username, after_id;
+  return [];
+}
+
+export async function getUserAnswers({
+  username,
+  after_id
+}: {
+  username: string | undefined;
+  after_id: string | undefined;
+}): Promise<PublicAnswer[]> {
+  // TODO
+  void username, after_id;
+  return [];
+}
+
 export async function createUser({
   data
 }: {
@@ -235,10 +259,6 @@ export async function createUser({
         MAX_USER_NAME_LENGTH
       )
     );
-  }
-
-  if (data.username == 'public') {
-    throw new ValidationError(ErrorMessage.IllegalUsername());
   }
 
   const { email, username, key, salt, ...rest } = data as Required<NewUser>;
@@ -371,14 +391,36 @@ export async function authAppUser({
   return !!(await users.countDocuments({ username, key }));
 }
 
+export async function getUserMessages({
+  username,
+  after_id
+}: {
+  username: string | undefined;
+  after_id: string | undefined;
+}): Promise<PublicMail[]> {
+  // TODO
+  void username, after_id;
+  return [];
+}
+
+export async function createMessage({
+  data
+}: {
+  data: NewMail | undefined;
+}): Promise<PublicMail> {
+  // TODO
+  void data;
+  return {} as PublicMail;
+}
+
 export async function searchQuestions({
   username,
-  after,
+  after_id,
   match,
   regexMatch
 }: {
   username: Username | undefined;
-  after: string | undefined;
+  after_id: string | undefined;
   match: {
     [specifier: string]:
       | string
@@ -402,9 +444,9 @@ export async function searchQuestions({
   // ? Derive the actual after_id
   const afterId: UserId | undefined = (() => {
     try {
-      return after ? new ObjectId(after) : undefined;
+      return after_id ? new ObjectId(after_id) : undefined;
     } catch {
-      throw new ValidationError(ErrorMessage.InvalidObjectId(after as string));
+      throw new ValidationError(ErrorMessage.InvalidObjectId(after_id as string));
     }
   })();
 
@@ -435,7 +477,7 @@ export async function searchQuestions({
     !(await itemExists(fileNodes, afterId)) &&
     !(await itemExists(metaNodes, afterId))
   ) {
-    throw new ItemNotFoundError(after, 'node_id');
+    throw new ItemNotFoundError(after_id, 'node_id');
   }
 
   if (!(await itemExists(users, { key: 'username', id: username }))) {
@@ -443,7 +485,6 @@ export async function searchQuestions({
   }
 
   // ? Validate the match object
-  let sawPermissionsSpecifier = false;
   for (const [key, val] of Object.entries(match)) {
     if (!matchableStrings.includes(key)) {
       throw new ValidationError(ErrorMessage.UnknownSpecifier(key));
@@ -527,23 +568,12 @@ export async function searchQuestions({
 
   // ? Validate the regexMatch object
   for (const [key, val] of Object.entries(regexMatch)) {
-    if (key == 'permissions') {
-      throw new ValidationError(ErrorMessage.UnknownPermissionsSpecifier());
-    } else if (key.startsWith('permissions.')) {
-      if (sawPermissionsSpecifier) {
-        throw new ValidationError(
-          ErrorMessage.TooManyItemsRequested('permissions specifiers')
-        );
-      }
-      sawPermissionsSpecifier = true;
-    } else {
-      if (!regexMatchableStrings.includes(key)) {
-        throw new ValidationError(ErrorMessage.UnknownSpecifier(key));
-      }
+    if (!regexMatchableStrings.includes(key)) {
+      throw new ValidationError(ErrorMessage.UnknownSpecifier(key));
+    }
 
-      if (!val || typeof val != 'string') {
-        throw new ValidationError(ErrorMessage.InvalidRegexString(key));
-      }
+    if (!val || typeof val != 'string') {
+      throw new ValidationError(ErrorMessage.InvalidRegexString(key));
     }
   }
 
@@ -596,30 +626,6 @@ export async function searchQuestions({
 
   // ? Run the aggregation and return the result
   return db.collection('questions').aggregate<PublicQuestion>(pipeline).toArray();
-}
-
-export async function getUserQuestions({
-  user_id,
-  after_id
-}: {
-  user_id: string | undefined;
-  after_id: string | undefined;
-}): Promise<PublicQuestion[]> {
-  // TODO
-  void user_id, after_id;
-  return [];
-}
-
-export async function getUserAnswers({
-  user_id,
-  after_id
-}: {
-  user_id: string | undefined;
-  after_id: string | undefined;
-}): Promise<PublicAnswer[]> {
-  // TODO
-  void user_id, after_id;
-  return [];
 }
 
 export async function getQuestion({
@@ -696,7 +702,7 @@ export async function getComments({
   after_id
 }: {
   question_id: string | undefined;
-  answer_id?: string | undefined;
+  answer_id: string | undefined;
   after_id: string | undefined;
 }): Promise<PublicComment[]> {
   // TODO
@@ -710,7 +716,7 @@ export async function createComment({
   data
 }: {
   question_id: string | undefined;
-  answer_id?: string | undefined;
+  answer_id: string | undefined;
   data: NewComment | undefined;
 }): Promise<PublicComment> {
   // TODO
@@ -724,7 +730,7 @@ export async function deleteComment({
   comment_id
 }: {
   question_id: string | undefined;
-  answer_id?: string | undefined;
+  answer_id: string | undefined;
   comment_id: string | undefined;
 }): Promise<void> {
   // TODO
@@ -737,33 +743,11 @@ export async function applyVotesUpdateOperation({
   comment_id,
   operation
 }: {
-  question_id?: string | undefined;
-  answer_id?: string | undefined;
-  comment_id?: string | undefined;
+  question_id: string | undefined;
+  answer_id: string | undefined;
+  comment_id: string | undefined;
   operation: Partial<VotesUpdateOperation> | undefined;
 }): Promise<void> {
   // TODO
   void question_id, answer_id, comment_id, operation;
-}
-
-export async function getUserMessages({
-  user_id,
-  after_id
-}: {
-  user_id: string | undefined;
-  after_id: string | undefined;
-}): Promise<PublicMail[]> {
-  // TODO
-  void user_id, after_id;
-  return [];
-}
-
-export async function createMessage({
-  data
-}: {
-  data: NewMail | undefined;
-}): Promise<PublicMail> {
-  // TODO
-  void data;
-  return {} as PublicMail;
 }
