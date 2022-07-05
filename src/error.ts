@@ -80,6 +80,13 @@ export const ErrorMessage = {
     `invalid "$or" sub-specifier at index ${index}: invalid sub-key "${key}"`,
   InvalidOrSpecifierInvalidValueType: (index: number, key: string) =>
     `invalid "$or" sub-specifier at index ${index}: sub-key "${key}" has invalid value type (must be number)`,
-  UserAlreadyAnswered: () => 'user cannot answer the same question more than once',
-  QuestionAlreadyAcceptedAnswer: () => 'question already has an accepted answer'
+  UserAlreadyAnswered: () => 'cannot answer the same question more than once',
+  QuestionAlreadyAcceptedAnswer: () => 'question already has an accepted answer',
+  DuplicateIncrementOperation: () =>
+    'cannot execute duplicate increment without preceding decrement',
+  InvalidDecrementOperation: () =>
+    'cannot execute decrement without preceding increment',
+  MultipleIncrementTargets: () =>
+    'cannot execute increment without preceding decrement on other target',
+  IllegalOperation: () => 'cannot execute this operation on this item'
 };

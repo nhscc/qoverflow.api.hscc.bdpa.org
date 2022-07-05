@@ -99,9 +99,9 @@ const questions: InternalQuestion[] = [
     status: 'open',
     hasAcceptedAnswer: false,
     upvotes: 25,
-    upvoteIds: [users[1]._id],
+    upvoterUsernames: [users[1].username],
     downvotes: 6,
-    downvoteIds: [users[2]._id],
+    downvoterUsernames: [users[2].username],
     views: 1024,
     answers: 3,
     answerItems: [
@@ -112,9 +112,9 @@ const questions: InternalQuestion[] = [
         text: 'It has got to be Java.',
         accepted: false,
         upvotes: 4,
-        upvoteIds: [users[0]._id],
+        upvoterUsernames: [users[0].username],
         downvotes: 1,
-        downvoteIds: [],
+        downvoterUsernames: [],
         commentItems: [
           {
             _id: new ObjectId(),
@@ -122,9 +122,9 @@ const questions: InternalQuestion[] = [
             createdAt: mockDateNowMs - 108584,
             text: "It's been around forever though!",
             upvotes: 0,
-            upvoteIds: [],
+            upvoterUsernames: [],
             downvotes: 0,
-            downvoteIds: []
+            downvoterUsernames: []
           }
         ]
       },
@@ -135,9 +135,9 @@ const questions: InternalQuestion[] = [
         text: '**Fullstack JavaScript** is da way.',
         accepted: false,
         upvotes: 14,
-        upvoteIds: [users[0]._id],
+        upvoterUsernames: [users[0].username],
         downvotes: 0,
-        downvoteIds: [],
+        downvoterUsernames: [],
         commentItems: [
           {
             _id: new ObjectId(),
@@ -145,9 +145,9 @@ const questions: InternalQuestion[] = [
             createdAt: mockDateNowMs - 106584,
             text: 'This was going to be my answer',
             upvotes: 1,
-            upvoteIds: [users[1]._id],
+            upvoterUsernames: [users[1].username],
             downvotes: 0,
-            downvoteIds: []
+            downvoterUsernames: []
           },
           {
             _id: new ObjectId(),
@@ -155,9 +155,9 @@ const questions: InternalQuestion[] = [
             createdAt: mockDateNowMs - 105584,
             text: 'JavaScript is just Java + carpet tho',
             upvotes: 0,
-            upvoteIds: [],
+            upvoterUsernames: [],
             downvotes: 1,
-            downvoteIds: [users[2]._id]
+            downvoterUsernames: [users[2].username]
           },
           {
             _id: new ObjectId(),
@@ -165,9 +165,9 @@ const questions: InternalQuestion[] = [
             createdAt: mockDateNowMs - 104584,
             text: "@User2 You mean they're not related?",
             upvotes: 0,
-            upvoteIds: [],
+            upvoterUsernames: [users[0].username],
             downvotes: 0,
-            downvoteIds: []
+            downvoterUsernames: []
           }
         ]
       },
@@ -178,9 +178,9 @@ const questions: InternalQuestion[] = [
         text: 'Just to provide a potential answer to my own question here:\n\nRust, maybe? Or perhaps I should give Python or Ruby a shot. C# is pretty nice too.',
         accepted: false,
         upvotes: 0,
-        upvoteIds: [],
+        upvoterUsernames: [],
         downvotes: 0,
-        downvoteIds: [],
+        downvoterUsernames: [],
         commentItems: []
       }
     ],
@@ -192,9 +192,9 @@ const questions: InternalQuestion[] = [
         createdAt: mockDateNowMs - 103584,
         text: 'Hmm. I might abuse my points powers and close this question as off topic.',
         upvotes: 0,
-        upvoteIds: [],
+        upvoterUsernames: [],
         downvotes: 43,
-        downvoteIds: [users[0]._id]
+        downvoterUsernames: [users[0].username]
       },
       {
         _id: new ObjectId(),
@@ -202,9 +202,9 @@ const questions: InternalQuestion[] = [
         createdAt: mockDateNowMs - 102584,
         text: 'Please do not close my question :(',
         upvotes: 0,
-        upvoteIds: [],
+        upvoterUsernames: [],
         downvotes: 0,
-        downvoteIds: []
+        downvoterUsernames: []
       }
     ],
     sorter: {
@@ -222,9 +222,9 @@ const questions: InternalQuestion[] = [
     status: 'protected',
     hasAcceptedAnswer: true,
     upvotes: 2504,
-    upvoteIds: [users[1]._id, users[2]._id],
+    upvoterUsernames: [users[1].username, users[2].username],
     downvotes: 11,
-    downvoteIds: [],
+    downvoterUsernames: [],
     views: 8192,
     answers: 1,
     answerItems: [
@@ -235,9 +235,9 @@ const questions: InternalQuestion[] = [
         text: 'Follow [this link](https://bdpa.org/event/bdpacon2022) to the BDPA conference website and you should see all the information you need to register. Is there anything else you were looking for specifically?',
         accepted: true,
         upvotes: 0,
-        upvoteIds: [],
+        upvoterUsernames: [],
         downvotes: 0,
-        downvoteIds: [],
+        downvoterUsernames: [],
         commentItems: []
       }
     ],
@@ -249,9 +249,9 @@ const questions: InternalQuestion[] = [
         createdAt: mockDateNowMs - 97765,
         text: "Make sure to pay attention at the next coordinator's meeting!",
         upvotes: 0,
-        upvoteIds: [],
+        upvoterUsernames: [],
         downvotes: 0,
-        downvoteIds: []
+        downvoterUsernames: []
       }
     ],
     sorter: {
@@ -269,9 +269,9 @@ const questions: InternalQuestion[] = [
     status: 'open',
     hasAcceptedAnswer: true,
     upvotes: 0,
-    upvoteIds: [],
+    upvoterUsernames: [],
     downvotes: 0,
-    downvoteIds: [],
+    downvoterUsernames: [],
     views: 1,
     answers: 0,
     answerItems: [],

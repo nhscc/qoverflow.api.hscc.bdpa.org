@@ -1,9 +1,11 @@
 import { getCommonSchemaConfig } from 'multiverse/mongo-common';
 
-import type { ObjectId, WithId, WithoutId } from 'mongodb';
+import type { Document, ObjectId, WithId, WithoutId } from 'mongodb';
 import type { UnixEpochMs } from '@xunnamius/types';
-import type { DbSchema } from 'multiverse/mongo-schema';
+import { DbSchema, getDb } from 'multiverse/mongo-schema';
 import type { Simplify } from 'type-fest';
+import { itemToObjectId } from 'multiverse/mongo-item';
+import { GuruMeditationError } from 'named-app-errors';
 
 /**
  * A JSON representation of the backend Mongo database structure. This is used
@@ -44,20 +46,20 @@ export function getSchemaConfig(): DbSchema {
               { spec: 'createdAt' },
               { spec: 'status' },
               { spec: 'upvotes' },
-              { spec: 'upvoteIds' },
+              { spec: 'upvoterUsernames' },
               { spec: 'downvotes' },
-              { spec: 'downvoteIds' },
+              { spec: 'downvoterUsernames' },
               { spec: 'answers' },
               { spec: 'answerItems._id' },
-              { spec: 'answerItems.upvoteIds' },
-              { spec: 'answerItems.downvoteIds' },
+              { spec: 'answerItems.upvoterUsernames' },
+              { spec: 'answerItems.downvoterUsernames' },
               { spec: 'answerItems.commentItems._id' },
-              { spec: 'answerItems.commentItems.upvoteIds' },
-              { spec: 'answerItems.commentItems.downvoteIds' },
+              { spec: 'answerItems.commentItems.upvoterUsernames' },
+              { spec: 'answerItems.commentItems.downvoterUsernames' },
               { spec: 'comments' },
               { spec: 'commentItems._id' },
-              { spec: 'commentItems.upvoteIds' },
-              { spec: 'commentItems.downvoteIds' },
+              { spec: 'commentItems.upvoterUsernames' },
+              { spec: 'commentItems.downvoterUsernames' },
               { spec: 'views' },
               { spec: 'sorter.uvc' },
               { spec: 'sorter.uvac' }
@@ -88,7 +90,8 @@ export interface CommentId extends ObjectId {}
 export type ViewsUpdateOperation = 'increment';
 
 /**
- * The shape of an update operation on a question or comment's upvotes/downvotes.
+ * The shape of an update operation on a question or comment's
+ * upvotes/downvotes.
  */
 export type VotesUpdateOperation = {
   op: 'increment' | 'decrement';
@@ -186,9 +189,9 @@ export type InternalQuestion = Simplify<
     status: 'open' | 'closed' | 'protected';
     hasAcceptedAnswer: boolean;
     upvotes: number;
-    upvoteIds: UserId[];
+    upvoterUsernames: Username[];
     downvotes: number;
-    downvoteIds: UserId[];
+    downvoterUsernames: Username[];
     answers: number;
     answerItems: InternalAnswer[];
     views: number;
@@ -208,8 +211,8 @@ export type PublicQuestion = Simplify<
   Omit<
     WithoutId<InternalQuestion>,
     | 'title-lowercase'
-    | 'upvoteIds'
-    | 'downvoteIds'
+    | 'upvoterUsernames'
+    | 'downvoterUsernames'
     | 'answerItems'
     | 'commentItems'
     | 'sorter'
@@ -229,9 +232,9 @@ export type NewQuestion = Omit<
   | 'status'
   | 'hasAcceptedAnswer'
   | 'upvotes'
-  | 'upvoteIds'
+  | 'upvoterUsernames'
   | 'downvotes'
-  | 'downvoteIds'
+  | 'downvoterUsernames'
   | 'answers'
   | 'answerItems'
   | 'comments'
@@ -251,8 +254,8 @@ export type PatchQuestion = Simplify<
       | 'title-lowercase'
       | 'createdAt'
       | 'hasAcceptedAnswer'
-      | 'upvoteIds'
-      | 'downvoteIds'
+      | 'upvoterUsernames'
+      | 'downvoterUsernames'
       | 'answers'
       | 'answerItems'
       | 'comments'
@@ -273,9 +276,9 @@ export type InternalAnswer = Simplify<
     text: string;
     accepted: boolean;
     upvotes: number;
-    upvoteIds: UserId[];
+    upvoterUsernames: Username[];
     downvotes: number;
-    downvoteIds: UserId[];
+    downvoterUsernames: Username[];
     commentItems: InternalComment[];
   }>
 >;
@@ -284,7 +287,10 @@ export type InternalAnswer = Simplify<
  * The shape of a public answer.
  */
 export type PublicAnswer = Simplify<
-  Omit<WithoutId<InternalAnswer>, 'upvoteIds' | 'downvoteIds' | 'commentItems'> & {
+  Omit<
+    WithoutId<InternalAnswer>,
+    'upvoterUsernames' | 'downvoterUsernames' | 'commentItems'
+  > & {
     answer_id: string;
     comments: number;
   }
@@ -298,9 +304,9 @@ export type NewAnswer = Omit<
   | 'createdAt'
   | 'accepted'
   | 'upvotes'
-  | 'upvoteIds'
+  | 'upvoterUsernames'
   | 'downvotes'
-  | 'downvoteIds'
+  | 'downvoterUsernames'
   | 'commentItems'
 >;
 
@@ -310,7 +316,11 @@ export type NewAnswer = Omit<
 export type PatchAnswer = Partial<
   Omit<
     WithoutId<InternalAnswer>,
-    'creator' | 'createdAt' | 'upvoteIds' | 'downvoteIds' | 'commentItems'
+    | 'creator'
+    | 'createdAt'
+    | 'upvoterUsernames'
+    | 'downvoterUsernames'
+    | 'commentItems'
   >
 >;
 
@@ -323,9 +333,9 @@ export type InternalComment = Simplify<
     createdAt: UnixEpochMs;
     text: string;
     upvotes: number;
-    upvoteIds: UserId[];
+    upvoterUsernames: Username[];
     downvotes: number;
-    downvoteIds: UserId[];
+    downvoterUsernames: Username[];
   }>
 >;
 
@@ -333,7 +343,7 @@ export type InternalComment = Simplify<
  * The shape of a public comment.
  */
 export type PublicComment = Simplify<
-  Omit<WithoutId<InternalComment>, 'upvoteIds' | 'downvoteIds'> & {
+  Omit<WithoutId<InternalComment>, 'upvoterUsernames' | 'downvoterUsernames'> & {
     comment_id: string;
   }
 >;
@@ -343,7 +353,7 @@ export type PublicComment = Simplify<
  */
 export type NewComment = Omit<
   WithoutId<InternalComment>,
-  'createdAt' | 'upvotes' | 'upvoteIds' | 'downvotes' | 'downvoteIds'
+  'createdAt' | 'upvotes' | 'upvoterUsernames' | 'downvotes' | 'downvoterUsernames'
 >;
 
 /**
@@ -502,3 +512,272 @@ export const publicCommentProjection = {
   upvotes: true,
   downvotes: true
 } as const;
+
+type Projection = { [key in keyof InternalAnswer]?: unknown } & Document;
+
+async function genericSelectAggregation<T>({
+  question_id,
+  answer_id,
+  comment_id,
+  projection
+}: {
+  question_id: QuestionId | undefined;
+  answer_id: AnswerId | undefined;
+  comment_id: CommentId | undefined;
+  projection: Projection | undefined;
+}): Promise<T> {
+  if (!answer_id && !comment_id) {
+    throw new GuruMeditationError();
+  }
+
+  return (await getDb({ name: 'hscc-api-qoverflow' }))
+    .collection<InternalQuestion>('questions')
+    .aggregate([
+      { $match: { _id: question_id } },
+      ...(answer_id
+        ? [
+            {
+              $project: {
+                answer: {
+                  $first: {
+                    $filter: {
+                      input: '$answerItems',
+                      as: 'answer',
+                      cond: { $eq: ['$$answer._id', answer_id] }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              $replaceWith: '$answer'
+            }
+          ]
+        : []),
+      ...(comment_id
+        ? [
+            {
+              $project: {
+                comment: {
+                  $first: {
+                    $filter: {
+                      input: '$commentItems',
+                      as: 'comment',
+                      cond: { $eq: ['$$comment._id', comment_id] }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              $replaceWith: '$comment'
+            }
+          ]
+        : []),
+      ...(projection ? [{ $project: projection }] : [])
+    ])
+    .next() as Promise<T>;
+}
+
+/**
+ * Returns a nested answer object via aggregation pipeline, optionally applying
+ * a projection to the result.
+ */
+export async function selectAnswerFromDb<T = InternalAnswer | null>({
+  question_id,
+  answer_id,
+  projection
+}: {
+  question_id: QuestionId;
+  answer_id: AnswerId;
+  projection?: Projection;
+}): Promise<T> {
+  return genericSelectAggregation<T>({
+    question_id,
+    answer_id,
+    comment_id: undefined,
+    projection
+  });
+}
+
+/**
+ * Returns a nested comment object via aggregation pipeline, optionally applying
+ * a projection to the result.
+ */
+export async function selectCommentFromDb<T = InternalComment | null>({
+  question_id,
+  answer_id,
+  comment_id,
+  projection
+}: {
+  question_id: QuestionId;
+  answer_id?: AnswerId;
+  comment_id: CommentId;
+  projection?: Projection;
+}): Promise<T> {
+  return genericSelectAggregation<T>({
+    question_id,
+    answer_id,
+    comment_id,
+    projection
+  });
+}
+
+/**
+ * Adds a nested answer object to a question document.
+ */
+export async function addAnswerToDb({
+  question_id,
+  answer
+}: {
+  question_id: QuestionId;
+  answer: InternalAnswer;
+}) {
+  await (await getDb({ name: 'hscc-api-qoverflow' }))
+    .collection<InternalQuestion>('questions')
+    .updateOne({ _id: question_id }, { $push: { answerItems: answer } });
+}
+
+/**
+ * Adds a nested comment object to a question document.
+ */
+export async function addCommentToDb({
+  question_id,
+  answer_id,
+  comment
+}: {
+  question_id: QuestionId;
+  answer_id?: AnswerId;
+  comment: InternalComment;
+}) {
+  const db = (
+    await getDb({ name: 'hscc-api-qoverflow' })
+  ).collection<InternalQuestion>('questions');
+
+  if (answer_id) {
+    await db.updateOne(
+      { _id: question_id },
+      { $push: { 'answerItems.$[answer].commentItems': comment } },
+      { arrayFilters: [{ 'answer._id': answer_id }] }
+    );
+  } else {
+    await db.updateOne({ _id: question_id }, { $push: { commentItems: comment } });
+  }
+}
+
+function updateOpsToFullSchema(updateOps: Document, predicate: string) {
+  return Object.entries(updateOps).reduce((patchObj, [updateTarget, opSpec]) => {
+    const [[op, val], ...extra] = Object.entries(opSpec);
+
+    if (extra.length) {
+      throw new GuruMeditationError('unable to patch: bad updateOps');
+    }
+
+    patchObj[op] ??= {};
+    patchObj[op][`${predicate}.${updateTarget}`] = val;
+
+    return patchObj;
+  }, {} as Document);
+}
+
+/**
+ * Patches a nested answer object in a question document.
+ */
+export async function patchAnswerInDb({
+  question_id,
+  answer_id,
+  updateOps
+}: {
+  question_id: QuestionId;
+  answer_id: AnswerId;
+  updateOps: Document;
+}) {
+  await (await getDb({ name: 'hscc-api-qoverflow' }))
+    .collection<InternalQuestion>('questions')
+    .updateOne(
+      { _id: question_id },
+      updateOpsToFullSchema(updateOps, 'answerItems.$[answer]'),
+      { arrayFilters: [{ 'answer._id': answer_id }] }
+    );
+}
+
+/**
+ * Patches a nested comment object in a question document.
+ */
+export async function patchCommentInDb({
+  question_id,
+  answer_id,
+  comment_id,
+  updateOps
+}: {
+  question_id: QuestionId;
+  answer_id?: AnswerId;
+  comment_id: CommentId;
+  updateOps: Document;
+}) {
+  const db = (
+    await getDb({ name: 'hscc-api-qoverflow' })
+  ).collection<InternalQuestion>('questions');
+
+  if (answer_id) {
+    await db.updateOne(
+      { _id: question_id },
+      updateOpsToFullSchema(
+        updateOps,
+        'answerItems.$[answer].commentItems.$[comment]'
+      ),
+      { arrayFilters: [{ 'answer._id': answer_id }, { 'comment._id': comment_id }] }
+    );
+  } else {
+    await db.updateOne(
+      { _id: question_id },
+      updateOpsToFullSchema(updateOps, 'commentItems.$[comment]'),
+      { arrayFilters: [{ 'comment._id': comment_id }] }
+    );
+  }
+}
+
+/**
+ * Deletes a nested answer object from a question document.
+ */
+export async function removeAnswerFromDb({
+  question_id,
+  answer_id
+}: {
+  question_id: QuestionId;
+  answer_id: AnswerId;
+}) {
+  await (await getDb({ name: 'hscc-api-qoverflow' }))
+    .collection<InternalQuestion>('questions')
+    .updateOne({ _id: question_id }, { $pull: { 'answerItems._id': answer_id } });
+}
+
+/**
+ * Deletes a nested comment object from a question document.
+ */
+export async function removeCommentFromDb({
+  question_id,
+  answer_id,
+  comment_id
+}: {
+  question_id: QuestionId;
+  answer_id?: AnswerId;
+  comment_id: CommentId;
+}) {
+  const db = (
+    await getDb({ name: 'hscc-api-qoverflow' })
+  ).collection<InternalQuestion>('questions');
+
+  if (answer_id) {
+    await db.updateOne(
+      { _id: question_id },
+      { $pull: { 'answerItems.$[answer].commentItems._id': comment_id } },
+      { arrayFilters: [{ 'answer._id': answer_id }] }
+    );
+  } else {
+    await db.updateOne(
+      { _id: question_id },
+      { $pull: { 'commentItems._id': comment_id } }
+    );
+  }
+}

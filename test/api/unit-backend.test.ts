@@ -4,6 +4,8 @@ import { ObjectId } from 'mongodb';
 
 import * as Backend from 'universe/backend';
 import {
+  selectAnswerFromDb,
+  selectCommentFromDb,
   InternalQuestion,
   InternalUser,
   NewAnswer,
@@ -21,7 +23,9 @@ import {
   toPublicComment,
   toPublicMail,
   toPublicQuestion,
-  toPublicUser
+  toPublicUser,
+  patchAnswerInDb,
+  patchCommentInDb
 } from 'universe/backend/db';
 import { getEnv } from 'universe/backend/env';
 import { ErrorMessage } from 'universe/error';
@@ -34,6 +38,7 @@ import { dummyAppData } from 'testverse/db';
 import { mockEnvFactory } from 'testverse/setup';
 
 import type { PublicUser, NewUser, PatchUser } from 'universe/backend/db';
+import { itemToObjectId, itemToStringId } from 'multiverse/mongo-item';
 
 setupMemoryServerOverride();
 useMockDateNow();
@@ -73,10 +78,10 @@ describe('::getAllUsers', () => {
         expect([
           await Backend.getAllUsers({ after_id: undefined }),
           await Backend.getAllUsers({
-            after_id: sortedUsers[0]._id.toString()
+            after_id: itemToStringId(sortedUsers[0])
           }),
           await Backend.getAllUsers({
-            after_id: sortedUsers[1]._id.toString()
+            after_id: itemToStringId(sortedUsers[1])
           })
         ]).toStrictEqual(sortedUsers.slice(-3).map((user) => [toPublicUser(user)]));
       },
@@ -817,7 +822,7 @@ describe('::deleteUser', () => {
     const usersDb = (await getDb({ name: 'hscc-api-qoverflow' })).collection('users');
 
     await expect(
-      usersDb.countDocuments({ _id: dummyAppData.users[0]._id })
+      usersDb.countDocuments({ _id: itemToObjectId(dummyAppData.users[0]) })
     ).resolves.toBe(1);
 
     await expect(
@@ -825,7 +830,7 @@ describe('::deleteUser', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      usersDb.countDocuments({ _id: dummyAppData.users[0]._id })
+      usersDb.countDocuments({ _id: itemToObjectId(dummyAppData.users[0]) })
     ).resolves.toBe(0);
   });
 
@@ -901,11 +906,11 @@ describe('::getUserMessages', () => {
           }),
           await Backend.getUserMessages({
             username: dummyAppData.users[0].username,
-            after_id: dummyAppData.questions[1]._id.toString()
+            after_id: itemToStringId(dummyAppData.questions[1])
           }),
           await Backend.getUserMessages({
             username: dummyAppData.users[0].username,
-            after_id: dummyAppData.questions[0]._id.toString()
+            after_id: itemToStringId(dummyAppData.questions[0])
           })
         ]).toStrictEqual([
           [toPublicMail(dummyAppData.mail[1])],
@@ -1689,7 +1694,7 @@ describe('::getQuestion', () => {
     expect.hasAssertions();
 
     await expect(
-      Backend.getQuestion({ question_id: dummyAppData.questions[1]._id.toString() })
+      Backend.getQuestion({ question_id: itemToStringId(dummyAppData.questions[1]) })
     ).resolves.toStrictEqual(toPublicQuestion(dummyAppData.questions[1]));
   });
 
@@ -1904,12 +1909,15 @@ describe('::updateQuestion', () => {
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection('questions')
-        .countDocuments({ _id: dummyAppData.questions[0]._id, ...patchQuestion })
+        .countDocuments({
+          _id: itemToObjectId(dummyAppData.questions[0]),
+          ...patchQuestion
+        })
     ).resolves.toBe(0);
 
     await expect(
       Backend.updateQuestion({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         data: patchQuestion
       })
     ).resolves.toBeUndefined();
@@ -1917,11 +1925,14 @@ describe('::updateQuestion', () => {
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection('questions')
-        .countDocuments({ _id: dummyAppData.questions[0]._id, ...patchQuestion })
+        .countDocuments({
+          _id: itemToObjectId(dummyAppData.questions[0]),
+          ...patchQuestion
+        })
     ).resolves.toBe(1);
   });
 
-  it('supports ViewsUpdateOperation updates alongside normal views updates', async () => {
+  it('supports ViewsUpdateOperation updates alongside normal views count updates', async () => {
     expect.hasAssertions();
 
     const questionsDb = (
@@ -1930,41 +1941,131 @@ describe('::updateQuestion', () => {
 
     await expect(
       questionsDb.countDocuments({
-        _id: dummyAppData.questions[0]._id,
+        _id: itemToObjectId(dummyAppData.questions[0]),
         views: dummyAppData.questions[0].views + 1
       })
     ).resolves.toBe(0);
 
     await expect(
       questionsDb.countDocuments({
-        _id: dummyAppData.questions[0]._id,
+        _id: itemToObjectId(dummyAppData.questions[0]),
         views: 0
       })
     ).resolves.toBe(0);
 
     await Backend.updateQuestion({
-      question_id: dummyAppData.questions[0]._id.toString(),
+      question_id: itemToStringId(dummyAppData.questions[0]),
       data: { views: 'increment' }
     });
 
     await expect(
       questionsDb.countDocuments({
-        _id: dummyAppData.questions[0]._id,
+        _id: itemToObjectId(dummyAppData.questions[0]),
         views: dummyAppData.questions[0].views + 1
       })
     ).resolves.toBe(1);
 
     await Backend.updateQuestion({
-      question_id: dummyAppData.questions[0]._id.toString(),
+      question_id: itemToStringId(dummyAppData.questions[0]),
       data: { views: 0 }
     });
 
     await expect(
       questionsDb.countDocuments({
-        _id: dummyAppData.questions[0]._id,
+        _id: itemToObjectId(dummyAppData.questions[0]),
         views: 0
       })
     ).resolves.toBe(1);
+  });
+
+  it('updates sorter uvc/uvac counters when updating views count', async () => {
+    expect.hasAssertions();
+
+    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+
+    const {
+      sorter: { uvc, uvac },
+      views,
+      upvotes
+    } = dummyAppData.questions[0];
+
+    await Backend.updateQuestion({
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      data: { views: 'increment' }
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc: uvc + 1, uvac: uvac + 1 });
+
+    await Backend.updateQuestion({
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      data: { views: 0 }
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc: uvc - views, uvac: uvac - views });
+
+    await Backend.updateQuestion({
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      data: { views: 10 }
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc: uvc - views + 10, uvac: uvac - views + 10 });
+
+    await Backend.updateQuestion({
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      data: { upvotes: upvotes + 1 }
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc: uvc - views + 11, uvac: uvac - views + 11 });
+
+    await Backend.updateQuestion({
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      data: { upvotes: 0 }
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({
+      uvc: uvc - views + 10 - upvotes,
+      uvac: uvac - views + 10 - upvotes
+    });
+
+    await Backend.updateQuestion({
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      data: { upvotes: 5 }
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({
+      uvc: uvc - views + 15 - upvotes,
+      uvac: uvac - views + 15 - upvotes
+    });
   });
 
   it('does not reject if no data passed in', async () => {
@@ -1972,7 +2073,7 @@ describe('::updateQuestion', () => {
 
     await expect(
       Backend.updateQuestion({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         data: {}
       })
     ).resolves.toBeUndefined();
@@ -2128,7 +2229,7 @@ describe('::updateQuestion', () => {
       patchQuestions.map(([data, message]) =>
         expect(
           Backend.updateQuestion({
-            question_id: dummyAppData.questions[0]._id.toString(),
+            question_id: itemToStringId(dummyAppData.questions[0]),
             data
           })
         ).rejects.toMatchObject({ message })
@@ -2143,7 +2244,7 @@ describe('::getAnswers', () => {
 
     await expect(
       Backend.getAnswers({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         after_id: undefined
       })
     ).resolves.toStrictEqual([
@@ -2160,16 +2261,16 @@ describe('::getAnswers', () => {
       async () => {
         expect([
           await Backend.getAnswers({
-            question_id: dummyAppData.questions[0]._id.toString(),
+            question_id: itemToStringId(dummyAppData.questions[0]),
             after_id: undefined
           }),
           await Backend.getAnswers({
-            question_id: dummyAppData.questions[0]._id.toString(),
-            after_id: dummyAppData.questions[0]._id.toString()
+            question_id: itemToStringId(dummyAppData.questions[0]),
+            after_id: itemToStringId(dummyAppData.questions[0])
           }),
           await Backend.getAnswers({
-            question_id: dummyAppData.questions[0]._id.toString(),
-            after_id: dummyAppData.questions[1]._id.toString()
+            question_id: itemToStringId(dummyAppData.questions[0]),
+            after_id: itemToStringId(dummyAppData.questions[1])
           })
         ]).toStrictEqual([
           [toPublicAnswer(dummyAppData.questions[0].answerItems[0])],
@@ -2186,7 +2287,7 @@ describe('::getAnswers', () => {
 
     await expect(
       Backend.getAnswers({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         after_id: 'fake-oid'
       })
     ).rejects.toMatchObject({
@@ -2201,7 +2302,7 @@ describe('::getAnswers', () => {
 
     await expect(
       Backend.getAnswers({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         after_id
       })
     ).rejects.toMatchObject({
@@ -2250,14 +2351,14 @@ describe('::createAnswer', () => {
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection('questions')
         .findOne(
-          { _id: dummyAppData.questions[2]._id },
+          { _id: itemToObjectId(dummyAppData.questions[2]) },
           { projection: { _id: false, size: { $size: '$answerItems' } } }
         )
     ).resolves.toStrictEqual({ size: 0 });
 
     await expect(
       Backend.createAnswer({
-        question_id: dummyAppData.questions[2]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[2]),
         data: newAnswer
       })
     ).resolves.toStrictEqual<PublicAnswer>({
@@ -2275,7 +2376,7 @@ describe('::createAnswer', () => {
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection('questions')
         .findOne(
-          { _id: dummyAppData.questions[2]._id },
+          { _id: itemToObjectId(dummyAppData.questions[2]) },
           { projection: { size: { $size: '$answerItems' } } }
         )
     ).resolves.toStrictEqual({ size: 1 });
@@ -2293,19 +2394,19 @@ describe('::createAnswer', () => {
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection('questions')
         .findOne(
-          { _id: dummyAppData.questions[1]._id },
+          { _id: itemToObjectId(dummyAppData.questions[1]) },
           { projection: { _id: false, answers: true } }
         )
     ).resolves.toStrictEqual({ answers: 1 });
 
     await Backend.createAnswer({
-      question_id: dummyAppData.questions[1]._id.toString(),
+      question_id: itemToStringId(dummyAppData.questions[1]),
       data: newAnswer
     });
 
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
-        { _id: dummyAppData.questions[1]._id },
+        { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: { _id: false, comments: true }
         }
@@ -2317,7 +2418,7 @@ describe('::createAnswer', () => {
     expect.hasAssertions();
 
     const newAnswer = await Backend.createAnswer({
-      question_id: dummyAppData.questions[1]._id.toString(),
+      question_id: itemToStringId(dummyAppData.questions[1]),
       data: {
         creator: dummyAppData.users[0].username,
         text: 'Text'
@@ -2334,6 +2435,33 @@ describe('::createAnswer', () => {
     ).resolves.toStrictEqual({
       answerIds: expect.arrayContaining([new ObjectId(newAnswer.answer_id)])
     });
+  });
+
+  it('updates sorter uvc/uvac counters when creating a new answer', async () => {
+    expect.hasAssertions();
+
+    const newAnswer: Required<NewAnswer> = {
+      creator: dummyAppData.users[0].username,
+      text: 'Text!'
+    };
+
+    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+
+    const {
+      sorter: { uvc, uvac }
+    } = dummyAppData.questions[1];
+
+    await Backend.createAnswer({
+      question_id: itemToStringId(dummyAppData.questions[1]),
+      data: newAnswer
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[1]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc: uvc + 1, uvac: uvac + 1 });
   });
 
   it('rejects if question_id is not a valid ObjectId', async () => {
@@ -2379,7 +2507,7 @@ describe('::createAnswer', () => {
 
     await expect(
       Backend.createAnswer({
-        question_id: dummyAppData.questions[2]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[2]),
         data: {
           creator: 'does-not-exist',
           text: 'Title'
@@ -2391,7 +2519,7 @@ describe('::createAnswer', () => {
 
     await expect(
       Backend.createAnswer({
-        question_id: dummyAppData.questions[2]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[2]),
         data: {
           creator: undefined as any,
           text: 'Title'
@@ -2412,7 +2540,7 @@ describe('::createAnswer', () => {
 
     await expect(
       Backend.createAnswer({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         data: newAnswer
       })
     ).rejects.toMatchObject({ message: ErrorMessage.UserAlreadyAnswered() });
@@ -2465,7 +2593,7 @@ describe('::createAnswer', () => {
       newAnswers.map(([data, message]) =>
         expect(
           Backend.createAnswer({
-            question_id: dummyAppData.questions[2]._id.toString(),
+            question_id: itemToStringId(dummyAppData.questions[2]),
             data
           })
         ).rejects.toMatchObject({ message })
@@ -2486,38 +2614,28 @@ describe('::updateAnswer', () => {
     };
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
-        .collection<InternalQuestion>('questions')
-        .findOne(
-          {
-            _id: dummyAppData.questions[0]._id,
-            'answerItems._id': dummyAppData.questions[0].answerItems[0]._id
-          },
-          { projection: { _id: false, 'answerItems.$': true } }
-        )
-    ).resolves.not.toStrictEqual({
-      answerItems: [expect.objectContaining(patchAnswer)]
-    });
+      selectAnswerFromDb({
+        question_id: itemToObjectId(dummyAppData.questions[0]),
+        answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+        projection: { _id: false }
+      })
+    ).resolves.not.toStrictEqual(expect.objectContaining(patchAnswer));
 
     await expect(
       Backend.updateAnswer({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         data: patchAnswer
       })
     ).resolves.toBeUndefined();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
-        .collection<InternalQuestion>('questions')
-        .findOne(
-          {
-            _id: dummyAppData.questions[0]._id,
-            'answerItems._id': dummyAppData.questions[0].answerItems[0]._id
-          },
-          { projection: { _id: false, 'answerItems.$': true } }
-        )
-    ).resolves.toStrictEqual({ answerItems: [expect.objectContaining(patchAnswer)] });
+      selectAnswerFromDb({
+        question_id: itemToObjectId(dummyAppData.questions[0]),
+        answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+        projection: { _id: false }
+      })
+    ).resolves.toStrictEqual(expect.objectContaining(patchAnswer));
   });
 
   it('does not reject if no data passed in', async () => {
@@ -2525,8 +2643,8 @@ describe('::updateAnswer', () => {
 
     await expect(
       Backend.updateAnswer({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         data: {}
       })
     ).resolves.toBeUndefined();
@@ -2541,14 +2659,14 @@ describe('::updateAnswer', () => {
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection<InternalQuestion>('questions')
         .findOne(
-          { _id: dummyAppData.questions[0]._id },
+          { _id: itemToObjectId(dummyAppData.questions[0]) },
           { projection: { _id: false, hasAcceptedAnswer: true } }
         )
     ).resolves.toStrictEqual({ hasAcceptedAnswer: false });
 
     await Backend.updateAnswer({
-      question_id: dummyAppData.questions[0]._id.toString(),
-      answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
       data: patchAnswer
     });
 
@@ -2556,7 +2674,7 @@ describe('::updateAnswer', () => {
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection<InternalQuestion>('questions')
         .findOne(
-          { _id: dummyAppData.questions[0]._id },
+          { _id: itemToObjectId(dummyAppData.questions[0]) },
           { projection: { _id: false, hasAcceptedAnswer: true } }
         )
     ).resolves.toStrictEqual({ hasAcceptedAnswer: true });
@@ -2570,14 +2688,14 @@ describe('::updateAnswer', () => {
     await (await getDb({ name: 'hscc-api-qoverflow' }))
       .collection<InternalQuestion>('questions')
       .updateOne(
-        { _id: dummyAppData.questions[0]._id },
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
         { $set: { hasAcceptedAnswer: true } }
       );
 
     await expect(
       Backend.updateAnswer({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         data: patchAnswer
       })
     ).rejects.toMatchObject({
@@ -2592,8 +2710,8 @@ describe('::updateAnswer', () => {
 
     await expect(
       Backend.updateAnswer({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         data: patchAnswer
       })
     ).rejects.toMatchObject({
@@ -2653,7 +2771,7 @@ describe('::updateAnswer', () => {
 
     await expect(
       Backend.updateAnswer({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         data: patchAnswer
       })
@@ -2663,7 +2781,7 @@ describe('::updateAnswer', () => {
 
     await expect(
       Backend.updateAnswer({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         data: patchAnswer
       })
@@ -2680,7 +2798,7 @@ describe('::updateAnswer', () => {
 
     await expect(
       Backend.updateAnswer({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         data: patchAnswer
       })
@@ -2743,8 +2861,8 @@ describe('::updateAnswer', () => {
       patchAnswers.map(([data, message]) =>
         expect(
           Backend.updateAnswer({
-            question_id: dummyAppData.questions[2]._id.toString(),
-            answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+            question_id: itemToStringId(dummyAppData.questions[2]),
+            answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
             data
           })
         ).rejects.toMatchObject({ message })
@@ -2759,7 +2877,7 @@ describe('::getComments', () => {
 
     await expect(
       Backend.getComments({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         after_id: undefined
       })
@@ -2774,8 +2892,8 @@ describe('::getComments', () => {
 
     await expect(
       Backend.getComments({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[1]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
         after_id: undefined
       })
     ).resolves.toStrictEqual([
@@ -2792,19 +2910,19 @@ describe('::getComments', () => {
       async () => {
         expect([
           await Backend.getComments({
-            question_id: dummyAppData.questions[0]._id.toString(),
+            question_id: itemToStringId(dummyAppData.questions[0]),
             answer_id: undefined,
             after_id: undefined
           }),
           await Backend.getComments({
-            question_id: dummyAppData.questions[0]._id.toString(),
+            question_id: itemToStringId(dummyAppData.questions[0]),
             answer_id: undefined,
-            after_id: dummyAppData.questions[0]._id.toString()
+            after_id: itemToStringId(dummyAppData.questions[0])
           }),
           await Backend.getComments({
-            question_id: dummyAppData.questions[0]._id.toString(),
+            question_id: itemToStringId(dummyAppData.questions[0]),
             answer_id: undefined,
-            after_id: dummyAppData.questions[1]._id.toString()
+            after_id: itemToStringId(dummyAppData.questions[1])
           })
         ]).toStrictEqual([
           [toPublicComment(dummyAppData.questions[0].commentItems[0])],
@@ -2819,19 +2937,19 @@ describe('::getComments', () => {
       async () => {
         expect([
           await Backend.getComments({
-            question_id: dummyAppData.questions[0]._id.toString(),
-            answer_id: dummyAppData.questions[0].answerItems[1]._id.toString(),
+            question_id: itemToStringId(dummyAppData.questions[0]),
+            answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
             after_id: undefined
           }),
           await Backend.getComments({
-            question_id: dummyAppData.questions[0]._id.toString(),
-            answer_id: dummyAppData.questions[0].answerItems[1]._id.toString(),
-            after_id: dummyAppData.questions[0]._id.toString()
+            question_id: itemToStringId(dummyAppData.questions[0]),
+            answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+            after_id: itemToStringId(dummyAppData.questions[0])
           }),
           await Backend.getComments({
-            question_id: dummyAppData.questions[0]._id.toString(),
-            answer_id: dummyAppData.questions[0].answerItems[1]._id.toString(),
-            after_id: dummyAppData.questions[1]._id.toString()
+            question_id: itemToStringId(dummyAppData.questions[0]),
+            answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+            after_id: itemToStringId(dummyAppData.questions[1])
           })
         ]).toStrictEqual([
           [toPublicComment(dummyAppData.questions[0].answerItems[1].commentItems[0])],
@@ -2848,7 +2966,7 @@ describe('::getComments', () => {
 
     await expect(
       Backend.getComments({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         after_id: 'fake-oid'
       })
@@ -2858,8 +2976,8 @@ describe('::getComments', () => {
 
     await expect(
       Backend.getComments({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[1]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
         after_id: 'fake-oid'
       })
     ).rejects.toMatchObject({
@@ -2874,7 +2992,7 @@ describe('::getComments', () => {
 
     await expect(
       Backend.getComments({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         after_id
       })
@@ -2884,8 +3002,8 @@ describe('::getComments', () => {
 
     await expect(
       Backend.getComments({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[1]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
         after_id
       })
     ).rejects.toMatchObject({
@@ -2922,7 +3040,7 @@ describe('::getComments', () => {
 
     await expect(
       Backend.getComments({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: 'does-not-exist',
         after_id: undefined
       })
@@ -2950,7 +3068,7 @@ describe('::getComments', () => {
 
     await expect(
       Backend.getComments({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         after_id: undefined
       })
@@ -2973,14 +3091,14 @@ describe('::createComment', () => {
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection('questions')
         .findOne(
-          { _id: dummyAppData.questions[1]._id },
+          { _id: itemToObjectId(dummyAppData.questions[1]) },
           { projection: { _id: false, size: { $size: '$commentItems' } } }
         )
     ).resolves.toStrictEqual({ size: 1 });
 
     await expect(
       Backend.createComment({
-        question_id: dummyAppData.questions[1]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[1]),
         answer_id: undefined,
         data: newComment
       })
@@ -2997,7 +3115,7 @@ describe('::createComment', () => {
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection('questions')
         .findOne(
-          { _id: dummyAppData.questions[1]._id },
+          { _id: itemToObjectId(dummyAppData.questions[1]) },
           { projection: { _id: false, size: { $size: '$commentItems' } } }
         )
     ).resolves.toStrictEqual({ size: 2 });
@@ -3013,7 +3131,7 @@ describe('::createComment', () => {
 
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
-        { _id: dummyAppData.questions[1]._id },
+        { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: {
             _id: false,
@@ -3025,8 +3143,8 @@ describe('::createComment', () => {
 
     await expect(
       Backend.createComment({
-        question_id: dummyAppData.questions[1]._id.toString(),
-        answer_id: dummyAppData.questions[1].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[1]),
+        answer_id: itemToStringId(dummyAppData.questions[1].answerItems[0]),
         data: newComment
       })
     ).resolves.toStrictEqual<PublicComment>({
@@ -3040,7 +3158,7 @@ describe('::createComment', () => {
 
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
-        { _id: dummyAppData.questions[1]._id },
+        { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: {
             _id: false,
@@ -3061,7 +3179,7 @@ describe('::createComment', () => {
 
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
-        { _id: dummyAppData.questions[1]._id },
+        { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: { _id: false, comments: true }
         }
@@ -3069,19 +3187,47 @@ describe('::createComment', () => {
     ).resolves.toStrictEqual({ comments: 1 });
 
     await Backend.createComment({
-      question_id: dummyAppData.questions[1]._id.toString(),
+      question_id: itemToStringId(dummyAppData.questions[1]),
       answer_id: undefined,
       data: newComment
     });
 
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
-        { _id: dummyAppData.questions[1]._id },
+        { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: { _id: false, comments: true }
         }
       )
     ).resolves.toStrictEqual({ comments: 2 });
+  });
+
+  it('updates sorter uvc/uvac counters when creating a new comment to a question', async () => {
+    expect.hasAssertions();
+
+    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+
+    const {
+      sorter: { uvc, uvac }
+    } = dummyAppData.questions[1];
+
+    const newComment: Required<NewComment> = {
+      creator: dummyAppData.users[0].username,
+      text: 'Comment.'
+    };
+
+    await Backend.createComment({
+      question_id: itemToStringId(dummyAppData.questions[1]),
+      answer_id: undefined,
+      data: newComment
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[1]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc: uvc + 1, uvac: uvac + 1 });
   });
 
   it('rejects if question_id is not a valid ObjectId', async () => {
@@ -3096,7 +3242,7 @@ describe('::createComment', () => {
     await expect(
       Backend.createComment({
         question_id,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         data: newComment
       })
     ).rejects.toMatchObject({
@@ -3106,7 +3252,7 @@ describe('::createComment', () => {
     await expect(
       Backend.createComment({
         question_id: undefined,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         data: newComment
       })
     ).rejects.toMatchObject({
@@ -3125,7 +3271,7 @@ describe('::createComment', () => {
 
     await expect(
       Backend.createComment({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         data: newComment
       })
@@ -3146,7 +3292,7 @@ describe('::createComment', () => {
     await expect(
       Backend.createComment({
         question_id,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         data: newComment
       })
     ).rejects.toMatchObject({
@@ -3165,7 +3311,7 @@ describe('::createComment', () => {
 
     await expect(
       Backend.createComment({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         data: newComment
       })
@@ -3179,7 +3325,7 @@ describe('::createComment', () => {
 
     await expect(
       Backend.createComment({
-        question_id: dummyAppData.questions[2]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[2]),
         answer_id: undefined,
         data: {
           creator: 'does-not-exist',
@@ -3192,7 +3338,7 @@ describe('::createComment', () => {
 
     await expect(
       Backend.createComment({
-        question_id: dummyAppData.questions[2]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[2]),
         answer_id: undefined,
         data: {
           creator: undefined as any,
@@ -3251,7 +3397,7 @@ describe('::createComment', () => {
       newComments.map(([data, message]) =>
         expect(
           Backend.createComment({
-            question_id: dummyAppData.questions[1]._id.toString(),
+            question_id: itemToStringId(dummyAppData.questions[1]),
             answer_id: undefined,
             data
           })
@@ -3269,16 +3415,16 @@ describe('::deleteComment', () => {
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection('questions')
         .findOne(
-          { _id: dummyAppData.questions[1]._id },
+          { _id: itemToObjectId(dummyAppData.questions[1]) },
           { projection: { _id: false, size: { $size: '$commentItems' } } }
         )
     ).resolves.toStrictEqual({ size: 1 });
 
     await expect(
       Backend.deleteComment({
-        question_id: dummyAppData.questions[1]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[1]),
         answer_id: undefined,
-        comment_id: dummyAppData.questions[1].commentItems[0]._id.toString()
+        comment_id: itemToStringId(dummyAppData.questions[1].commentItems[0])
       })
     ).resolves.toBeUndefined();
 
@@ -3286,7 +3432,7 @@ describe('::deleteComment', () => {
       (await getDb({ name: 'hscc-api-qoverflow' }))
         .collection('questions')
         .findOne(
-          { _id: dummyAppData.questions[1]._id },
+          { _id: itemToObjectId(dummyAppData.questions[1]) },
           { projection: { _id: false, size: { $size: '$commentItems' } } }
         )
     ).resolves.toStrictEqual({ size: 0 });
@@ -3297,7 +3443,7 @@ describe('::deleteComment', () => {
 
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
-        { _id: dummyAppData.questions[0]._id },
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
         {
           projection: {
             _id: false,
@@ -3309,16 +3455,17 @@ describe('::deleteComment', () => {
 
     await expect(
       Backend.deleteComment({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
-        comment_id:
-          dummyAppData.questions[0].answerItems[0].commentItems[0]._id.toString()
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[0].commentItems[0]
+        )
       })
     ).resolves.toBeUndefined();
 
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
-        { _id: dummyAppData.questions[0]._id },
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
         {
           projection: {
             _id: false,
@@ -3334,7 +3481,7 @@ describe('::deleteComment', () => {
 
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
-        { _id: dummyAppData.questions[1]._id },
+        { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: { _id: false, comments: true }
         }
@@ -3342,19 +3489,42 @@ describe('::deleteComment', () => {
     ).resolves.toStrictEqual({ comments: 1 });
 
     await Backend.deleteComment({
-      question_id: dummyAppData.questions[1]._id.toString(),
+      question_id: itemToStringId(dummyAppData.questions[1]),
       answer_id: undefined,
-      comment_id: dummyAppData.questions[1].commentItems[0]._id.toString()
+      comment_id: itemToStringId(dummyAppData.questions[1].commentItems[0])
     });
 
     await expect(
       (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
-        { _id: dummyAppData.questions[1]._id },
+        { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: { _id: false, comments: true }
         }
       )
     ).resolves.toStrictEqual({ comments: 0 });
+  });
+
+  it('updates sorter uvc/uvac counters when deleting a comment from a question', async () => {
+    expect.hasAssertions();
+
+    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+
+    const {
+      sorter: { uvc, uvac }
+    } = dummyAppData.questions[1];
+
+    await Backend.deleteComment({
+      question_id: itemToStringId(dummyAppData.questions[1]),
+      answer_id: undefined,
+      comment_id: itemToStringId(dummyAppData.questions[1].commentItems[0])
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[1]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc: uvc - 1, uvac: uvac - 1 });
   });
 
   it('rejects if question_id is not a valid ObjectId', async () => {
@@ -3365,7 +3535,7 @@ describe('::deleteComment', () => {
     await expect(
       Backend.deleteComment({
         question_id,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -3375,7 +3545,7 @@ describe('::deleteComment', () => {
     await expect(
       Backend.deleteComment({
         question_id: undefined,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -3390,7 +3560,7 @@ describe('::deleteComment', () => {
 
     await expect(
       Backend.deleteComment({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         comment_id: new ObjectId().toString()
       })
@@ -3406,8 +3576,8 @@ describe('::deleteComment', () => {
 
     await expect(
       Backend.deleteComment({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id
       })
     ).rejects.toMatchObject({
@@ -3416,8 +3586,8 @@ describe('::deleteComment', () => {
 
     await expect(
       Backend.deleteComment({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: undefined
       })
     ).rejects.toMatchObject({
@@ -3433,7 +3603,7 @@ describe('::deleteComment', () => {
     await expect(
       Backend.deleteComment({
         question_id,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -3448,7 +3618,7 @@ describe('::deleteComment', () => {
 
     await expect(
       Backend.deleteComment({
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         comment_id: new ObjectId().toString()
       })
@@ -3464,8 +3634,8 @@ describe('::deleteComment', () => {
 
     await expect(
       Backend.deleteComment({
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id
       })
     ).rejects.toMatchObject({
@@ -3477,14 +3647,167 @@ describe('::deleteComment', () => {
 describe('::getHowUserVoted', () => {
   it('returns how the user voted on a question or null if there is no vote', async () => {
     expect.hasAssertions();
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined
+      })
+    ).resolves.toBeNull();
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined
+      })
+    ).resolves.toBe('upvoted');
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined
+      })
+    ).resolves.toBe('downvoted');
   });
 
   it('returns how the user voted on an answer or null if there is no vote', async () => {
     expect.hasAssertions();
+
+    await patchAnswerInDb({
+      question_id: itemToObjectId(dummyAppData.questions[0]),
+      answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+      updateOps: {
+        downvotes: { $inc: 1 },
+        downvoterUsernames: { $push: dummyAppData.users[2].username }
+      }
+    });
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: undefined
+      })
+    ).resolves.toBeNull();
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: undefined
+      })
+    ).resolves.toBe('upvoted');
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: undefined
+      })
+    ).resolves.toBe('downvoted');
   });
 
-  it('returns how the user voted on a comment or null if there is no vote', async () => {
+  it('returns how the user voted on a question comment or null if there is no vote', async () => {
     expect.hasAssertions();
+
+    await patchCommentInDb({
+      question_id: itemToObjectId(dummyAppData.questions[0]),
+      answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+      comment_id: itemToObjectId(
+        dummyAppData.questions[0].answerItems[0].commentItems[0]
+      ),
+      updateOps: {
+        upvotes: { $inc: 1 },
+        upvoterUsernames: { $push: dummyAppData.users[1].username }
+      }
+    });
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: itemToStringId(dummyAppData.questions[0].commentItems[0])
+      })
+    ).resolves.toBeNull();
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: itemToStringId(dummyAppData.questions[0].commentItems[0])
+      })
+    ).resolves.toBe('upvoted');
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: itemToStringId(dummyAppData.questions[0].commentItems[0])
+      })
+    ).resolves.toBe('downvoted');
+  });
+
+  it('returns how the user voted on an answer comment or null if there is no vote', async () => {
+    expect.hasAssertions();
+
+    await patchCommentInDb({
+      question_id: itemToObjectId(dummyAppData.questions[0]),
+      answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+      comment_id: itemToObjectId(
+        dummyAppData.questions[0].answerItems[0].commentItems[0]
+      ),
+      updateOps: {
+        upvotes: { $inc: 1 },
+        downvotes: { $inc: 1 },
+        upvoterUsernames: { $push: dummyAppData.users[1].username },
+        downvoterUsernames: { $push: dummyAppData.users[2].username }
+      }
+    });
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[0].commentItems[0]
+        )
+      })
+    ).resolves.toBeNull();
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[0].commentItems[0]
+        )
+      })
+    ).resolves.toBe('upvoted');
+
+    await expect(
+      Backend.getHowUserVoted({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[0].commentItems[0]
+        )
+      })
+    ).resolves.toBe('downvoted');
   });
 
   it('rejects if question_id is not a valid ObjectId', async () => {
@@ -3496,7 +3819,7 @@ describe('::getHowUserVoted', () => {
       Backend.getHowUserVoted({
         username: dummyAppData.users[0].username,
         question_id,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -3507,7 +3830,7 @@ describe('::getHowUserVoted', () => {
       Backend.getHowUserVoted({
         username: dummyAppData.users[0].username,
         question_id: undefined,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -3523,7 +3846,7 @@ describe('::getHowUserVoted', () => {
     await expect(
       Backend.getHowUserVoted({
         username: dummyAppData.users[0].username,
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         comment_id: new ObjectId().toString()
       })
@@ -3540,8 +3863,8 @@ describe('::getHowUserVoted', () => {
     await expect(
       Backend.getHowUserVoted({
         username: dummyAppData.users[0].username,
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id
       })
     ).rejects.toMatchObject({
@@ -3558,7 +3881,7 @@ describe('::getHowUserVoted', () => {
       Backend.getHowUserVoted({
         username: dummyAppData.users[0].username,
         question_id,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -3574,7 +3897,7 @@ describe('::getHowUserVoted', () => {
     await expect(
       Backend.getHowUserVoted({
         username: dummyAppData.users[0].username,
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         comment_id: new ObjectId().toString()
       })
@@ -3591,8 +3914,8 @@ describe('::getHowUserVoted', () => {
     await expect(
       Backend.getHowUserVoted({
         username: dummyAppData.users[0].username,
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id
       })
     ).rejects.toMatchObject({
@@ -3606,10 +3929,11 @@ describe('::getHowUserVoted', () => {
     await expect(
       Backend.getHowUserVoted({
         username: 'does-not-exist',
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
-        comment_id:
-          dummyAppData.questions[0].answerItems[0].commentItems[0]._id.toString()
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[0].commentItems[0]
+        )
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound('does-not-exist', 'user')
@@ -3618,10 +3942,11 @@ describe('::getHowUserVoted', () => {
     await expect(
       Backend.getHowUserVoted({
         username: undefined,
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
-        comment_id:
-          dummyAppData.questions[0].answerItems[0].commentItems[0]._id.toString()
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[0].commentItems[0]
+        )
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidItem('username', 'parameter')
@@ -3630,28 +3955,542 @@ describe('::getHowUserVoted', () => {
 });
 
 describe('::applyVotesUpdateOperation', () => {
-  it('applies increment/decrement operation to question and updates ids', async () => {
+  it('applies increment/decrement operation to question and updates usernames', async () => {
     expect.hasAssertions();
+
+    await expect(
+      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+        { _id: itemToObjectId(dummyAppData.questions[2]) },
+        {
+          projection: {
+            _id: false,
+            upvotes: true,
+            downvotes: true,
+            upvoterUsernames: true,
+            downvoterUsernames: true
+          }
+        }
+      )
+    ).resolves.toStrictEqual({
+      upvotes: 0,
+      downvotes: 0,
+      upvoterUsernames: [],
+      downvoterUsernames: []
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[2]),
+        answer_id: undefined,
+        comment_id: undefined,
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+        { _id: itemToObjectId(dummyAppData.questions[2]) },
+        {
+          projection: {
+            _id: false,
+            upvotes: true,
+            downvotes: true,
+            upvoterUsernames: true,
+            downvoterUsernames: true
+          }
+        }
+      )
+    ).resolves.toStrictEqual({
+      upvotes: 1,
+      downvotes: 0,
+      upvoterUsernames: [dummyAppData.users[0].username],
+      downvoterUsernames: []
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(dummyAppData.questions[2]),
+        answer_id: undefined,
+        comment_id: undefined,
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+        { _id: itemToObjectId(dummyAppData.questions[2]) },
+        {
+          projection: {
+            _id: false,
+            upvotes: true,
+            downvotes: true,
+            upvoterUsernames: true,
+            downvoterUsernames: true
+          }
+        }
+      )
+    ).resolves.toStrictEqual({
+      upvotes: 1,
+      downvotes: 1,
+      upvoterUsernames: [dummyAppData.users[0].username],
+      downvoterUsernames: [dummyAppData.users[1].username]
+    });
   });
 
-  it('applies increment/decrement operation to answer and updates ids', async () => {
+  it('applies increment/decrement operation to answer and updates usernames', async () => {
     expect.hasAssertions();
+
+    const { upvotes, downvotes, upvoterUsernames, downvoterUsernames } =
+      dummyAppData.questions[0].answerItems[0];
+
+    const question_id = itemToObjectId(dummyAppData.questions[0]);
+    const answer_id = itemToObjectId(dummyAppData.questions[0].answerItems[0]);
+    const comment_id = undefined;
+
+    const projection = {
+      _id: false,
+      upvotes: true,
+      downvotes: true,
+      upvoterUsernames: true,
+      downvoterUsernames: true
+    };
+
+    await expect(
+      selectAnswerFromDb({ question_id, answer_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes,
+      downvotes,
+      upvoterUsernames,
+      downvoterUsernames
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(question_id),
+        answer_id: itemToStringId(answer_id),
+        comment_id,
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectAnswerFromDb({ question_id, answer_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes: upvotes + 1,
+      downvotes,
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1].username],
+      downvoterUsernames
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(question_id),
+        answer_id: itemToStringId(answer_id),
+        comment_id,
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectAnswerFromDb({ question_id, answer_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes: upvotes + 1,
+      downvotes: downvotes + 1,
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1].username],
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[2].username]
+    });
   });
 
-  it('applies increment/decrement operation to comment and updates ids', async () => {
+  it('applies increment/decrement operation to question comment and updates usernames', async () => {
     expect.hasAssertions();
+
+    const { upvotes, downvotes, upvoterUsernames, downvoterUsernames } =
+      dummyAppData.questions[0].commentItems[0];
+
+    const question_id = itemToObjectId(dummyAppData.questions[0]);
+    const answer_id = undefined;
+    const comment_id = itemToObjectId(dummyAppData.questions[0].commentItems[0]);
+
+    const projection = {
+      _id: false,
+      upvotes: true,
+      downvotes: true,
+      upvoterUsernames: true,
+      downvoterUsernames: true
+    };
+
+    await expect(
+      selectCommentFromDb({ question_id, answer_id, comment_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes,
+      downvotes,
+      upvoterUsernames,
+      downvoterUsernames
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(question_id),
+        answer_id,
+        comment_id: itemToStringId(comment_id),
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectCommentFromDb({ question_id, answer_id, comment_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes: upvotes + 1,
+      downvotes,
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1].username],
+      downvoterUsernames
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(question_id),
+        answer_id,
+        comment_id: itemToStringId(comment_id),
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectCommentFromDb({ question_id, answer_id, comment_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes: upvotes + 1,
+      downvotes: downvotes + 1,
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1].username],
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[2].username]
+    });
   });
 
-  it('rejects when duplicating an operation to an entry by a user', async () => {
+  it('applies increment/decrement operation to answer comment and updates usernames', async () => {
     expect.hasAssertions();
+
+    const { upvotes, downvotes, upvoterUsernames, downvoterUsernames } =
+      dummyAppData.questions[0].answerItems[0].commentItems[0];
+
+    const question_id = itemToObjectId(dummyAppData.questions[0]);
+    const answer_id = itemToObjectId(dummyAppData.questions[0].answerItems[0]);
+    const comment_id = itemToObjectId(
+      dummyAppData.questions[0].answerItems[0].commentItems[0]
+    );
+
+    const projection = {
+      _id: false,
+      upvotes: true,
+      downvotes: true,
+      upvoterUsernames: true,
+      downvoterUsernames: true
+    };
+
+    await expect(
+      selectCommentFromDb({ question_id, answer_id, comment_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes,
+      downvotes,
+      upvoterUsernames,
+      downvoterUsernames
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(question_id),
+        answer_id: itemToStringId(answer_id),
+        comment_id: itemToStringId(comment_id),
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectCommentFromDb({ question_id, answer_id, comment_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes: upvotes + 1,
+      downvotes,
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[0].username],
+      downvoterUsernames
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(question_id),
+        answer_id: itemToStringId(answer_id),
+        comment_id: itemToStringId(comment_id),
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectCommentFromDb({ question_id, answer_id, comment_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes: upvotes + 1,
+      downvotes: downvotes + 1,
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[0].username],
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[1].username]
+    });
   });
 
-  it('does not reject when duplicating an operation after first undoing it', async () => {
+  it('updates sorter uvc/uvac counters when updating question upvotes', async () => {
     expect.hasAssertions();
+
+    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+
+    const {
+      sorter: { uvc, uvac }
+    } = dummyAppData.questions[0];
+
+    await Backend.applyVotesUpdateOperation({
+      username: dummyAppData.users[0].username,
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      answer_id: undefined,
+      comment_id: undefined,
+      operation: { op: 'increment', target: 'upvotes' }
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc: uvc + 1, uvac: uvac + 1 });
+
+    await Backend.applyVotesUpdateOperation({
+      username: dummyAppData.users[0].username,
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      answer_id: undefined,
+      comment_id: undefined,
+      operation: { op: 'decrement', target: 'upvotes' }
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc, uvac });
   });
 
-  it('rejects when a decrement operation would result in a negative value', async () => {
+  it('rejects when duplicating increment operation', async () => {
     expect.hasAssertions();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined,
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.DuplicateIncrementOperation() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: undefined,
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.DuplicateIncrementOperation() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[1].commentItems[1]
+        ),
+        operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.DuplicateIncrementOperation() });
+  });
+
+  it('does not reject when duplicating an increment after first undoing it', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined,
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.DuplicateIncrementOperation() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined,
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined,
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[1].commentItems[1]
+        ),
+        operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.DuplicateIncrementOperation() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[1].commentItems[1]
+        ),
+        operation: { op: 'decrement', target: 'downvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[1].commentItems[1]
+        ),
+        operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it('does not allow decrement operations to result in a negative value', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      selectCommentFromDb({
+        question_id: itemToObjectId(dummyAppData.questions[0]),
+        answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[1]),
+        comment_id: itemToObjectId(
+          dummyAppData.questions[0].answerItems[1].commentItems[2]
+        ),
+        projection: { _id: false, upvotes: true, upvoterUsernames: true }
+      })
+    ).resolves.toStrictEqual({
+      upvotes: 0,
+      upvoterUsernames: [dummyAppData.users[0].username]
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[1].commentItems[2]
+        ),
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectCommentFromDb({
+        question_id: itemToObjectId(dummyAppData.questions[0]),
+        answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[1]),
+        comment_id: itemToObjectId(
+          dummyAppData.questions[0].answerItems[1].commentItems[2]
+        ),
+        projection: { _id: false, upvotes: true, upvoterUsernames: true }
+      })
+    ).resolves.toStrictEqual({
+      upvotes: 0,
+      upvoterUsernames: []
+    });
+  });
+
+  it('rejects decrement operations without preceding increment', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: undefined,
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.InvalidDecrementOperation() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[0].commentItems[0]
+        ),
+        operation: { op: 'decrement', target: 'downvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.InvalidDecrementOperation() });
+  });
+
+  it('rejects when attempting operations on multiple targets', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined,
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.MultipleIncrementTargets() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: undefined,
+        operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.MultipleIncrementTargets() });
+  });
+
+  it('rejects when attempting to vote on an entry created by the voter', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined,
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.IllegalOperation() });
   });
 
   it('rejects if question_id is not a valid ObjectId', async () => {
@@ -3663,7 +4502,7 @@ describe('::applyVotesUpdateOperation', () => {
       Backend.applyVotesUpdateOperation({
         username: dummyAppData.users[0].username,
         question_id,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: new ObjectId().toString(),
         operation: { op: 'increment', target: 'upvotes' }
       })
@@ -3675,7 +4514,7 @@ describe('::applyVotesUpdateOperation', () => {
       Backend.applyVotesUpdateOperation({
         username: dummyAppData.users[0].username,
         question_id: undefined,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: new ObjectId().toString(),
         operation: { op: 'increment', target: 'downvotes' }
       })
@@ -3692,7 +4531,7 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       Backend.applyVotesUpdateOperation({
         username: dummyAppData.users[0].username,
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         comment_id: new ObjectId().toString(),
         operation: { op: 'decrement', target: 'upvotes' }
@@ -3710,8 +4549,8 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       Backend.applyVotesUpdateOperation({
         username: dummyAppData.users[0].username,
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id,
         operation: { op: 'decrement', target: 'downvotes' }
       })
@@ -3729,7 +4568,7 @@ describe('::applyVotesUpdateOperation', () => {
       Backend.applyVotesUpdateOperation({
         username: dummyAppData.users[0].username,
         question_id,
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: new ObjectId().toString(),
         operation: { op: 'increment', target: 'upvotes' }
       })
@@ -3746,7 +4585,7 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       Backend.applyVotesUpdateOperation({
         username: dummyAppData.users[0].username,
-        question_id: dummyAppData.questions[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         comment_id: new ObjectId().toString(),
         operation: { op: 'increment', target: 'upvotes' }
@@ -3764,8 +4603,8 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       Backend.applyVotesUpdateOperation({
         username: dummyAppData.users[0].username,
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id,
         operation: { op: 'increment', target: 'upvotes' }
       })
@@ -3780,10 +4619,11 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       Backend.applyVotesUpdateOperation({
         username: 'does-not-exist',
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
-        comment_id:
-          dummyAppData.questions[0].answerItems[0].commentItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[0].commentItems[0]
+        ),
         operation: { op: 'increment', target: 'upvotes' }
       })
     ).rejects.toMatchObject({
@@ -3793,10 +4633,11 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       Backend.applyVotesUpdateOperation({
         username: undefined,
-        question_id: dummyAppData.questions[0]._id.toString(),
-        answer_id: dummyAppData.questions[0].answerItems[0]._id.toString(),
-        comment_id:
-          dummyAppData.questions[0].answerItems[0].commentItems[0]._id.toString(),
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[0].commentItems[0]
+        ),
         operation: { op: 'decrement', target: 'upvotes' }
       })
     ).rejects.toMatchObject({

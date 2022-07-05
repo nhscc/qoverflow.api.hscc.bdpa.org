@@ -747,9 +747,10 @@ export async function getHowUserVoted({
   question_id: string | undefined;
   answer_id: string | undefined;
   comment_id: string | undefined;
-}): Promise<void> {
+}): Promise<'upvoted' | 'downvoted' | null> {
   // TODO
   void username, question_id, answer_id, comment_id;
+  return null;
 }
 
 export async function applyVotesUpdateOperation({
