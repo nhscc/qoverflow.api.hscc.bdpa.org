@@ -267,7 +267,7 @@ const questions: InternalQuestion[] = [
     createdAt: mockDateNowMs - 5000,
     text: `As the title says, I'm looking for the BDPA NHSCC GitHub page, but I can't seem to find it. Any help would be appreciated.\n\nAlso: ![XSS attack!]("onerror="alert('your app has been hacked'))`,
     status: 'open',
-    hasAcceptedAnswer: true,
+    hasAcceptedAnswer: false,
     upvotes: 0,
     upvoterUsernames: [],
     downvotes: 0,
@@ -281,20 +281,101 @@ const questions: InternalQuestion[] = [
       uvc: 1,
       uvac: 1
     }
+  },
+  {
+    _id: new ObjectId(),
+    creator: 'User3',
+    title: 'Am I in the future?',
+    'title-lowercase': 'am I in the future?',
+    createdAt: mockDateNowMs + 60000,
+    text: `For some reason I've created this question a few seconds from now. How is that possible? **HELP ME!**`,
+    status: 'closed',
+    hasAcceptedAnswer: false,
+    upvotes: 0,
+    upvoterUsernames: [],
+    downvotes: 0,
+    downvoterUsernames: [],
+    views: 12,
+    answers: 0,
+    answerItems: [],
+    comments: 0,
+    commentItems: [],
+    sorter: {
+      uvc: 12,
+      uvac: 12
+    }
+  },
+  {
+    _id: new ObjectId(),
+    creator: 'User3',
+    title: 'Am I still in the future?',
+    'title-lowercase': 'am I still in the future?',
+    createdAt: mockDateNowMs + 1234567,
+    text: `### HELP ME I CAN'T GET BACK!`,
+    status: 'open',
+    hasAcceptedAnswer: true,
+    upvotes: 2,
+    upvoterUsernames: [users[0].username, users[1].username],
+    downvotes: 1,
+    downvoterUsernames: [],
+    views: 8,
+    answers: 0,
+    answerItems: [
+      {
+        _id: new ObjectId(),
+        creator: 'User2',
+        createdAt: mockDateNowMs - 1000,
+        text: 'You need to go back to the future, bro.',
+        accepted: true,
+        upvotes: 1,
+        upvoterUsernames: [],
+        downvotes: 0,
+        downvoterUsernames: [],
+        commentItems: []
+      },
+      {
+        _id: new ObjectId(),
+        creator: 'User1',
+        createdAt: mockDateNowMs - 900,
+        text: 'When are you?!',
+        accepted: true,
+        upvotes: 0,
+        upvoterUsernames: [],
+        downvotes: 1,
+        downvoterUsernames: [],
+        commentItems: [
+          {
+            _id: new ObjectId(),
+            creator: 'User3',
+            createdAt: mockDateNowMs,
+            text: "I'm not sure... HALP!",
+            upvotes: 0,
+            upvoterUsernames: [],
+            downvotes: 1,
+            downvoterUsernames: []
+          }
+        ]
+      }
+    ],
+    comments: 0,
+    commentItems: [],
+    sorter: {
+      uvc: 11,
+      uvac: 13
+    }
   }
 ];
 
 users[0].questionIds.push(questions[0]._id, questions[1]._id);
 users[1].questionIds.push(questions[2]._id);
+users[2].questionIds.push(questions[3]._id, questions[4]._id);
 
 users[0].answerIds.push(questions[0].answerItems[2]._id);
-
+users[2].answerIds.push(questions[0].answerItems[1]._id);
 users[1].answerIds.push(
   questions[0].answerItems[0]._id,
   questions[1].answerItems[0]._id
 );
-
-users[2].answerIds.push(questions[0].answerItems[1]._id);
 
 /**
  * Test data for the application database.

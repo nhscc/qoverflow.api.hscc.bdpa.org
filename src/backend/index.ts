@@ -49,13 +49,17 @@ const hexadecimalRegex = /^[a-fA-F0-9]+$/;
  * matchers. Proxied properties should be listed in their final form.
  */
 const matchableStrings = [
-  'type',
-  'owner',
+  'creator',
+  'title-lowercase', // * Proxied from title
   'createdAt',
-  'modifiedAt',
-  'name-lowercase', // * Proxied from name
-  'size',
-  'text'
+  'text',
+  'status',
+  'hasAcceptedAnswer',
+  'upvotes',
+  'downvotes',
+  'answers',
+  'views',
+  'comments'
 ];
 
 /**
@@ -64,10 +68,10 @@ const matchableStrings = [
  * their final form.
  */
 const regexMatchableStrings = [
-  'type',
-  'owner',
-  'name-lowercase', // * Proxied from name
-  'text'
+  'creator',
+  'title-lowercase', // * Proxied from title
+  'text',
+  'status'
 ];
 
 /**
@@ -86,7 +90,7 @@ type SubSpecifierObject = {
 
 /**
  * Convert an array of X_id strings into a set of X_id ObjectIds.
- * TODO: replace with ItemToObjectIds
+ * TODO: fold into ItemToObjectIds
  */
 const normalizeIds = (ids: string[]) => {
   let _id = '<uninitialized>';
@@ -414,12 +418,11 @@ export async function createMessage({
 }
 
 export async function searchQuestions({
-  username,
   after_id,
   match,
-  regexMatch
+  regexMatch,
+  sort
 }: {
-  username: Username | undefined;
   after_id: string | undefined;
   match: {
     [specifier: string]:
@@ -432,12 +435,10 @@ export async function searchQuestions({
   regexMatch: {
     [specifier: string]: string;
   };
+  sort: string | undefined;
 }): Promise<PublicQuestion[]> {
-  if (!username) {
-    throw new InvalidItemError('username', 'parameter');
-  }
-
   // TODO: fix me
+  void sort;
 
   const { RESULTS_PER_PAGE } = getEnv();
 

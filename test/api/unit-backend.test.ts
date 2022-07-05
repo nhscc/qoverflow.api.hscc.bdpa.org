@@ -39,6 +39,7 @@ import { mockEnvFactory } from 'testverse/setup';
 
 import type { PublicUser, NewUser, PatchUser } from 'universe/backend/db';
 import { itemToObjectId, itemToStringId } from 'multiverse/mongo-item';
+import randomCase from 'random-case';
 
 setupMemoryServerOverride();
 useMockDateNow();
@@ -1153,25 +1154,24 @@ describe('::createMessage', () => {
 });
 
 describe('::searchQuestions', () => {
-  it('returns all questions if no query params given', async () => {
+  const reversedInternalQuestions = dummyAppData.questions.slice().reverse();
+  const reversedPublicQuestions = reversedInternalQuestions.map(toPublicQuestion);
+
+  it('returns RESULTS_PER_PAGE questions in default sort order (insertion, latest first) if no query params given', async () => {
     expect.hasAssertions();
 
     await withMockedEnv(
       async () => {
         await expect(
-          Backend.searchNodes({
-            username: dummyAppData.users[2].username,
-            after: undefined,
+          Backend.searchQuestions({
+            after_id: undefined,
             match: {},
-            regexMatch: {}
+            regexMatch: {},
+            sort: undefined
           })
-        ).resolves.toStrictEqual(
-          getOwnedAndSharedNodes(dummyAppData.users[2].username)
-            .slice(0, 4)
-            .map(toPublicNode)
-        );
+        ).resolves.toStrictEqual(reversedPublicQuestions.slice(0, 3));
       },
-      { RESULTS_PER_PAGE: '4' }
+      { RESULTS_PER_PAGE: '3' }
     );
   });
 
@@ -1180,29 +1180,26 @@ describe('::searchQuestions', () => {
 
     await withMockedEnv(
       async () => {
-        let prevNode: PublicNode | null = null;
-        const nodes = getOwnedAndSharedNodes(dummyAppData.users[2].username).map(
-          toPublicNode
-        );
+        let prevQuestion: PublicQuestion | null = null;
 
-        for (const node of nodes) {
+        for (const question of reversedPublicQuestions) {
           await expect(
-            Backend.searchNodes({
-              username: dummyAppData.users[2].username,
-              after: prevNode ? prevNode.node_id : undefined,
+            Backend.searchQuestions({
+              after_id: prevQuestion ? prevQuestion.question_id : undefined,
               match: {},
-              regexMatch: {}
+              regexMatch: {},
+              sort: undefined
             })
-          ).resolves.toStrictEqual([node]);
-          prevNode = node;
+          ).resolves.toStrictEqual([question]);
+          prevQuestion = question;
         }
 
         await expect(
-          Backend.searchNodes({
-            username: dummyAppData.users[2].username,
-            after: prevNode ? prevNode.node_id : undefined,
+          Backend.searchQuestions({
+            after_id: prevQuestion ? prevQuestion.question_id : undefined,
             match: {},
-            regexMatch: {}
+            regexMatch: {},
+            sort: undefined
           })
         ).resolves.toStrictEqual([]);
       },
@@ -1213,43 +1210,37 @@ describe('::searchQuestions', () => {
   it('does not crash when database is empty', async () => {
     expect.hasAssertions();
 
-    const db = await getDb({ name: 'hscc-api-drive' });
-    const fileNodeDb = db.collection('file-nodes');
-    const metaNodeDb = db.collection('meta-nodes');
+    const db = await getDb({ name: 'hscc-api-qoverflow' });
+    const questionsDb = db.collection('questions');
 
-    await fileNodeDb.deleteMany({});
-    await metaNodeDb.deleteMany({});
+    await questionsDb.deleteMany({});
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[2].username,
-        after: undefined,
+      Backend.searchQuestions({
+        after_id: undefined,
         match: {},
-        regexMatch: {}
+        regexMatch: {},
+        sort: undefined
       })
     ).resolves.toStrictEqual([]);
-  });
-
-  it('returns expected questions when matching using proxied fields', async () => {
-    expect.hasAssertions();
   });
 
   it('returns expected questions when using match and regexMatch simultaneously', async () => {
     expect.hasAssertions();
 
-    const regex = /(view|edit)/im;
+    const regex = /(open|closed)/im;
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[2].username,
-        after: undefined,
+      Backend.searchQuestions({
+        after_id: undefined,
         match: { createdAt: { $lt: Date.now() } },
-        regexMatch: { 'permissions.User2': 'view|edit' }
+        regexMatch: { status: 'open|closed' },
+        sort: undefined
       })
     ).resolves.toStrictEqual(
-      getOwnedAndSharedNodes(dummyAppData.users[2].username)
-        .filter((n) => n.createdAt < Date.now() && regex.test(n.permissions?.User2))
-        .map(toPublicNode)
+      reversedPublicQuestions.filter(
+        (q) => q.createdAt < Date.now() && regex.test(q.status)
+      )
     );
   });
 
@@ -1257,16 +1248,16 @@ describe('::searchQuestions', () => {
     expect.hasAssertions();
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[0].username,
-        after: undefined,
-        match: { name: 'USER1-FILE1' },
-        regexMatch: {}
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: { title: randomCase('where is the nhscc github page?') },
+        regexMatch: {},
+        sort: undefined
       })
     ).resolves.toStrictEqual(
-      getOwnedAndSharedNodes(dummyAppData.users[0].username)
-        .filter((n) => n['name-lowercase'] == 'user1-file1')
-        .map(toPublicNode)
+      reversedInternalQuestions
+        .filter((q) => q['title-lowercase'] == 'where is the nhscc github page?')
+        .map(toPublicQuestion)
     );
   });
 
@@ -1274,36 +1265,16 @@ describe('::searchQuestions', () => {
     expect.hasAssertions();
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[0].username,
-        after: undefined,
-        match: { createdAt: { $lt: Date.now() - 5000, $gt: Date.now() - 10000 } },
-        regexMatch: {}
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: { createdAt: { $lt: Date.now() - 5000, $gt: Date.now() - 10 ** 5 } },
+        regexMatch: {},
+        sort: undefined
       })
     ).resolves.toStrictEqual(
-      getOwnedAndSharedNodes(dummyAppData.users[0].username)
-        .filter(
-          (n) => n.createdAt < Date.now() - 5000 && n.createdAt > Date.now() - 10000
-        )
-        .map(toPublicNode)
-    );
-
-    await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[0].username,
-        after: undefined,
-        match: { modifiedAt: { $lt: Date.now() - 500, $gt: Date.now() - 1000 } },
-        regexMatch: {}
-      })
-    ).resolves.toStrictEqual(
-      getOwnedAndSharedNodes(dummyAppData.users[0].username)
-        .filter(
-          (n) =>
-            n.type == 'file' &&
-            n.modifiedAt < Date.now() - 500 &&
-            n.modifiedAt > Date.now() - 1000
-        )
-        .map(toPublicNode)
+      reversedPublicQuestions.filter(
+        (q) => q.createdAt < Date.now() - 5000 && q.createdAt > Date.now() - 10 ** 5
+      )
     );
   });
 
@@ -1311,55 +1282,47 @@ describe('::searchQuestions', () => {
     expect.hasAssertions();
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[2].username,
-        after: undefined,
-        match: { createdAt: { $lt: Date.now() - 10000 } },
-        regexMatch: {}
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: { createdAt: { $lt: Date.now() - 10 ** 4 } },
+        regexMatch: {},
+        sort: undefined
       })
     ).resolves.toStrictEqual(
-      getOwnedAndSharedNodes(dummyAppData.users[2].username)
-        .filter((n) => n.createdAt < Date.now() - 10000)
-        .map(toPublicNode)
+      reversedPublicQuestions.filter((q) => q.createdAt < Date.now() - 10 ** 4)
     );
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[2].username,
-        after: undefined,
-        match: { createdAt: { $lte: Date.now() - 10000 } },
-        regexMatch: {}
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: { createdAt: { $lte: Date.now() - 5000 } },
+        regexMatch: {},
+        sort: undefined
       })
     ).resolves.toStrictEqual(
-      getOwnedAndSharedNodes(dummyAppData.users[2].username)
-        .filter((n) => n.createdAt <= Date.now() - 10000)
-        .map(toPublicNode)
+      reversedPublicQuestions.filter((q) => q.createdAt <= Date.now() - 5000)
     );
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[2].username,
-        after: undefined,
-        match: { createdAt: { $gt: Date.now() - 10000 } },
-        regexMatch: {}
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: { createdAt: { $gt: Date.now() - 10 ** 4 } },
+        regexMatch: {},
+        sort: undefined
       })
     ).resolves.toStrictEqual(
-      getOwnedAndSharedNodes(dummyAppData.users[2].username)
-        .filter((n) => n.createdAt > Date.now() - 10000)
-        .map(toPublicNode)
+      reversedPublicQuestions.filter((q) => q.createdAt > Date.now() - 10 ** 4)
     );
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[2].username,
-        after: undefined,
-        match: { createdAt: { $gte: Date.now() - 10000 } },
-        regexMatch: {}
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: { createdAt: { $gte: Date.now() - 98765 } },
+        regexMatch: {},
+        sort: undefined
       })
     ).resolves.toStrictEqual(
-      getOwnedAndSharedNodes(dummyAppData.users[2].username)
-        .filter((n) => n.createdAt >= Date.now() - 10000)
-        .map(toPublicNode)
+      reversedPublicQuestions.filter((q) => q.createdAt >= Date.now() - 98765)
     );
   });
 
@@ -1367,61 +1330,144 @@ describe('::searchQuestions', () => {
     expect.hasAssertions();
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[2].username,
-        after: undefined,
+      Backend.searchQuestions({
+        after_id: undefined,
         match: {
           createdAt: {
-            $or: [{ $lt: Date.now() - 10000 }, { $gt: Date.now() - 5000 }]
+            $or: [{ $lt: Date.now() - 10 ** 5 }, { $gte: Date.now() - 5000 }]
           }
         },
-        regexMatch: {}
+        regexMatch: {},
+        sort: undefined
       })
     ).resolves.toStrictEqual(
-      getOwnedAndSharedNodes(dummyAppData.users[2].username)
-        .filter(
-          (n) => n.createdAt < Date.now() - 10000 || n.createdAt > Date.now() - 5000
-        )
-        .map(toPublicNode)
+      reversedPublicQuestions.filter(
+        (q) => q.createdAt < Date.now() - 10 ** 5 || q.createdAt >= Date.now() - 5000
+      )
     );
   });
 
-  it('supports multi-line case-insensitive regular expression matching of text via regexMatch', async () => {
+  it('supports multi-line case-insensitive regex matching of text via regexMatch', async () => {
     expect.hasAssertions();
 
-    const regex = /^cause look.*$/im;
+    const regex = /^alsO:.*$/im;
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[0].username,
-        after: undefined,
+      Backend.searchQuestions({
+        after_id: undefined,
         match: {},
-        regexMatch: { text: '^cause look.*$' }
+        regexMatch: { text: '^alsO:.*$' },
+        sort: undefined
       })
     ).resolves.toStrictEqual(
-      getOwnedAndSharedNodes(dummyAppData.users[0].username)
-        .filter((n) => n.type == 'file' && regex.test(n.text))
-        .map(toPublicNode)
+      reversedPublicQuestions.filter((q) => regex.test(q.text))
     );
-  });
-
-  it('returns results sorted by insertion order (question_id, latest first) by default', async () => {
-    expect.hasAssertions();
   });
 
   it('supports sorting results by upvotes, upvotes+views+comments, and upvotes+views+answers+comments (highest first)', async () => {
     expect.hasAssertions();
+
+    await expect(
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: {},
+        regexMatch: {},
+        sort: 'u'
+      })
+    ).resolves.toStrictEqual(
+      reversedInternalQuestions
+        .slice()
+        .sort((a, b) => b.upvotes - a.upvotes)
+        .map(toPublicQuestion)
+    );
+
+    await expect(
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: {},
+        regexMatch: {},
+        sort: 'uvc'
+      })
+    ).resolves.toStrictEqual(
+      reversedInternalQuestions
+        .slice()
+        .sort((a, b) => b.sorter.uvc - a.sorter.uvc)
+        .map(toPublicQuestion)
+    );
+
+    await expect(
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: {},
+        regexMatch: {},
+        sort: 'uvac'
+      })
+    ).resolves.toStrictEqual(
+      reversedInternalQuestions
+        .slice()
+        .sort((a, b) => b.sorter.uvac - a.sorter.uvac)
+        .map(toPublicQuestion)
+    );
+  });
+
+  it('supports sorting matched results', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: { answers: 0 },
+        regexMatch: {},
+        sort: 'uvc'
+      })
+    ).resolves.toStrictEqual(
+      reversedInternalQuestions
+        .slice()
+        .filter((q) => !q.answers)
+        .sort((a, b) => b.sorter.uvc - a.sorter.uvc)
+        .map(toPublicQuestion)
+    );
+
+    await expect(
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: { hasAcceptedAnswer: false },
+        regexMatch: {},
+        sort: 'uvac'
+      })
+    ).resolves.toStrictEqual(
+      reversedInternalQuestions
+        .slice()
+        .filter((q) => !q.hasAcceptedAnswer)
+        .sort((a, b) => b.sorter.uvac - a.sorter.uvac)
+        .map(toPublicQuestion)
+    );
+  });
+
+  it('rejects if passed an invalid sort parameter', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      Backend.searchQuestions({
+        after_id: undefined,
+        match: {},
+        regexMatch: {},
+        sort: 'nope'
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidItem('nope', 'sort parameter')
+    });
   });
 
   it('rejects if after_id is not a valid ObjectId (undefined is okay)', async () => {
     expect.hasAssertions();
 
     await expect(
-      Backend.searchNodes({
-        username: 'fake-user',
-        after: 'fake-oid',
+      Backend.searchQuestions({
+        after_id: 'fake-oid',
         match: {},
-        regexMatch: {}
+        regexMatch: {},
+        sort: undefined
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidObjectId('fake-oid')
@@ -1431,55 +1477,79 @@ describe('::searchQuestions', () => {
   it('rejects if after_id not found', async () => {
     expect.hasAssertions();
 
-    const after = new ObjectId().toString();
+    const after_id = new ObjectId().toString();
 
     await expect(
-      Backend.searchNodes({
-        username: dummyAppData.users[0].username,
-        after,
+      Backend.searchQuestions({
+        after_id,
         match: {},
-        regexMatch: {}
+        regexMatch: {},
+        sort: undefined
       })
-    ).rejects.toMatchObject({ message: ErrorMessage.ItemNotFound(after, 'node_id') });
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(after_id, 'question_id')
+    });
   });
 
   it('rejects when using match/regexMatch with disallowed, unknown, or non-proxied fields', async () => {
     expect.hasAssertions();
 
     const matchers: [
-      match: Parameters<typeof Backend.searchNodes>[0]['match'],
-      regexMatch: Parameters<typeof Backend.searchNodes>[0]['regexMatch'],
+      match: Parameters<typeof Backend.searchQuestions>[0]['match'],
+      regexMatch: Parameters<typeof Backend.searchQuestions>[0]['regexMatch'],
       errorMessage: string
     ][] = [
       [
-        { node_id: new ObjectId().toString() },
+        { question_id: new ObjectId().toString() },
         {},
-        ErrorMessage.UnknownSpecifier('node_id')
+        ErrorMessage.UnknownSpecifier('question_id')
       ],
       [
         {},
-        { node_id: new ObjectId().toString() },
-        ErrorMessage.UnknownSpecifier('node_id')
+        { question_id: new ObjectId().toString() },
+        ErrorMessage.UnknownSpecifier('question_id')
       ],
-      [{ lock: {} }, {}, ErrorMessage.UnknownSpecifier('lock')],
-      [{}, { lock: '' }, ErrorMessage.UnknownSpecifier('lock')],
-      [{ contents: '' }, {}, ErrorMessage.UnknownSpecifier('contents')],
-      [{}, { contents: '' }, ErrorMessage.UnknownSpecifier('contents')],
-      [{ permissions: '' }, {}, ErrorMessage.UnknownPermissionsSpecifier()],
-      [{}, { permissions: '' }, ErrorMessage.UnknownPermissionsSpecifier()],
-      [{}, { createdAt: 'User1' }, ErrorMessage.UnknownSpecifier('createdAt')],
-      [{}, { modifiedAt: 'User1' }, ErrorMessage.UnknownSpecifier('modifiedAt')],
-      [{}, { size: 'User1' }, ErrorMessage.UnknownSpecifier('size')]
+      [
+        { 'title-lowercase': '' },
+        {},
+        ErrorMessage.UnknownSpecifier('title-lowercase')
+      ],
+      [
+        {},
+        { 'title-lowercase': '' },
+        ErrorMessage.UnknownSpecifier('title-lowercase')
+      ],
+      [
+        { upvoterUsernames: [] as any },
+        {},
+        ErrorMessage.UnknownSpecifier('upvoterUsernames')
+      ],
+      [
+        {},
+        { upvoterUsernames: [] as any },
+        ErrorMessage.UnknownSpecifier('upvoterUsernames')
+      ],
+      [{ 'sorter.uvc': {} as any }, {}, ErrorMessage.UnknownSpecifier('sorter.uvc')],
+      [{}, { sorter: {} as any }, ErrorMessage.UnknownSpecifier('sorter')],
+      [{}, { createdAt: '12345' }, ErrorMessage.UnknownSpecifier('createdAt')],
+      [{}, { upvotes: '10' }, ErrorMessage.UnknownSpecifier('upvotes')],
+      [
+        {},
+        { hasAcceptedAnswer: 'false' },
+        ErrorMessage.UnknownSpecifier('hasAcceptedAnswer')
+      ],
+      [{ unknown: 'unknown' }, {}, ErrorMessage.UnknownSpecifier('unknown')],
+      [{}, { unknown: 'unknown' }, ErrorMessage.UnknownSpecifier('unknown')]
     ];
 
     await Promise.all(
       matchers.map(([match, regexMatch, message]) =>
         expect(
-          Backend.searchNodes({
-            username: dummyAppData.users[0].username,
-            after: undefined,
+          Backend.searchQuestions({
+            after_id: undefined,
             match,
-            regexMatch
+            regexMatch,
+            sort: undefined
           })
         ).rejects.toMatchObject({ message })
       )
@@ -1530,45 +1600,13 @@ describe('::searchQuestions', () => {
         ]
       ],
       [
-        { tags: 1 },
-        [
-          ErrorMessage.InvalidSpecifierValueType('tags', 'an array'),
-          ErrorMessage.UnknownSpecifier('tags')
-        ]
-      ],
-      [
-        {
-          tags: Array.from({ length: getEnv().MAX_SEARCHABLE_TAGS + 1 }).map(
-            (_, ndx) => ndx.toString()
-          )
-        },
-        [
-          ErrorMessage.TooManyItemsRequested('searchable tags'),
-          ErrorMessage.UnknownSpecifier('tags')
-        ]
-      ],
-      [
-        { permissions: {} },
-        [
-          ErrorMessage.UnknownPermissionsSpecifier(),
-          ErrorMessage.UnknownPermissionsSpecifier()
-        ]
-      ],
-      [
-        { 'permissions.User1': 'view', 'permissions.User2': 'edit' },
-        [
-          ErrorMessage.TooManyItemsRequested('permissions specifiers'),
-          ErrorMessage.TooManyItemsRequested('permissions specifiers')
-        ]
-      ],
-      [
-        { type: /nope/g },
+        { status: /nope/g },
         [
           ErrorMessage.InvalidSpecifierValueType(
-            'type',
+            'status',
             'a number, string, boolean, or sub-specifier object'
           ),
-          ErrorMessage.InvalidRegexString('type')
+          ErrorMessage.InvalidRegexString('status')
         ]
       ],
       [
@@ -1667,20 +1705,20 @@ describe('::searchQuestions', () => {
         return [
           // eslint-disable-next-line jest/valid-expect
           expect(
-            Backend.searchNodes({
-              username: dummyAppData.users[0].username,
-              after: undefined,
+            Backend.searchQuestions({
+              after_id: undefined,
               match: matcher,
-              regexMatch: {}
+              regexMatch: {},
+              sort: undefined
             })
           ).rejects.toMatchObject({ message: matchMessage }),
           // eslint-disable-next-line jest/valid-expect
           expect(
-            Backend.searchNodes({
-              username: dummyAppData.users[0].username,
-              after: undefined,
+            Backend.searchQuestions({
+              after_id: undefined,
               match: {},
-              regexMatch: matcher
+              regexMatch: matcher,
+              sort: undefined
             })
           ).rejects.toMatchObject({ message: regexMatchMessage })
         ];
