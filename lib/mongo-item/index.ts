@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb';
 import { toss } from 'toss-expression';
-import { GuruMeditationError } from 'named-app-errors';
+import { GuruMeditationError, ValidationError } from 'named-app-errors';
 
 import type { Collection, WithId } from 'mongodb';
 
@@ -141,25 +141,33 @@ export function itemToObjectId<T extends ObjectId>(item: IdItemArray<T>): T[];
 export function itemToObjectId<T extends ObjectId>(
   item: IdItem<T> | IdItemArray<T>
 ): T | T[] {
-  return item instanceof ObjectId
-    ? item
-    : Array.isArray(item)
-    ? item.map((i) => {
-        return (
-          i instanceof ObjectId
-            ? i
-            : typeof i == 'string'
-            ? new ObjectId(i)
-            : i?._id instanceof ObjectId
-            ? i._id
-            : toss(new GuruMeditationError(`encountered irreducible sub-item: ${i}`))
-        ) as T;
-      })
-    : typeof item == 'string'
-    ? (new ObjectId(item) as T)
-    : item?._id instanceof ObjectId
-    ? (item._id as T)
-    : toss(new GuruMeditationError(`encountered irreducible item: ${item}`));
+  let _id: unknown = '<uninitialized>';
+  try {
+    return item instanceof ObjectId
+      ? item
+      : Array.isArray(item)
+      ? Array.from(new Set<typeof item[0]>(item)).map((i) => {
+          _id = i;
+          return (
+            i instanceof ObjectId
+              ? i
+              : typeof i == 'string'
+              ? new ObjectId(i)
+              : i?._id instanceof ObjectId
+              ? i._id
+              : toss(
+                  new GuruMeditationError(`encountered irreducible sub-item: ${i}`)
+                )
+          ) as T;
+        })
+      : typeof item == 'string'
+      ? ((_id = item), new ObjectId(item) as T)
+      : item?._id instanceof ObjectId
+      ? (item._id as T)
+      : toss(new GuruMeditationError(`encountered irreducible item: ${item}`));
+  } catch {
+    throw new ValidationError(`invalid id "${_id}"`);
+  }
 }
 
 /**
