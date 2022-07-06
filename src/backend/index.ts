@@ -1,39 +1,39 @@
 import { MongoServerError, ObjectId } from 'mongodb';
 import { toss } from 'toss-expression';
 
-import { isPlainObject } from 'multiverse/is-plain-object';
-import { getDb } from 'multiverse/mongo-schema';
-import { itemExists, itemToObjectId } from 'multiverse/mongo-item';
 import { getEnv } from 'universe/backend/env';
 
 import {
-  AnswerId,
-  InternalMail,
-  InternalQuestion,
-  MailId,
-  PointsUpdateOperation,
+  addAnswerToDb,
+  publicAnswerMap,
   publicAnswerProjection,
   publicMailProjection,
   publicQuestionProjection,
   publicUserProjection,
-  QuestionId,
   questionStatuses,
   selectAnswerFromDb,
+  toPublicAnswer,
   toPublicMail,
   toPublicQuestion,
-  toPublicUser,
-  ViewsUpdateOperation,
-  VotesUpdateOperation
+  toPublicUser
 } from 'universe/backend/db';
 
 import {
   ItemNotFoundError,
   InvalidItemError,
   ValidationError,
+  ClientValidationError,
   ErrorMessage
 } from 'universe/error';
 
 import type {
+  AnswerId,
+  QuestionId,
+  InternalAnswer,
+  InternalMail,
+  InternalQuestion,
+  MailId,
+  PointsUpdateOperation,
   PublicUser,
   NewUser,
   PatchUser,
@@ -49,8 +49,13 @@ import type {
   PublicAnswer,
   PublicComment,
   PublicMail,
-  PublicQuestion
+  PublicQuestion,
+  VotesUpdateOperation
 } from 'universe/backend/db';
+
+import { isPlainObject } from 'multiverse/is-plain-object';
+import { getDb } from 'multiverse/mongo-schema';
+import { itemExists, itemToObjectId } from 'multiverse/mongo-item';
 
 type SorterUpdateAggregationOp = {
   $add: [
@@ -218,7 +223,7 @@ function validateQuestionData(
 }
 
 /**
- * Validate a new or patch question data object.
+ * Validate a new or patch answer data object.
  */
 function validateAnswerData(
   data: NewAnswer | PatchAnswer | undefined,
@@ -598,6 +603,7 @@ export async function getUserMessages({
     throw new InvalidItemError('username', 'parameter');
   }
 
+  // ? Derive the actual after_id
   const afterId = after_id ? itemToObjectId<MailId>(after_id) : undefined;
 
   const db = await getDb({ name: 'hscc-api-qoverflow' });
@@ -689,26 +695,8 @@ export async function createMessage({
     text
   };
 
-  // * At this point, we can finally trust this data is not malicious, but not
-  // * necessarily valid...
-  try {
-    await mailDb.insertOne(newMail);
-  } catch (e) {
-    /* istanbul ignore else */
-    if (e instanceof MongoServerError && e.code == 11000) {
-      if (e.keyPattern?.username !== undefined) {
-        throw new ValidationError(ErrorMessage.DuplicateFieldValue('username'));
-      }
-
-      /* istanbul ignore else */
-      if (e.keyPattern?.email !== undefined) {
-        throw new ValidationError(ErrorMessage.DuplicateFieldValue('email'));
-      }
-    }
-
-    /* istanbul ignore next */
-    throw e;
-  }
+  // * At this point, we can finally trust this data is valid and not malicious
+  await mailDb.insertOne(newMail);
 
   return toPublicMail(newMail);
 }
@@ -1106,7 +1094,7 @@ export async function updateQuestion({
         ...(text ? { text } : {}),
         ...(status ? { status } : {}),
         ...(typeof downvotes == 'number' ? { downvotes } : {}),
-        ...(incrementor ? incrementor : {})
+        ...incrementor
       }
     }
   ]);
@@ -1123,9 +1111,67 @@ export async function getAnswers({
   question_id: string | undefined;
   after_id: string | undefined;
 }): Promise<PublicAnswer[]> {
-  // TODO
-  void question_id, after_id;
-  return [];
+  if (!question_id) {
+    throw new InvalidItemError('question_id', 'parameter');
+  }
+
+  // ? Derive the actual after_id and question_id
+  const afterId = after_id ? itemToObjectId<AnswerId>(after_id) : undefined;
+  const questionId = itemToObjectId(question_id);
+
+  // ? Ensure after_id exists
+  if (afterId) {
+    try {
+      void (await selectAnswerFromDb({
+        question_id: questionId,
+        answer_id: afterId,
+        projection: { exists: { $literal: true } }
+      }));
+    } catch (e) {
+      if (e instanceof MongoServerError) {
+        throw new ItemNotFoundError(afterId, 'answer_id');
+      }
+
+      throw e;
+    }
+  }
+
+  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const questionDb = db.collection<InternalQuestion>('questions');
+
+  const pipeline = [
+    { $match: { _id: questionId } },
+    {
+      $project: {
+        answers: {
+          $map: {
+            input: {
+              $slice: [
+                afterId
+                  ? {
+                      $filter: {
+                        input: '$answerItems',
+                        as: 'this',
+                        cond: { $gt: ['$$this._id', afterId] }
+                      }
+                    }
+                  : '$answerItems',
+                getEnv().RESULTS_PER_PAGE
+              ]
+            },
+            as: 'answer',
+            in: publicAnswerMap('answer')
+          }
+        }
+      }
+    }
+  ];
+
+  const { answers } =
+    (await questionDb.aggregate<{ answers: PublicAnswer[] }>(pipeline).next()) ||
+    toss(new ItemNotFoundError(question_id, 'question'));
+
+  return answers;
 }
 
 export async function createAnswer({
@@ -1135,9 +1181,76 @@ export async function createAnswer({
   question_id: string | undefined;
   data: NewAnswer | undefined;
 }): Promise<PublicAnswer> {
-  // TODO
-  void question_id, data;
-  return {} as PublicAnswer;
+  if (!question_id) {
+    throw new InvalidItemError('question_id', 'parameter');
+  }
+
+  validateAnswerData(data, { required: true });
+
+  const { creator, text, ...rest } = data as Required<NewAnswer>;
+  const restKeys = Object.keys(rest);
+
+  if (restKeys.length != 0) {
+    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  }
+
+  if (!creator) {
+    throw new ValidationError(ErrorMessage.InvalidFieldValue('creator'));
+  }
+
+  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const userDb = db.collection<InternalUser>('users');
+  const questionDb = db.collection<InternalQuestion>('questions');
+  const questionId = itemToObjectId(question_id);
+
+  if (!(await itemExists(userDb, { key: 'username', id: creator }))) {
+    throw new ItemNotFoundError(creator, 'user');
+  }
+
+  if (!(await itemExists(questionDb, questionId))) {
+    throw new ItemNotFoundError(questionId, 'question');
+  }
+
+  try {
+    if (
+      await selectAnswerFromDb({
+        question_id: questionId,
+        answer_creator: creator,
+        projection: { exists: { $literal: true } }
+      })
+    ) {
+      throw new ClientValidationError(ErrorMessage.UserAlreadyAnswered());
+    }
+  } catch (e) {
+    if (e instanceof ClientValidationError) {
+      throw e;
+    }
+  }
+
+  const newAnswer: InternalAnswer = {
+    _id: new ObjectId(),
+    creator,
+    createdAt: Date.now(),
+    text,
+    accepted: false,
+    upvotes: 0,
+    upvoterUsernames: [],
+    downvotes: 0,
+    downvoterUsernames: [],
+    commentItems: []
+  };
+
+  // * At this point, we can finally trust this data is not malicious, but not
+  // * necessarily valid...
+
+  await addAnswerToDb({ question_id: questionId, answer: newAnswer });
+
+  await userDb.updateOne(
+    { username: creator },
+    { $push: { answerIds: [questionId, newAnswer._id] } }
+  );
+
+  return toPublicAnswer(newAnswer);
 }
 
 export async function updateAnswer({

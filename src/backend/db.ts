@@ -6,6 +6,11 @@ import { DbSchema, getDb } from 'multiverse/mongo-schema';
 import { GuruMeditationError } from 'named-app-errors';
 
 /**
+ * A generic projection specification.
+ */
+type Projection = { [key in keyof InternalAnswer]?: unknown } & Document;
+
+/**
  * A JSON representation of the backend Mongo database structure. This is used
  * for consistent app-wide db access across projects and to generate transient
  * versions of the db during testing.
@@ -487,6 +492,22 @@ export const publicAnswerProjection = {
 } as const;
 
 /**
+ * A MongoDB aggregation expression that maps an internal answer into a public
+ * answer.
+ */
+export const publicAnswerMap = (variable: string) =>
+  ({
+    answer_id: { $toString: `$$${variable}._id` },
+    creator: `$$${variable}.creator`,
+    createdAt: `$$${variable}.createdAt`,
+    accepted: `$$${variable}.accepted`,
+    text: `$$${variable}.text`,
+    upvotes: `$$${variable}.upvotes`,
+    downvotes: `$$${variable}.downvotes`,
+    comments: { $size: `$$${variable}.commentItems` }
+  } as const);
+
+/**
  * A MongoDB cursor projection that transforms an internal comment into a public
  * comment.
  */
@@ -500,28 +521,45 @@ export const publicCommentProjection = {
   downvotes: true
 } as const;
 
-type Projection = { [key in keyof InternalAnswer]?: unknown } & Document;
+/**
+ * A MongoDB aggregation expression that maps an internal comment into a public
+ * comment.
+ */
+export const publicCommentMap = (variable: string) =>
+  ({
+    comment_id: { $toString: `$$${variable}._id` },
+    creator: `$$${variable}.creator`,
+    createdAt: `$$${variable}.createdAt`,
+    text: `$$${variable}.text`,
+    upvotes: `$$${variable}.upvotes`,
+    downvotes: `$$${variable}.downvotes`
+  } as const);
 
 async function genericSelectAggregation<T>({
   question_id,
   answer_id,
+  answer_creator,
   comment_id,
   projection
 }: {
   question_id: QuestionId | undefined;
   answer_id: AnswerId | undefined;
+  answer_creator?: Username | undefined;
   comment_id: CommentId | undefined;
   projection: Projection | undefined;
 }): Promise<T> {
-  if (!answer_id && !comment_id) {
-    throw new GuruMeditationError();
+  if (
+    (!answer_id && !answer_creator && !comment_id) ||
+    (answer_id && answer_creator)
+  ) {
+    throw new GuruMeditationError('illegal parameter combination');
   }
 
   return (await getDb({ name: 'hscc-api-qoverflow' }))
     .collection<InternalQuestion>('questions')
     .aggregate([
       { $match: { _id: question_id } },
-      ...(answer_id
+      ...(answer_id || answer_creator
         ? [
             {
               $project: {
@@ -530,7 +568,9 @@ async function genericSelectAggregation<T>({
                     $filter: {
                       input: '$answerItems',
                       as: 'answer',
-                      cond: { $eq: ['$$answer._id', answer_id] }
+                      cond: answer_creator
+                        ? { $eq: ['$$answer.creator', answer_creator] }
+                        : { $eq: ['$$answer._id', answer_id] }
                     }
                   }
                 }
@@ -573,15 +613,18 @@ async function genericSelectAggregation<T>({
 export async function selectAnswerFromDb<T = InternalAnswer | null>({
   question_id,
   answer_id,
+  answer_creator,
   projection
 }: {
   question_id: QuestionId;
-  answer_id: AnswerId;
+  answer_id?: AnswerId;
+  answer_creator?: Username;
   projection?: Projection;
 }): Promise<T> {
   return genericSelectAggregation<T>({
     question_id,
     answer_id,
+    answer_creator,
     comment_id: undefined,
     projection
   });
@@ -622,7 +665,13 @@ export async function addAnswerToDb({
 }) {
   await (await getDb({ name: 'hscc-api-qoverflow' }))
     .collection<InternalQuestion>('questions')
-    .updateOne({ _id: question_id }, { $push: { answerItems: answer } });
+    .updateOne(
+      { _id: question_id },
+      {
+        $inc: { answers: 1, 'sorter.uvac': 1 },
+        $push: { answerItems: answer }
+      }
+    );
 }
 
 /**
@@ -648,10 +697,20 @@ export async function addCommentToDb({
       { arrayFilters: [{ 'answer._id': answer_id }] }
     );
   } else {
-    await db.updateOne({ _id: question_id }, { $push: { commentItems: comment } });
+    await db.updateOne(
+      { _id: question_id },
+      {
+        $inc: { comments: 1, 'sorter.uvc': 1, 'sorter.uvac': 1 },
+        $push: { commentItems: comment }
+      }
+    );
   }
 }
 
+/**
+ * Helper function that flattens an update specification for a sub-object so
+ * that it may be used in a MongoDB update function.
+ */
 function updateOpsToFullSchema(updateOps: Document, predicate: string) {
   return Object.entries(updateOps).reduce((patchObj, [updateTarget, opSpec]) => {
     const [[op, val], ...extra] = Object.entries(opSpec);

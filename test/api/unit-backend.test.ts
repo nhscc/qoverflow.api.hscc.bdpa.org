@@ -1833,7 +1833,7 @@ describe('::createQuestion', () => {
           { projection: { _id: false, questionIds: true } }
         )
     ).resolves.toStrictEqual({
-      questionIds: expect.arrayContaining([new ObjectId(newQuestion.question_id)])
+      questionIds: expect.arrayContaining([itemToObjectId(newQuestion.question_id)])
     });
   });
 
@@ -2296,16 +2296,21 @@ describe('::getAnswers', () => {
           }),
           await Backend.getAnswers({
             question_id: itemToStringId(dummyAppData.questions[0]),
-            after_id: itemToStringId(dummyAppData.questions[0])
+            after_id: itemToStringId(dummyAppData.questions[0].answerItems[0])
           }),
           await Backend.getAnswers({
             question_id: itemToStringId(dummyAppData.questions[0]),
-            after_id: itemToStringId(dummyAppData.questions[1])
+            after_id: itemToStringId(dummyAppData.questions[0].answerItems[1])
+          }),
+          await Backend.getAnswers({
+            question_id: itemToStringId(dummyAppData.questions[0]),
+            after_id: itemToStringId(dummyAppData.questions[0].answerItems[2])
           })
         ]).toStrictEqual([
           [toPublicAnswer(dummyAppData.questions[0].answerItems[0])],
           [toPublicAnswer(dummyAppData.questions[0].answerItems[1])],
-          [toPublicAnswer(dummyAppData.questions[0].answerItems[2])]
+          [toPublicAnswer(dummyAppData.questions[0].answerItems[2])],
+          []
         ]);
       },
       { RESULTS_PER_PAGE: '1' }
@@ -2363,7 +2368,7 @@ describe('::getAnswers', () => {
     await expect(
       Backend.getAnswers({ question_id, after_id: undefined })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
   });
 });
@@ -2407,7 +2412,7 @@ describe('::createAnswer', () => {
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[2]) },
-          { projection: { size: { $size: '$answerItems' } } }
+          { projection: { _id: false, size: { $size: '$answerItems' } } }
         )
     ).resolves.toStrictEqual({ size: 1 });
   });
@@ -2438,10 +2443,10 @@ describe('::createAnswer', () => {
       (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
-          projection: { _id: false, comments: true }
+          projection: { _id: false, answers: true }
         }
       )
-    ).resolves.toStrictEqual({ comments: 2 });
+    ).resolves.toStrictEqual({ answers: 2 });
   });
 
   it("updates user's answers array when they create a new answer", async () => {
@@ -2463,11 +2468,17 @@ describe('::createAnswer', () => {
           { projection: { _id: false, answerIds: true } }
         )
     ).resolves.toStrictEqual({
-      answerIds: expect.arrayContaining([new ObjectId(newAnswer.answer_id)])
+      answerIds: expect.arrayContaining([
+        ...dummyAppData.users[0].answerIds,
+        [
+          itemToObjectId(dummyAppData.questions[1]),
+          itemToObjectId(newAnswer.answer_id)
+        ]
+      ])
     });
   });
 
-  it('updates sorter uvc/uvac counters when creating a new answer', async () => {
+  it('updates sorter uvac (and NOT uvc) counters when creating a new answer', async () => {
     expect.hasAssertions();
 
     const newAnswer: Required<NewAnswer> = {
@@ -2491,7 +2502,7 @@ describe('::createAnswer', () => {
         { _id: itemToObjectId(dummyAppData.questions[1]) },
         { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
       )
-    ).resolves.toStrictEqual({ uvc: uvc + 1, uvac: uvac + 1 });
+    ).resolves.toStrictEqual({ uvc, uvac: uvac + 1 });
   });
 
   it('rejects if question_id is not a valid ObjectId', async () => {
@@ -2528,7 +2539,7 @@ describe('::createAnswer', () => {
     await expect(
       Backend.createAnswer({ question_id, data: newAnswer })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
   });
 
@@ -2584,15 +2595,8 @@ describe('::createAnswer', () => {
     const newAnswers: [NewAnswer, string][] = [
       [undefined as unknown as NewAnswer, ErrorMessage.InvalidJSON()],
       ['string data' as unknown as NewAnswer, ErrorMessage.InvalidJSON()],
-      [{} as NewAnswer, ErrorMessage.InvalidFieldValue('creator')],
       [
-        { creator: 'does-not-exist' } as NewAnswer,
-        ErrorMessage.ItemNotFound('does-not-exist', 'user')
-      ],
-      [
-        {
-          creator: dummyAppData.users[0].username
-        } as NewAnswer,
+        {} as NewAnswer,
         ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
@@ -2608,6 +2612,10 @@ describe('::createAnswer', () => {
           text: 'x'.repeat(maxBodyLen + 1)
         } as NewAnswer,
         ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+      ],
+      [
+        { creator: 'does-not-exist', text: 'x' } as NewAnswer,
+        ErrorMessage.ItemNotFound('does-not-exist', 'user')
       ],
       [
         {
@@ -2632,7 +2640,7 @@ describe('::createAnswer', () => {
   });
 });
 
-describe('::updateAnswer', () => {
+describe.only('::updateAnswer', () => {
   it('updates an existing answer to a question', async () => {
     expect.hasAssertions();
 
@@ -2789,7 +2797,7 @@ describe('::updateAnswer', () => {
         data: patchAnswer
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
   });
 
@@ -2833,7 +2841,7 @@ describe('::updateAnswer', () => {
         data: patchAnswer
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(answer_id, 'answer_id')
+      message: ErrorMessage.ItemNotFound(answer_id, 'answer')
     });
   });
 
@@ -3087,7 +3095,7 @@ describe('::getComments', () => {
     await expect(
       Backend.getComments({ question_id, answer_id: undefined, after_id: undefined })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
   });
 
@@ -3103,7 +3111,7 @@ describe('::getComments', () => {
         after_id: undefined
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(answer_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(answer_id, 'question')
     });
   });
 });
@@ -3326,7 +3334,7 @@ describe('::createComment', () => {
         data: newComment
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
   });
 
@@ -3346,7 +3354,7 @@ describe('::createComment', () => {
         data: newComment
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(answer_id, 'answer_id')
+      message: ErrorMessage.ItemNotFound(answer_id, 'answer')
     });
   });
 
@@ -3637,7 +3645,7 @@ describe('::deleteComment', () => {
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
   });
 
@@ -3653,7 +3661,7 @@ describe('::deleteComment', () => {
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(answer_id, 'answer_id')
+      message: ErrorMessage.ItemNotFound(answer_id, 'answer')
     });
   });
 
@@ -3669,7 +3677,7 @@ describe('::deleteComment', () => {
         comment_id
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(comment_id, 'comment_id')
+      message: ErrorMessage.ItemNotFound(comment_id, 'comment')
     });
   });
 });
@@ -3915,7 +3923,7 @@ describe('::getHowUserVoted', () => {
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
   });
 
@@ -3932,7 +3940,7 @@ describe('::getHowUserVoted', () => {
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(answer_id, 'answer_id')
+      message: ErrorMessage.ItemNotFound(answer_id, 'answer')
     });
   });
 
@@ -3949,7 +3957,7 @@ describe('::getHowUserVoted', () => {
         comment_id
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(comment_id, 'comment_id')
+      message: ErrorMessage.ItemNotFound(comment_id, 'comment')
     });
   });
 
@@ -4603,7 +4611,7 @@ describe('::applyVotesUpdateOperation', () => {
         operation: { op: 'increment', target: 'upvotes' }
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
   });
 
@@ -4621,7 +4629,7 @@ describe('::applyVotesUpdateOperation', () => {
         operation: { op: 'increment', target: 'upvotes' }
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(answer_id, 'answer_id')
+      message: ErrorMessage.ItemNotFound(answer_id, 'answer')
     });
   });
 
@@ -4639,7 +4647,7 @@ describe('::applyVotesUpdateOperation', () => {
         operation: { op: 'increment', target: 'upvotes' }
       })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(comment_id, 'comment_id')
+      message: ErrorMessage.ItemNotFound(comment_id, 'comment')
     });
   });
 
