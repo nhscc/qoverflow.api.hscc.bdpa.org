@@ -75,7 +75,8 @@ module.exports = {
     '@typescript-eslint/no-var-requires': 'off',
     'no-unused-vars': 'off',
     // ? Broken as of next 12.0.7
-    '@next/next/no-page-custom-font': 'off'
+    '@next/next/no-page-custom-font': 'off',
+    '@typescript-eslint/no-non-null-assertion': 'off'
   },
   overrides: [
     {
