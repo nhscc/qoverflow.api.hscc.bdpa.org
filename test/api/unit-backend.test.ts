@@ -640,7 +640,7 @@ describe('::updateUser', () => {
 
     await expect(
       Backend.updateUser({
-        username: undefined,
+        username: 'does-not-exist',
         data: {}
       })
     ).resolves.toBeUndefined();
@@ -2640,7 +2640,7 @@ describe('::createAnswer', () => {
   });
 });
 
-describe.only('::updateAnswer', () => {
+describe('::updateAnswer', () => {
   it('updates an existing answer to a question', async () => {
     expect.hasAssertions();
 
@@ -2872,6 +2872,10 @@ describe.only('::updateAnswer', () => {
       [
         { upvotes: null } as unknown as PatchAnswer,
         ErrorMessage.InvalidNumberValue('upvotes', 0, null, 'integer')
+      ],
+      [
+        { accepted: null } as unknown as PatchAnswer,
+        ErrorMessage.InvalidFieldValue('accepted', undefined, ['true'])
       ],
       [
         { upvotes: -1 } as PatchAnswer,

@@ -5,6 +5,7 @@ import { getEnv } from 'universe/backend/env';
 
 import {
   addAnswerToDb,
+  patchAnswerInDb,
   publicAnswerMap,
   publicAnswerProjection,
   publicMailProjection,
@@ -470,11 +471,12 @@ export async function updateUser({
   username: Username | undefined;
   data: PatchUser | undefined;
 }): Promise<void> {
-  if (data && !Object.keys(data).length) return;
-
   if (!username) {
     throw new InvalidItemError('username', 'parameter');
   }
+
+  // ? Optimization
+  if (data && !Object.keys(data).length) return;
 
   validateUserData(data, { required: false });
 
@@ -995,11 +997,12 @@ export async function updateQuestion({
   question_id: string | undefined;
   data: PatchQuestion | undefined;
 }): Promise<void> {
-  if (data && !Object.keys(data).length) return;
-
   if (!question_id) {
     throw new InvalidItemError('question_id', 'parameter');
   }
+
+  // ? Optimization
+  if (data && !Object.keys(data).length) return;
 
   validateQuestionData(data, { required: false });
 
@@ -1200,15 +1203,10 @@ export async function createAnswer({
 
   const db = await getDb({ name: 'hscc-api-qoverflow' });
   const userDb = db.collection<InternalUser>('users');
-  const questionDb = db.collection<InternalQuestion>('questions');
   const questionId = itemToObjectId(question_id);
 
   if (!(await itemExists(userDb, { key: 'username', id: creator }))) {
     throw new ItemNotFoundError(creator, 'user');
-  }
-
-  if (!(await itemExists(questionDb, questionId))) {
-    throw new ItemNotFoundError(questionId, 'question');
   }
 
   try {
@@ -1243,7 +1241,11 @@ export async function createAnswer({
   // * At this point, we can finally trust this data is not malicious, but not
   // * necessarily valid...
 
-  await addAnswerToDb({ question_id: questionId, answer: newAnswer });
+  const result = await addAnswerToDb({ question_id: questionId, answer: newAnswer });
+
+  if (!result.matchedCount) {
+    throw new ItemNotFoundError(question_id, 'question');
+  }
 
   await userDb.updateOne(
     { username: creator },
@@ -1262,8 +1264,94 @@ export async function updateAnswer({
   answer_id: string | undefined;
   data: PatchAnswer | undefined;
 }): Promise<void> {
-  // TODO
-  void question_id, answer_id, data;
+  if (!question_id) {
+    throw new InvalidItemError('question_id', 'parameter');
+  }
+
+  if (!answer_id) {
+    throw new InvalidItemError('answer_id', 'parameter');
+  }
+
+  // ? Optimization
+  if (data && !Object.keys(data).length) return;
+
+  validateAnswerData(data, { required: false });
+
+  const { text, accepted, upvotes, downvotes, ...rest } =
+    data as Required<PatchAnswer>;
+  const restKeys = Object.keys(rest);
+
+  if (restKeys.length != 0) {
+    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  }
+
+  if (accepted !== undefined && !accepted) {
+    throw new ValidationError(
+      ErrorMessage.InvalidFieldValue('accepted', undefined, ['true'])
+    );
+  }
+
+  if (upvotes !== undefined && (typeof upvotes != 'number' || upvotes < 0)) {
+    throw new ValidationError(
+      ErrorMessage.InvalidNumberValue('upvotes', 0, null, 'integer')
+    );
+  }
+
+  if (downvotes !== undefined && (typeof downvotes != 'number' || downvotes < 0)) {
+    throw new ValidationError(
+      ErrorMessage.InvalidNumberValue('downvotes', 0, null, 'integer')
+    );
+  }
+
+  // * At this point, we can finally trust this data is not malicious, but not
+  // * necessarily valid...
+
+  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const questionDb = db.collection<InternalQuestion>('questions');
+  const questionId = itemToObjectId(question_id);
+  const answerId = itemToObjectId(answer_id);
+
+  if (
+    accepted &&
+    (await questionDb.countDocuments({ _id: questionId, hasAcceptedAnswer: true })) !=
+      0
+  ) {
+    throw new ClientValidationError(ErrorMessage.QuestionAlreadyAcceptedAnswer());
+  }
+
+  try {
+    void (await selectAnswerFromDb({
+      question_id: questionId,
+      answer_id: answerId,
+      projection: { exists: { $literal: true } }
+    }));
+  } catch {
+    throw new ItemNotFoundError(answerId, 'answer');
+  }
+
+  const result = await patchAnswerInDb({
+    question_id: questionId,
+    answer_id: answerId,
+    updateOps: {
+      $set: {
+        ...(text ? { text } : {}),
+        ...(accepted ? { accepted } : {}),
+        ...(typeof upvotes == 'number' ? { upvotes } : {}),
+        ...(typeof downvotes == 'number' ? { downvotes } : {})
+      }
+    }
+  });
+
+  if (!result.matchedCount) {
+    throw new ItemNotFoundError(question_id, 'question');
+  }
+
+  if (accepted) {
+    await questionDb.updateOne(
+      { _id: questionId },
+      { $set: { hasAcceptedAnswer: true } }
+    );
+  }
 }
 
 export async function getComments({

@@ -663,7 +663,7 @@ export async function addAnswerToDb({
   question_id: QuestionId;
   answer: InternalAnswer;
 }) {
-  await (await getDb({ name: 'hscc-api-qoverflow' }))
+  return (await getDb({ name: 'hscc-api-qoverflow' }))
     .collection<InternalQuestion>('questions')
     .updateOne(
       { _id: question_id },
@@ -691,13 +691,13 @@ export async function addCommentToDb({
   ).collection<InternalQuestion>('questions');
 
   if (answer_id) {
-    await db.updateOne(
+    return db.updateOne(
       { _id: question_id },
       { $push: { 'answerItems.$[answer].commentItems': comment } },
       { arrayFilters: [{ 'answer._id': answer_id }] }
     );
   } else {
-    await db.updateOne(
+    return db.updateOne(
       { _id: question_id },
       {
         $inc: { comments: 1, 'sorter.uvc': 1, 'sorter.uvac': 1 },
@@ -710,19 +710,18 @@ export async function addCommentToDb({
 /**
  * Helper function that flattens an update specification for a sub-object so
  * that it may be used in a MongoDB update function.
+ *
+ * `updateOps` must be a valid MongoDB update document, e.g. `{ $set: ... }`.
  */
 function updateOpsToFullSchema(updateOps: Document, predicate: string) {
-  return Object.entries(updateOps).reduce((patchObj, [updateTarget, opSpec]) => {
-    const [[op, val], ...extra] = Object.entries(opSpec);
+  return Object.entries(updateOps).reduce((newUpdateOps, [updateOp, opSpec]) => {
+    newUpdateOps[updateOp] ??= {};
 
-    if (extra.length) {
-      throw new GuruMeditationError('unable to patch: bad updateOps');
-    }
+    Object.entries(opSpec).forEach(([targetField, updateVal]) => {
+      newUpdateOps[updateOp][`${predicate}.${targetField}`] = updateVal;
+    });
 
-    patchObj[op] ??= {};
-    patchObj[op][`${predicate}.${updateTarget}`] = val;
-
-    return patchObj;
+    return newUpdateOps;
   }, {} as Document);
 }
 
@@ -738,7 +737,7 @@ export async function patchAnswerInDb({
   answer_id: AnswerId;
   updateOps: Document;
 }) {
-  await (await getDb({ name: 'hscc-api-qoverflow' }))
+  return (await getDb({ name: 'hscc-api-qoverflow' }))
     .collection<InternalQuestion>('questions')
     .updateOne(
       { _id: question_id },
@@ -766,7 +765,7 @@ export async function patchCommentInDb({
   ).collection<InternalQuestion>('questions');
 
   if (answer_id) {
-    await db.updateOne(
+    return db.updateOne(
       { _id: question_id },
       updateOpsToFullSchema(
         updateOps,
@@ -775,7 +774,7 @@ export async function patchCommentInDb({
       { arrayFilters: [{ 'answer._id': answer_id }, { 'comment._id': comment_id }] }
     );
   } else {
-    await db.updateOne(
+    return db.updateOne(
       { _id: question_id },
       updateOpsToFullSchema(updateOps, 'commentItems.$[comment]'),
       { arrayFilters: [{ 'comment._id': comment_id }] }
@@ -793,7 +792,7 @@ export async function removeAnswerFromDb({
   question_id: QuestionId;
   answer_id: AnswerId;
 }) {
-  await (await getDb({ name: 'hscc-api-qoverflow' }))
+  return (await getDb({ name: 'hscc-api-qoverflow' }))
     .collection<InternalQuestion>('questions')
     .updateOne({ _id: question_id }, { $pull: { 'answerItems._id': answer_id } });
 }
@@ -815,13 +814,13 @@ export async function removeCommentFromDb({
   ).collection<InternalQuestion>('questions');
 
   if (answer_id) {
-    await db.updateOne(
+    return db.updateOne(
       { _id: question_id },
       { $pull: { 'answerItems.$[answer].commentItems._id': comment_id } },
       { arrayFilters: [{ 'answer._id': answer_id }] }
     );
   } else {
-    await db.updateOne(
+    return db.updateOne(
       { _id: question_id },
       { $pull: { 'commentItems._id': comment_id } }
     );
