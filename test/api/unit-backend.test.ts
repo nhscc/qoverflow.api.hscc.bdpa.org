@@ -1,8 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-await-in-loop */
 import { ObjectId } from 'mongodb';
+import randomCase from 'random-case';
 
 import * as Backend from 'universe/backend';
+import { getEnv } from 'universe/backend/env';
+import { ErrorMessage } from 'universe/error';
+
 import {
   selectAnswerFromDb,
   selectCommentFromDb,
@@ -25,21 +29,19 @@ import {
   toPublicQuestion,
   toPublicUser,
   patchAnswerInDb,
-  patchCommentInDb
+  patchCommentInDb,
+  questionStatuses
 } from 'universe/backend/db';
-import { getEnv } from 'universe/backend/env';
-import { ErrorMessage } from 'universe/error';
 
 import { useMockDateNow } from 'multiverse/mongo-common';
 import { getDb } from 'multiverse/mongo-schema';
 import { setupMemoryServerOverride } from 'multiverse/mongo-test';
+import { itemToObjectId, itemToStringId } from 'multiverse/mongo-item';
 
 import { dummyAppData } from 'testverse/db';
 import { mockEnvFactory } from 'testverse/setup';
 
 import type { PublicUser, NewUser, PatchUser } from 'universe/backend/db';
-import { itemToObjectId, itemToStringId } from 'multiverse/mongo-item';
-import randomCase from 'random-case';
 
 setupMemoryServerOverride();
 useMockDateNow();
@@ -159,11 +161,11 @@ describe('::getUserQuestions', () => {
           }),
           await Backend.getUserQuestions({
             username: dummyAppData.users[0].username,
-            after_id: dummyAppData.users[1].questionIds[1].toString()
+            after_id: dummyAppData.users[0].questionIds[1].toString()
           }),
           await Backend.getUserQuestions({
             username: dummyAppData.users[0].username,
-            after_id: dummyAppData.users[1].questionIds[0].toString()
+            after_id: dummyAppData.users[0].questionIds[0].toString()
           })
         ]).toStrictEqual([
           [toPublicQuestion(dummyAppData.questions[1])],
@@ -228,6 +230,7 @@ describe('::getUserAnswers', () => {
         after_id: undefined
       })
     ).resolves.toStrictEqual([
+      toPublicAnswer(dummyAppData.questions[4].answerItems[0]),
       toPublicAnswer(dummyAppData.questions[1].answerItems[0]),
       toPublicAnswer(dummyAppData.questions[0].answerItems[0])
     ]);
@@ -245,13 +248,18 @@ describe('::getUserAnswers', () => {
           }),
           await Backend.getUserAnswers({
             username: dummyAppData.users[1].username,
-            after_id: dummyAppData.users[1].answerIds[1].toString()
+            after_id: dummyAppData.users[1].answerIds[2][1].toString()
           }),
           await Backend.getUserAnswers({
             username: dummyAppData.users[1].username,
-            after_id: dummyAppData.users[1].answerIds[0].toString()
+            after_id: dummyAppData.users[1].answerIds[1][1].toString()
+          }),
+          await Backend.getUserAnswers({
+            username: dummyAppData.users[1].username,
+            after_id: dummyAppData.users[1].answerIds[0][1].toString()
           })
         ]).toStrictEqual([
+          [toPublicAnswer(dummyAppData.questions[4].answerItems[0])],
           [toPublicAnswer(dummyAppData.questions[1].answerItems[0])],
           [toPublicAnswer(dummyAppData.questions[0].answerItems[0])],
           []
@@ -460,7 +468,7 @@ describe('::createUser', () => {
           salt: '0'.repeat(saltLen),
           key: '0'.repeat(keyLen)
         },
-        ErrorMessage.InvalidStringLength('username', minULen, maxULen)
+        ErrorMessage.InvalidStringLength('username', minULen, maxULen, 'alphanumeric')
       ],
       [
         {
@@ -469,7 +477,7 @@ describe('::createUser', () => {
           salt: '0'.repeat(saltLen),
           key: '0'.repeat(keyLen)
         },
-        ErrorMessage.InvalidStringLength('username', minULen, maxULen)
+        ErrorMessage.InvalidStringLength('username', minULen, maxULen, 'alphanumeric')
       ],
       [
         {
@@ -478,7 +486,7 @@ describe('::createUser', () => {
           salt: '0'.repeat(saltLen),
           key: '0'.repeat(keyLen)
         } as unknown as NewUser,
-        ErrorMessage.InvalidStringLength('username', minULen, maxULen)
+        ErrorMessage.InvalidStringLength('username', minULen, maxULen, 'alphanumeric')
       ],
       [
         {
@@ -487,7 +495,7 @@ describe('::createUser', () => {
           salt: '0'.repeat(saltLen),
           key: '0'.repeat(keyLen)
         },
-        ErrorMessage.InvalidStringLength('username', minULen, maxULen)
+        ErrorMessage.InvalidStringLength('username', minULen, maxULen, 'alphanumeric')
       ],
       [
         {
@@ -496,7 +504,7 @@ describe('::createUser', () => {
           salt: '0'.repeat(saltLen),
           key: '0'.repeat(keyLen)
         },
-        ErrorMessage.InvalidStringLength('username', minULen, maxULen)
+        ErrorMessage.InvalidStringLength('username', minULen, maxULen, 'alphanumeric')
       ],
       [
         {
@@ -734,22 +742,25 @@ describe('::updateUser', () => {
         { key: 'x'.repeat(keyLen) },
         ErrorMessage.InvalidStringLength('key', keyLen, null, 'hexadecimal')
       ],
-      [{ points: -1 }, ErrorMessage.InvalidNumberValue('points', 0, null)],
+      [{ points: -1 }, ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')],
       [
         { points: null as unknown as number },
-        ErrorMessage.InvalidNumberValue('points', 0, null)
+        ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')
       ],
       [
         { points: '10' as unknown as number },
-        ErrorMessage.InvalidNumberValue('points', 0, null)
+        ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')
       ],
       [
         { points: {} as PointsUpdateOperation },
-        ErrorMessage.InvalidNumberValue('points.amount', 0, null)
+        ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
       ],
       [
         { points: { amount: 5 } as PointsUpdateOperation },
-        ErrorMessage.InvalidNumberValue('points.amount', 0, null)
+        ErrorMessage.InvalidFieldValue('points.operation', 'decrement', [
+          'increment',
+          'decrement'
+        ])
       ],
       [
         {
@@ -758,11 +769,15 @@ describe('::updateUser', () => {
             op: 'decrement'
           } as unknown as PointsUpdateOperation
         },
-        ErrorMessage.InvalidNumberValue('points.amount', 0, null)
+        ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
       ],
       [
         { points: { op: 'decrement' } as PointsUpdateOperation },
-        ErrorMessage.InvalidNumberValue('points.amount', 0, null)
+        ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
+      ],
+      [
+        { points: { amount: -1, op: 'decrement' } as PointsUpdateOperation },
+        ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
       ],
       [
         {
@@ -780,7 +795,7 @@ describe('::updateUser', () => {
             op: 'nope'
           } as unknown as PointsUpdateOperation
         },
-        ErrorMessage.InvalidNumberValue('points.amount', 0, null)
+        ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
       ],
       [
         {
@@ -907,11 +922,11 @@ describe('::getUserMessages', () => {
           }),
           await Backend.getUserMessages({
             username: dummyAppData.users[0].username,
-            after_id: itemToStringId(dummyAppData.questions[1])
+            after_id: itemToStringId(dummyAppData.mail[1])
           }),
           await Backend.getUserMessages({
             username: dummyAppData.users[0].username,
-            after_id: itemToStringId(dummyAppData.questions[0])
+            after_id: itemToStringId(dummyAppData.mail[0])
           })
         ]).toStrictEqual([
           [toPublicMail(dummyAppData.mail[1])],
@@ -1033,7 +1048,7 @@ describe('::createMessage', () => {
     await expect(
       Backend.createMessage({
         data: {
-          receiver: 'does-not-exist',
+          receiver: undefined,
           sender: dummyAppData.users[0].username,
           subject: 'You have got mail!',
           text: 'World, hello!'
@@ -1046,8 +1061,8 @@ describe('::createMessage', () => {
     await expect(
       Backend.createMessage({
         data: {
-          receiver: 'does-not-exist',
-          sender: dummyAppData.users[0].username,
+          receiver: dummyAppData.users[0].username,
+          sender: undefined,
           subject: 'You have got mail!',
           text: 'World, hello!'
         }
@@ -1070,26 +1085,15 @@ describe('::createMessage', () => {
       ['string data' as unknown as NewMail, ErrorMessage.InvalidJSON()],
       [{} as NewMail, ErrorMessage.InvalidFieldValue('receiver')],
       [
-        { receiver: 'does-not-exist' } as NewMail,
-        ErrorMessage.ItemNotFound('does-not-exist', 'user')
-      ],
-      [
         { receiver: dummyAppData.users[0].username } as NewMail,
         ErrorMessage.InvalidFieldValue('sender')
       ],
       [
         {
           receiver: dummyAppData.users[0].username,
-          sender: 'does-not-exist'
-        } as NewMail,
-        ErrorMessage.ItemNotFound('does-not-exist', 'user')
-      ],
-      [
-        {
-          receiver: dummyAppData.users[0].username,
           sender: dummyAppData.users[0].username
         } as NewMail,
-        ErrorMessage.InvalidStringLength('subject', maxSubjectLen, null, 'string')
+        ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLen, 'string')
       ],
       [
         {
@@ -1097,15 +1101,15 @@ describe('::createMessage', () => {
           sender: dummyAppData.users[0].username,
           subject: ''
         } as NewMail,
-        ErrorMessage.InvalidStringLength('subject', maxSubjectLen, null, 'string')
+        ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLen, 'string')
       ],
       [
         {
           receiver: dummyAppData.users[0].username,
-          sender: 'does-not-exist',
+          sender: dummyAppData.users[0].username,
           subject: 'x'.repeat(maxSubjectLen + 1)
         } as NewMail,
-        ErrorMessage.InvalidStringLength('subject', maxSubjectLen, null, 'string')
+        ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLen, 'string')
       ],
       [
         {
@@ -1127,7 +1131,7 @@ describe('::createMessage', () => {
       [
         {
           receiver: dummyAppData.users[0].username,
-          sender: 'does-not-exist',
+          sender: dummyAppData.users[0].username,
           subject: 'x',
           text: 'x'.repeat(maxBodyLen + 1)
         } as NewMail,
@@ -1136,12 +1140,30 @@ describe('::createMessage', () => {
       [
         {
           receiver: dummyAppData.users[0].username,
-          sender: 'does-not-exist',
+          sender: dummyAppData.users[0].username,
           subject: 'x',
           text: 'x',
           createdAt: Date.now()
         } as NewMail,
         ErrorMessage.UnknownField('createdAt')
+      ],
+      [
+        {
+          receiver: 'does-not-exist',
+          sender: 'ignored',
+          subject: 'x',
+          text: 'x'
+        } as NewMail,
+        ErrorMessage.ItemNotFound('does-not-exist', 'user')
+      ],
+      [
+        {
+          receiver: dummyAppData.users[0].username,
+          sender: 'does-not-exist',
+          subject: 'x',
+          text: 'x'
+        } as NewMail,
+        ErrorMessage.ItemNotFound('does-not-exist', 'user')
       ]
     ];
 
@@ -1510,16 +1532,6 @@ describe('::searchQuestions', () => {
         ErrorMessage.UnknownSpecifier('question_id')
       ],
       [
-        { 'title-lowercase': '' },
-        {},
-        ErrorMessage.UnknownSpecifier('title-lowercase')
-      ],
-      [
-        {},
-        { 'title-lowercase': '' },
-        ErrorMessage.UnknownSpecifier('title-lowercase')
-      ],
-      [
         { upvoterUsernames: [] as any },
         {},
         ErrorMessage.UnknownSpecifier('upvoterUsernames')
@@ -1610,92 +1622,92 @@ describe('::searchQuestions', () => {
         ]
       ],
       [
-        { size: {} },
+        { upvotes: {} },
         [
-          ErrorMessage.InvalidSpecifierValueType('size', 'a non-empty object'),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.InvalidSpecifierValueType('upvotes', 'a non-empty object'),
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ],
       [
-        { size: { $in: [5] } },
+        { upvotes: { $in: [5] } },
         [
           ErrorMessage.UnknownSpecifier('$in', true),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ],
       [
-        { size: { $lt: [5] } },
+        { upvotes: { $lt: [5] } },
         [
           ErrorMessage.InvalidSpecifierValueType('$lt', 'a number', true),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ],
       [
-        { size: { $or: { $gt: 6 } } },
-        [ErrorMessage.InvalidOrSpecifier(), ErrorMessage.UnknownSpecifier('size')]
+        { upvotes: { $or: { $gt: 6 } } },
+        [ErrorMessage.InvalidOrSpecifier(), ErrorMessage.UnknownSpecifier('upvotes')]
       ],
       [
-        { size: { $or: [{ $gt: 6 }, { $gt: 6 }, { $gt: 6 }] } },
-        [ErrorMessage.InvalidOrSpecifier(), ErrorMessage.UnknownSpecifier('size')]
+        { upvotes: { $or: [{ $gt: 6 }, { $gt: 6 }, { $gt: 6 }] } },
+        [ErrorMessage.InvalidOrSpecifier(), ErrorMessage.UnknownSpecifier('upvotes')]
       ],
       [
-        { size: { $or: ['b', { $gt: 6 }] } },
+        { upvotes: { $or: ['b', { $gt: 6 }] } },
         [
           ErrorMessage.InvalidOrSpecifierNonObject(0),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ],
       [
-        { size: { $or: [{ $gt: 6 }, 'b'] } },
+        { upvotes: { $or: [{ $gt: 6 }, 'b'] } },
         [
           ErrorMessage.InvalidOrSpecifierNonObject(1),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ],
       [
-        { size: { $or: [{ $gt: 6 }, { $gt: 6, $lte: 5 }] } },
+        { upvotes: { $or: [{ $gt: 6 }, { $gt: 6, $lte: 5 }] } },
         [
           ErrorMessage.InvalidOrSpecifierBadLength(1),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ],
       [
-        { size: { $or: [{ $gt: 7 }, undefined] } },
+        { upvotes: { $or: [{ $gt: 7 }, undefined] } },
         [
           ErrorMessage.InvalidOrSpecifierNonObject(1),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ],
       [
-        { size: { $or: [{}] } },
-        [ErrorMessage.InvalidOrSpecifier(), ErrorMessage.UnknownSpecifier('size')]
+        { upvotes: { $or: [{}] } },
+        [ErrorMessage.InvalidOrSpecifier(), ErrorMessage.UnknownSpecifier('upvotes')]
       ],
       [
-        { size: { $or: [{}, {}] } },
+        { upvotes: { $or: [{}, {}] } },
         [
-          ErrorMessage.InvalidSpecifierValueType('size', 'a non-empty object'),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.InvalidSpecifierValueType('upvotes', 'a non-empty object'),
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ],
       [
-        { size: { $or: [{ bad: 1 }, { $gte: 5 }] } },
+        { upvotes: { $or: [{ bad: 1 }, { $gte: 5 }] } },
         [
           ErrorMessage.InvalidOrSpecifierInvalidKey(0, 'bad'),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ],
       [
-        { size: { $or: [{ $gte: 5 }, { bad: 1 }] } },
+        { upvotes: { $or: [{ $gte: 5 }, { bad: 1 }] } },
         [
           ErrorMessage.InvalidOrSpecifierInvalidKey(1, 'bad'),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ],
       [
-        { size: { $or: [{ $gte: 'bad' }, { $gte: 5 }] } },
+        { upvotes: { $or: [{ $gte: 'bad' }, { $gte: 5 }] } },
         [
           ErrorMessage.InvalidOrSpecifierInvalidValueType(0, '$gte'),
-          ErrorMessage.UnknownSpecifier('size')
+          ErrorMessage.UnknownSpecifier('upvotes')
         ]
       ]
     ];
@@ -1757,7 +1769,7 @@ describe('::getQuestion', () => {
 
     const question_id = new ObjectId().toString();
     await expect(Backend.getQuestion({ question_id })).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
   });
 });
@@ -1864,15 +1876,8 @@ describe('::createQuestion', () => {
     const newQuestions: [NewQuestion, string][] = [
       [undefined as unknown as NewQuestion, ErrorMessage.InvalidJSON()],
       ['string data' as unknown as NewQuestion, ErrorMessage.InvalidJSON()],
-      [{} as NewQuestion, ErrorMessage.InvalidFieldValue('creator')],
       [
-        { creator: 'does-not-exist' } as NewQuestion,
-        ErrorMessage.ItemNotFound('does-not-exist', 'user')
-      ],
-      [
-        {
-          creator: dummyAppData.users[0].username
-        } as NewQuestion,
+        {} as NewQuestion,
         ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
       ],
       [
@@ -1913,6 +1918,10 @@ describe('::createQuestion', () => {
         ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
       ],
       [
+        { creator: 'does-not-exist', title: 'x', text: 'x' } as NewQuestion,
+        ErrorMessage.ItemNotFound('does-not-exist', 'user')
+      ],
+      [
         {
           creator: dummyAppData.users[0].username,
           title: 'x',
@@ -1949,7 +1958,8 @@ describe('::updateQuestion', () => {
         .collection('questions')
         .countDocuments({
           _id: itemToObjectId(dummyAppData.questions[0]),
-          ...patchQuestion
+          ...patchQuestion,
+          'title-lowercase': patchQuestion.title!.toLowerCase()
         })
     ).resolves.toBe(0);
 
@@ -1961,13 +1971,13 @@ describe('::updateQuestion', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
-        .collection('questions')
-        .countDocuments({
-          _id: itemToObjectId(dummyAppData.questions[0]),
-          ...patchQuestion
-        })
-    ).resolves.toBe(1);
+      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne({
+        _id: itemToObjectId(dummyAppData.questions[0])
+      })
+    ).resolves.toMatchObject({
+      ...patchQuestion,
+      'title-lowercase': patchQuestion.title!.toLowerCase()
+    });
   });
 
   it('supports ViewsUpdateOperation updates alongside normal views count updates', async () => {
@@ -1997,11 +2007,10 @@ describe('::updateQuestion', () => {
     });
 
     await expect(
-      questionsDb.countDocuments({
-        _id: itemToObjectId(dummyAppData.questions[0]),
-        views: dummyAppData.questions[0].views + 1
+      questionsDb.findOne({
+        _id: itemToObjectId(dummyAppData.questions[0])
       })
-    ).resolves.toBe(1);
+    ).resolves.toMatchObject({ views: dummyAppData.questions[0].views + 1 });
 
     await Backend.updateQuestion({
       question_id: itemToStringId(dummyAppData.questions[0]),
@@ -2009,14 +2018,13 @@ describe('::updateQuestion', () => {
     });
 
     await expect(
-      questionsDb.countDocuments({
-        _id: itemToObjectId(dummyAppData.questions[0]),
-        views: 0
+      questionsDb.findOne({
+        _id: itemToObjectId(dummyAppData.questions[0])
       })
-    ).resolves.toBe(1);
+    ).resolves.toMatchObject({ views: 0 });
   });
 
-  it('updates sorter uvc/uvac counters when updating views count', async () => {
+  it('updates sorter uvc/uvac counters when updating views or upvotes counts', async () => {
     expect.hasAssertions();
 
     const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
@@ -2086,8 +2094,8 @@ describe('::updateQuestion', () => {
         { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
       )
     ).resolves.toStrictEqual({
-      uvc: uvc - views + 10 - upvotes,
-      uvac: uvac - views + 10 - upvotes
+      uvc: uvc - views + 11 - (upvotes + 1),
+      uvac: uvac - views + 11 - (upvotes + 1)
     });
 
     await Backend.updateQuestion({
@@ -2150,7 +2158,7 @@ describe('::updateQuestion', () => {
     await expect(
       Backend.updateQuestion({ question_id, data: patchQuestion })
     ).rejects.toMatchObject({
-      message: ErrorMessage.ItemNotFound(question_id, 'question_id')
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
   });
 
@@ -2195,71 +2203,55 @@ describe('::updateQuestion', () => {
       ],
       [
         { upvotes: null } as unknown as PatchQuestion,
-        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null, 'integer')
       ],
       [
         { upvotes: -1 } as PatchQuestion,
-        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null, 'integer')
       ],
       [
         { upvotes: '5' } as unknown as PatchQuestion,
-        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null, 'integer')
       ],
       [
         { downvotes: null } as unknown as PatchQuestion,
-        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null, 'integer')
       ],
       [
         { downvotes: -1 } as PatchQuestion,
-        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null, 'integer')
       ],
       [
         { downvotes: '5' } as unknown as PatchQuestion,
-        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null, 'integer')
       ],
       [
         { views: null } as unknown as PatchQuestion,
-        ErrorMessage.InvalidNumberValue('views', 0, null)
+        ErrorMessage.InvalidNumberValue('views', 0, null, 'integer')
       ],
       [
         { views: -1 } as PatchQuestion,
-        ErrorMessage.InvalidNumberValue('views', 0, null)
+        ErrorMessage.InvalidNumberValue('views', 0, null, 'integer')
       ],
       [
         { views: '5' } as unknown as PatchQuestion,
-        ErrorMessage.InvalidNumberValue('views', 0, null)
+        ErrorMessage.InvalidNumberValue('views', 0, null, 'integer')
       ],
       [
         { status: null } as unknown as PatchQuestion,
-        ErrorMessage.InvalidFieldValue('status', undefined, [
-          'closed',
-          'open',
-          'protected'
-        ])
+        ErrorMessage.InvalidFieldValue('status', undefined, questionStatuses)
       ],
       [
         { status: -1 } as unknown as PatchQuestion,
-        ErrorMessage.InvalidFieldValue('status', undefined, [
-          'closed',
-          'open',
-          'protected'
-        ])
+        ErrorMessage.InvalidFieldValue('status', undefined, questionStatuses)
       ],
       [
         { status: '5' } as unknown as PatchQuestion,
-        ErrorMessage.InvalidFieldValue('status', undefined, [
-          'closed',
-          'open',
-          'protected'
-        ])
+        ErrorMessage.InvalidFieldValue('status', undefined, questionStatuses)
       ],
       [
         { status: '' } as unknown as PatchQuestion,
-        ErrorMessage.InvalidFieldValue('status', undefined, [
-          'closed',
-          'open',
-          'protected'
-        ])
+        ErrorMessage.InvalidFieldValue('status', undefined, questionStatuses)
       ]
     ];
 
@@ -2657,7 +2649,7 @@ describe('::updateAnswer', () => {
         answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
         projection: { _id: false }
       })
-    ).resolves.not.toStrictEqual(expect.objectContaining(patchAnswer));
+    ).resolves.not.toMatchObject(patchAnswer);
 
     await expect(
       Backend.updateAnswer({
@@ -2673,7 +2665,7 @@ describe('::updateAnswer', () => {
         answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
         projection: { _id: false }
       })
-    ).resolves.toStrictEqual(expect.objectContaining(patchAnswer));
+    ).resolves.toMatchObject(patchAnswer);
   });
 
   it('does not reject if no data passed in', async () => {
@@ -2871,27 +2863,27 @@ describe('::updateAnswer', () => {
       ],
       [
         { upvotes: null } as unknown as PatchAnswer,
-        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null, 'integer')
       ],
       [
         { upvotes: -1 } as PatchAnswer,
-        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null, 'integer')
       ],
       [
         { upvotes: '5' } as unknown as PatchAnswer,
-        ErrorMessage.InvalidNumberValue('upvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('upvotes', 0, null, 'integer')
       ],
       [
         { downvotes: null } as unknown as PatchAnswer,
-        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null, 'integer')
       ],
       [
         { downvotes: -1 } as PatchAnswer,
-        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null, 'integer')
       ],
       [
         { downvotes: '5' } as unknown as PatchAnswer,
-        ErrorMessage.InvalidNumberValue('downvotes', 0, null)
+        ErrorMessage.InvalidNumberValue('downvotes', 0, null, 'integer')
       ]
     ];
 

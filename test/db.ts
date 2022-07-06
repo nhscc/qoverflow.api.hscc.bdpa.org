@@ -319,7 +319,7 @@ const questions: InternalQuestion[] = [
     downvotes: 1,
     downvoterUsernames: [],
     views: 8,
-    answers: 0,
+    answers: 2,
     answerItems: [
       {
         _id: new ObjectId(),
@@ -370,12 +370,18 @@ users[0].questionIds.push(questions[0]._id, questions[1]._id);
 users[1].questionIds.push(questions[2]._id);
 users[2].questionIds.push(questions[3]._id, questions[4]._id);
 
-users[0].answerIds.push(questions[0].answerItems[2]._id);
-users[2].answerIds.push(questions[0].answerItems[1]._id);
-users[1].answerIds.push(
-  questions[0].answerItems[0]._id,
-  questions[1].answerItems[0]._id
+users[0].answerIds.push(
+  [questions[0]._id, questions[0].answerItems[2]._id],
+  [questions[4]._id, questions[4].answerItems[1]._id]
 );
+
+users[1].answerIds.push(
+  [questions[0]._id, questions[0].answerItems[0]._id],
+  [questions[1]._id, questions[1].answerItems[0]._id],
+  [questions[4]._id, questions[4].answerItems[0]._id]
+);
+
+users[2].answerIds.push([questions[0]._id, questions[0].answerItems[1]._id]);
 
 /**
  * Test data for the application database.

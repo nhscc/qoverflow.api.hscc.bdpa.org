@@ -3,8 +3,6 @@ import { getCommonSchemaConfig } from 'multiverse/mongo-common';
 import type { Document, ObjectId, WithId, WithoutId } from 'mongodb';
 import type { UnixEpochMs } from '@xunnamius/types';
 import { DbSchema, getDb } from 'multiverse/mongo-schema';
-import type { Simplify } from 'type-fest';
-import { itemToObjectId } from 'multiverse/mongo-item';
 import { GuruMeditationError } from 'named-app-errors';
 
 /**
@@ -109,28 +107,27 @@ export type PointsUpdateOperation = {
 /**
  * The shape of an internal application user.
  */
-export type InternalUser = Simplify<
-  WithId<{
-    username: Username;
-    salt: string;
-    email: string;
-    key: string;
-    points: number;
-    questionIds: QuestionId[];
-    answerIds: AnswerId[];
-  }>
->;
+export type InternalUser = WithId<{
+  username: Username;
+  salt: string;
+  email: string;
+  key: string;
+  points: number;
+  questionIds: QuestionId[];
+  answerIds: [question_id: QuestionId, answer_id: AnswerId][];
+}>;
 
 /**
  * The shape of a public application user.
  */
-export type PublicUser = Simplify<
-  Omit<WithoutId<InternalUser>, 'key' | 'questionIds' | 'answerIds'> & {
-    user_id: string;
-    questions: number;
-    answers: number;
-  }
->;
+export type PublicUser = Omit<
+  WithoutId<InternalUser>,
+  'key' | 'questionIds' | 'answerIds'
+> & {
+  user_id: string;
+  questions: number;
+  answers: number;
+};
 
 /**
  * The shape of a new application user.
@@ -152,24 +149,20 @@ export type PatchUser = Partial<
 /**
  * The shape of internal mail.
  */
-export type InternalMail = Simplify<
-  WithId<{
-    sender: Username;
-    receiver: Username;
-    createdAt: UnixEpochMs;
-    subject: string;
-    text: string;
-  }>
->;
+export type InternalMail = WithId<{
+  sender: Username;
+  receiver: Username;
+  createdAt: UnixEpochMs;
+  subject: string;
+  text: string;
+}>;
 
 /**
  * The shape of public mail.
  */
-export type PublicMail = Simplify<
-  WithoutId<InternalMail> & {
-    mail_id: string;
-  }
->;
+export type PublicMail = WithoutId<InternalMail> & {
+  mail_id: string;
+};
 
 /**
  * The shape of new mail.
@@ -177,49 +170,50 @@ export type PublicMail = Simplify<
 export type NewMail = Partial<Omit<WithoutId<InternalMail>, 'createdAt'>>;
 
 /**
+ * Valid internal question statuses.
+ */
+export const questionStatuses = ['open', 'closed', 'protected'] as const;
+
+/**
  * The shape of an internal question.
  */
-export type InternalQuestion = Simplify<
-  WithId<{
-    creator: Username;
-    title: string;
-    'title-lowercase': string;
-    createdAt: UnixEpochMs;
-    text: string;
-    status: 'open' | 'closed' | 'protected';
-    hasAcceptedAnswer: boolean;
-    upvotes: number;
-    upvoterUsernames: Username[];
-    downvotes: number;
-    downvoterUsernames: Username[];
-    answers: number;
-    answerItems: InternalAnswer[];
-    views: number;
-    comments: number;
-    commentItems: InternalComment[];
-    sorter: {
-      uvc: number;
-      uvac: number;
-    };
-  }>
->;
+export type InternalQuestion = WithId<{
+  creator: Username;
+  title: string;
+  'title-lowercase': string;
+  createdAt: UnixEpochMs;
+  text: string;
+  status: typeof questionStatuses[number];
+  hasAcceptedAnswer: boolean;
+  upvotes: number;
+  upvoterUsernames: Username[];
+  downvotes: number;
+  downvoterUsernames: Username[];
+  answers: number;
+  answerItems: InternalAnswer[];
+  views: number;
+  comments: number;
+  commentItems: InternalComment[];
+  sorter: {
+    uvc: number;
+    uvac: number;
+  };
+}>;
 
 /**
  * The shape of a public question.
  */
-export type PublicQuestion = Simplify<
-  Omit<
-    WithoutId<InternalQuestion>,
-    | 'title-lowercase'
-    | 'upvoterUsernames'
-    | 'downvoterUsernames'
-    | 'answerItems'
-    | 'commentItems'
-    | 'sorter'
-  > & {
-    question_id: string;
-  }
->;
+export type PublicQuestion = Omit<
+  WithoutId<InternalQuestion>,
+  | 'title-lowercase'
+  | 'upvoterUsernames'
+  | 'downvoterUsernames'
+  | 'answerItems'
+  | 'commentItems'
+  | 'sorter'
+> & {
+  question_id: string;
+};
 
 /**
  * The shape of a new question.
@@ -246,55 +240,49 @@ export type NewQuestion = Omit<
 /**
  * The shape of a patch question.
  */
-export type PatchQuestion = Simplify<
-  Partial<
-    Omit<
-      WithoutId<InternalQuestion>,
-      | 'creator'
-      | 'title-lowercase'
-      | 'createdAt'
-      | 'hasAcceptedAnswer'
-      | 'upvoterUsernames'
-      | 'downvoterUsernames'
-      | 'answers'
-      | 'answerItems'
-      | 'comments'
-      | 'commentItems'
-      | 'views'
-      | 'sorter'
-    > & { views: InternalQuestion['views'] | ViewsUpdateOperation }
-  >
+export type PatchQuestion = Partial<
+  Omit<
+    WithoutId<InternalQuestion>,
+    | 'creator'
+    | 'title-lowercase'
+    | 'createdAt'
+    | 'hasAcceptedAnswer'
+    | 'upvoterUsernames'
+    | 'downvoterUsernames'
+    | 'answers'
+    | 'answerItems'
+    | 'comments'
+    | 'commentItems'
+    | 'views'
+    | 'sorter'
+  > & { views: InternalQuestion['views'] | ViewsUpdateOperation }
 >;
 
 /**
  * The shape of an internal answer.
  */
-export type InternalAnswer = Simplify<
-  WithId<{
-    creator: Username;
-    createdAt: UnixEpochMs;
-    text: string;
-    accepted: boolean;
-    upvotes: number;
-    upvoterUsernames: Username[];
-    downvotes: number;
-    downvoterUsernames: Username[];
-    commentItems: InternalComment[];
-  }>
->;
+export type InternalAnswer = WithId<{
+  creator: Username;
+  createdAt: UnixEpochMs;
+  text: string;
+  accepted: boolean;
+  upvotes: number;
+  upvoterUsernames: Username[];
+  downvotes: number;
+  downvoterUsernames: Username[];
+  commentItems: InternalComment[];
+}>;
 
 /**
  * The shape of a public answer.
  */
-export type PublicAnswer = Simplify<
-  Omit<
-    WithoutId<InternalAnswer>,
-    'upvoterUsernames' | 'downvoterUsernames' | 'commentItems'
-  > & {
-    answer_id: string;
-    comments: number;
-  }
->;
+export type PublicAnswer = Omit<
+  WithoutId<InternalAnswer>,
+  'upvoterUsernames' | 'downvoterUsernames' | 'commentItems'
+> & {
+  answer_id: string;
+  comments: number;
+};
 
 /**
  * The shape of a new answer.
@@ -327,26 +315,25 @@ export type PatchAnswer = Partial<
 /**
  * The shape of an internal comment.
  */
-export type InternalComment = Simplify<
-  WithId<{
-    creator: Username;
-    createdAt: UnixEpochMs;
-    text: string;
-    upvotes: number;
-    upvoterUsernames: Username[];
-    downvotes: number;
-    downvoterUsernames: Username[];
-  }>
->;
+export type InternalComment = WithId<{
+  creator: Username;
+  createdAt: UnixEpochMs;
+  text: string;
+  upvotes: number;
+  upvoterUsernames: Username[];
+  downvotes: number;
+  downvoterUsernames: Username[];
+}>;
 
 /**
  * The shape of a public comment.
  */
-export type PublicComment = Simplify<
-  Omit<WithoutId<InternalComment>, 'upvoterUsernames' | 'downvoterUsernames'> & {
-    comment_id: string;
-  }
->;
+export type PublicComment = Omit<
+  WithoutId<InternalComment>,
+  'upvoterUsernames' | 'downvoterUsernames'
+> & {
+  comment_id: string;
+};
 
 /**
  * The shape of a new comment.

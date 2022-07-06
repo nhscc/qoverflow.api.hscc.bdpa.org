@@ -8,17 +8,25 @@ export * from 'named-app-errors';
 export const ErrorMessage = {
   ...NamedErrorMessage,
   DuplicateFieldValue: (prop: string) => `an item with that "${prop}" already exists`,
-  InvalidFieldValue: (prop: string, value?: string, validValues?: string[]) =>
+  InvalidFieldValue: (
+    prop: string,
+    value?: string,
+    validValues?: readonly string[]
+  ) =>
     `\`${prop}\` field has ${
       value
         ? `invalid or illegal value "${value}"`
         : 'a missing, invalid, or illegal value'
     }${validValues ? `. Valid values: ${validValues.join(', ')}` : ''}`,
-  InvalidArrayValue: (prop: string, value: string, validValues?: string[]) =>
+  InvalidArrayValue: (prop: string, value: string, validValues?: readonly string[]) =>
     `the \`${prop}\` array element "${value}" is invalid or illegal${
       validValues ? `. Valid values: ${validValues.join(', ')}` : ''
     }`,
-  InvalidObjectKeyValue: (prop: string, value?: string, validValues?: string[]) =>
+  InvalidObjectKeyValue: (
+    prop: string,
+    value?: string,
+    validValues?: readonly string[]
+  ) =>
     `a \`${prop}\` object key has ${
       value
         ? `invalid or illegal value "${value}"`
@@ -29,7 +37,7 @@ export const ErrorMessage = {
     prop: string,
     min: number | string,
     max: number | string | null,
-    type: 'number' | 'integer' = 'integer',
+    type: 'number' | 'integer',
     nullable = false,
     isArray = false
   ) =>
@@ -42,7 +50,7 @@ export const ErrorMessage = {
     prop: string,
     min: number | string,
     max: number | string | null,
-    syntax: 'string' | 'alphanumeric' | 'hexadecimal' | 'bytes' = 'alphanumeric',
+    syntax: 'string' | 'alphanumeric' | 'hexadecimal' | 'bytes',
     nullable = false,
     isArray = false
   ) =>
