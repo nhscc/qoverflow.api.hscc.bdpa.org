@@ -1231,6 +1231,7 @@ export async function getAnswers({
         throw new ItemNotFoundError(afterId, 'answer_id');
       }
 
+      /* istanbul ignore next */
       throw e;
     }
   }
@@ -1426,6 +1427,7 @@ export async function updateAnswer({
       throw new ItemNotFoundError(answerId, 'answer');
     }
 
+    /* istanbul ignore next */
     throw e;
   }
 
@@ -1488,6 +1490,7 @@ export async function deleteAnswer({
         throw new ItemNotFoundError(answerId, 'answer');
       }
 
+      /* istanbul ignore next */
       throw e;
     }
   })();
@@ -1538,6 +1541,7 @@ export async function getComments({
         throw new ItemNotFoundError(answerId, 'answer');
       }
 
+      /* istanbul ignore next */
       throw e;
     }
   }
@@ -1556,6 +1560,7 @@ export async function getComments({
         throw new ItemNotFoundError(afterId, 'comment_id');
       }
 
+      /* istanbul ignore next */
       throw e;
     }
   }
@@ -1653,16 +1658,11 @@ export async function createComment({
 
   const db = await getDb({ name: 'hscc-api-qoverflow' });
   const userDb = db.collection<InternalUser>('users');
-  const questionDb = db.collection<InternalQuestion>('questions');
   const questionId = itemToObjectId<QuestionId>(question_id);
   const answerId = answer_id ? itemToObjectId<AnswerId>(answer_id) : undefined;
 
   if (!(await itemExists(userDb, { key: 'username', id: creator }))) {
     throw new ItemNotFoundError(creator, 'user');
-  }
-
-  if ((await questionDb.countDocuments({ _id: questionId })) == 0) {
-    throw new ItemNotFoundError(questionId, 'question');
   }
 
   if (answerId) {
@@ -1677,6 +1677,7 @@ export async function createComment({
         throw new ItemNotFoundError(answerId, 'answer');
       }
 
+      /* istanbul ignore next */
       throw e;
     }
   }
@@ -1741,6 +1742,7 @@ export async function deleteComment({
         throw new ItemNotFoundError(answerId, 'answer');
       }
 
+      /* istanbul ignore next */
       throw e;
     }
   }
@@ -1757,6 +1759,7 @@ export async function deleteComment({
       throw new ItemNotFoundError(commentId, 'comment');
     }
 
+    /* istanbul ignore next */
     throw e;
   }
 
@@ -1928,9 +1931,7 @@ export async function applyVotesUpdateOperation({
           }
 
           throw new NotAuthorizedError(ErrorMessage.MultipleIncrementTargets());
-        }
-
-        if (operation.op == 'decrement') {
+        } else {
           if (
             !(
               (operation.target == 'upvotes' &&
@@ -1939,7 +1940,7 @@ export async function applyVotesUpdateOperation({
                 selectResult.voterStatus == 'downvoted')
             )
           ) {
-            throw new NotAuthorizedError(ErrorMessage.InvalidDecrementOperation());
+            throw new NotAuthorizedError(ErrorMessage.MultitargetDecrement());
           }
         }
       } else if (operation.op == 'decrement') {

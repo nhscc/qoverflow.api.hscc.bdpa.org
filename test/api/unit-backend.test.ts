@@ -3268,6 +3268,15 @@ describe('::deleteAnswer', () => {
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidObjectId(answer_id)
     });
+
+    await expect(
+      Backend.deleteAnswer({
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.InvalidItem('answer_id', 'parameter')
+    });
   });
 
   it('rejects if question_id not found', async () => {
@@ -3775,6 +3784,16 @@ describe('::createComment', () => {
       Backend.createComment({
         question_id,
         answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        data: newComment
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
+    });
+
+    await expect(
+      Backend.createComment({
+        question_id,
+        answer_id: undefined,
         data: newComment
       })
     ).rejects.toMatchObject({
@@ -5229,6 +5248,30 @@ describe('::applyVotesUpdateOperation', () => {
     ).rejects.toMatchObject({ message: ErrorMessage.InvalidDecrementOperation() });
   });
 
+  it('rejects multi-target decrement operations', async () => {
+    expect.hasAssertions();
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined,
+        operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.MultitargetDecrement() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[1].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: undefined,
+        operation: { op: 'decrement', target: 'downvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.MultitargetDecrement() });
+  });
+
   it('rejects when attempting operations on multiple targets', async () => {
     expect.hasAssertions();
 
@@ -5485,5 +5528,75 @@ describe('::applyVotesUpdateOperation', () => {
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidItem('username', 'parameter')
     });
+  });
+
+  it('rejects if operation is invalid or missing', async () => {
+    expect.hasAssertions();
+
+    const params = {
+      username: dummyAppData.users[0].username,
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+      comment_id: itemToStringId(
+        dummyAppData.questions[0].answerItems[0].commentItems[0]
+      )
+    };
+
+    type Op = Parameters<typeof Backend.applyVotesUpdateOperation>[0]['operation'];
+    const badOps: [op: Op, error: string][] = [
+      [undefined, ErrorMessage.InvalidItem('operation', 'parameter')],
+      [
+        {},
+        ErrorMessage.InvalidFieldValue('op', undefined, ['increment', 'decrement'])
+      ],
+      [
+        { target: 'downvotes' },
+        ErrorMessage.InvalidFieldValue('op', undefined, ['increment', 'decrement'])
+      ],
+      [
+        { op: undefined },
+        ErrorMessage.InvalidFieldValue('op', undefined, ['increment', 'decrement'])
+      ],
+      [
+        { op: null } as unknown as Op,
+        ErrorMessage.InvalidFieldValue('op', undefined, ['increment', 'decrement'])
+      ],
+      [
+        { op: 'fake' } as unknown as Op,
+        ErrorMessage.InvalidFieldValue('op', 'fake', ['increment', 'decrement'])
+      ],
+      [
+        { op: 'increment' } as unknown as Op,
+        ErrorMessage.InvalidFieldValue('target', undefined, ['upvotes', 'downvotes'])
+      ],
+      [
+        { op: 'increment', target: undefined } as unknown as Op,
+        ErrorMessage.InvalidFieldValue('target', undefined, ['upvotes', 'downvotes'])
+      ],
+      [
+        { op: 'increment', target: null } as unknown as Op,
+        ErrorMessage.InvalidFieldValue('target', null as any, [
+          'upvotes',
+          'downvotes'
+        ])
+      ],
+      [
+        { op: 'increment', target: 'nope' } as unknown as Op,
+        ErrorMessage.InvalidFieldValue('target', 'nope', ['upvotes', 'downvotes'])
+      ]
+    ];
+
+    await Promise.all(
+      badOps.map(async ([op, error]) => {
+        await expect(
+          Backend.applyVotesUpdateOperation({
+            ...params,
+            operation: op
+          })
+        ).rejects.toMatchObject({
+          message: error
+        });
+      })
+    );
   });
 });

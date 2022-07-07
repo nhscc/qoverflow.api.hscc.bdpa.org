@@ -620,6 +620,7 @@ async function genericSelectAggregation<T>({
   comment_id: CommentId | undefined;
   projection: Projection | undefined;
 }): Promise<T> {
+  /* istanbul ignore next */
   if (
     (!answer_id && !answer_creator && !comment_id) ||
     (answer_id && answer_creator)
@@ -673,7 +674,7 @@ async function genericSelectAggregation<T>({
             }
           ]
         : []),
-      ...(projection ? [{ $project: projection }] : [])
+      ...(projection ? [{ $project: projection }] : /* istanbul ignore next */ [])
     ])
     .next() as Promise<T>;
 }

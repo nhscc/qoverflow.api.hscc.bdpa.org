@@ -5,6 +5,7 @@ export * from 'named-app-errors';
 /**
  * A collection of possible error and warning messages.
  */
+/* istanbul ignore next */
 export const ErrorMessage = {
   ...NamedErrorMessage,
   DuplicateFieldValue: (prop: string) => `an item with that "${prop}" already exists`,
@@ -93,9 +94,11 @@ export const ErrorMessage = {
   DuplicateIncrementOperation: () =>
     'cannot execute duplicate increment without preceding decrement',
   InvalidDecrementOperation: () =>
-    'cannot execute decrement without preceding increment',
+    'cannot execute decrement on this target without preceding increment',
   MultipleIncrementTargets: () =>
     'cannot execute increment without preceding decrement on other target',
+  MultitargetDecrement: () =>
+    'cannot execute decrement while other target is incremented',
   IllegalOperation: () =>
     'this user is not authorized to execute operations on this item'
 };
