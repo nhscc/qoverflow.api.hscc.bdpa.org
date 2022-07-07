@@ -543,26 +543,61 @@ export const publicCommentMap = (variable: string) =>
 export const vacuousProjection = { exists: { $literal: true } };
 
 /**
+ * A type representing how a user voted on a question, answer, or comment.
+ */
+export type VoterStatus = 'upvoted' | 'downvoted' | null;
+
+/**
+ * A type representing the result of applying the voterStatusProjection output
+ * via cursor projection.
+ */
+export type VoterStatusResult = { voterStatus: VoterStatus } | null;
+
+/**
  * A MongoDB cursor projection that evaluates an internal question, answer, or
  * comment and returns how the specified user voted on said item.
  */
-export const voterStatusProjection = (username: Username) => ({
-  voterStatus: {
-    $switch: {
-      branches: [
-        {
-          case: { $in: [username, '$upvoterUsernames'] },
-          then: 'upvoted'
-        },
-        {
-          case: { $in: [username, '$downvoterUsernames'] },
-          then: 'downvoted'
-        }
-      ],
-      default: null
+export function voterStatusProjection(username: Username) {
+  return {
+    _id: false,
+    voterStatus: {
+      $switch: {
+        branches: [
+          {
+            case: { $in: [username, '$upvoterUsernames'] },
+            then: 'upvoted'
+          },
+          {
+            case: { $in: [username, '$downvoterUsernames'] },
+            then: 'downvoted'
+          }
+        ],
+        default: null
+      }
     }
-  }
-});
+  };
+}
+
+/**
+ * The shape of vote count update operation authorization information.
+ */
+export type SelectResult =
+  | (NonNullable<VoterStatusResult> & {
+      isCreator: boolean;
+    })
+  | null;
+
+/**
+ * A MongoDB cursor projection that returns select information about an internal
+ * question, answer, or comment for the purpose of vote update operation
+ * authorization.
+ */
+export function selectResultProjection(username: Username) {
+  return {
+    ...voterStatusProjection(username),
+    isCreator: { $eq: [username, '$creator'] }
+  };
+}
 
 async function genericSelectAggregation<T>({
   question_id,
@@ -742,7 +777,7 @@ export async function addCommentToDb({
  *
  * `updateOps` must be a valid MongoDB update document, e.g. `{ $set: ... }`.
  */
-function updateOpsToFullSchema(updateOps: Document, predicate: string) {
+function translateToFlatUpdateOps(updateOps: Document, predicate: string) {
   return Object.entries(updateOps).reduce((newUpdateOps, [updateOp, opSpec]) => {
     newUpdateOps[updateOp] ??= {};
 
@@ -770,7 +805,7 @@ export async function patchAnswerInDb({
     .collection<InternalQuestion>('questions')
     .updateOne(
       { _id: question_id },
-      updateOpsToFullSchema(updateOps, 'answerItems.$[answer]'),
+      translateToFlatUpdateOps(updateOps, 'answerItems.$[answer]'),
       { arrayFilters: [{ 'answer._id': answer_id }] }
     );
 }
@@ -796,7 +831,7 @@ export async function patchCommentInDb({
   if (answer_id) {
     return db.updateOne(
       { _id: question_id },
-      updateOpsToFullSchema(
+      translateToFlatUpdateOps(
         updateOps,
         'answerItems.$[answer].commentItems.$[comment]'
       ),
@@ -805,7 +840,7 @@ export async function patchCommentInDb({
   } else {
     return db.updateOne(
       { _id: question_id },
-      updateOpsToFullSchema(updateOps, 'commentItems.$[comment]'),
+      translateToFlatUpdateOps(updateOps, 'commentItems.$[comment]'),
       { arrayFilters: [{ 'comment._id': comment_id }] }
     );
   }

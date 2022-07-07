@@ -58,6 +58,16 @@ const users: InternalUser[] = [
     points: 100000,
     questionIds: [],
     answerIds: []
+  },
+  {
+    _id: new ObjectId(),
+    username: 'User4',
+    salt: '12ef85b518da764294abf0a2095bb5ec',
+    key: 'e745893e064e26d4349b1639b1596c14bc9b5d050b56bf31ff3ef0dfce6f959aef8a3722a35bc35b2d142169e75ca3e1967cd6ee4818af0813d8396a724fdd22',
+    email: 'user4@fake-email.com',
+    points: 100,
+    questionIds: [],
+    answerIds: []
   }
 ];
 
@@ -248,8 +258,8 @@ const questions: InternalQuestion[] = [
         creator: 'User2',
         createdAt: mockDateNowMs - 97765,
         text: "Make sure to pay attention at the next coordinator's meeting!",
-        upvotes: 0,
-        upvoterUsernames: [],
+        upvotes: 2,
+        upvoterUsernames: [users[2].username],
         downvotes: 0,
         downvoterUsernames: []
       }

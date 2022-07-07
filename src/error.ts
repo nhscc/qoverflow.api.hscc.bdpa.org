@@ -96,5 +96,6 @@ export const ErrorMessage = {
     'cannot execute decrement without preceding increment',
   MultipleIncrementTargets: () =>
     'cannot execute increment without preceding decrement on other target',
-  IllegalOperation: () => 'cannot execute this operation on this item'
+  IllegalOperation: () =>
+    'this user is not authorized to execute operations on this item'
 };

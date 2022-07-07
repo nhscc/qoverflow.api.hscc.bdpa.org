@@ -86,8 +86,14 @@ describe('::getAllUsers', () => {
           }),
           await Backend.getAllUsers({
             after_id: itemToStringId(sortedUsers[1])
+          }),
+          await Backend.getAllUsers({
+            after_id: itemToStringId(sortedUsers[2])
+          }),
+          await Backend.getAllUsers({
+            after_id: itemToStringId(sortedUsers[3])
           })
-        ]).toStrictEqual(sortedUsers.slice(-3).map((user) => [toPublicUser(user)]));
+        ]).toStrictEqual([...sortedUsers.map((user) => [toPublicUser(user)]), []]);
       },
       { RESULTS_PER_PAGE: '1' }
     );
@@ -4512,84 +4518,124 @@ describe('::applyVotesUpdateOperation', () => {
   it('applies increment/decrement operation to question and updates usernames', async () => {
     expect.hasAssertions();
 
+    const questionsDb = (await getDb({ name: 'hscc-api-qoverflow' })).collection(
+      'questions'
+    );
+
+    const { upvotes, downvotes, upvoterUsernames, downvoterUsernames } =
+      dummyAppData.questions[2];
+
+    const username = dummyAppData.users[0].username;
+    const question_id = itemToStringId(dummyAppData.questions[2]);
+    const answer_id = undefined;
+    const comment_id = undefined;
+
+    const projection = {
+      _id: false,
+      upvotes: true,
+      downvotes: true,
+      upvoterUsernames: true,
+      downvoterUsernames: true
+    };
+
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      questionsDb.findOne(
         { _id: itemToObjectId(dummyAppData.questions[2]) },
-        {
-          projection: {
-            _id: false,
-            upvotes: true,
-            downvotes: true,
-            upvoterUsernames: true,
-            downvoterUsernames: true
-          }
-        }
+        { projection }
       )
     ).resolves.toStrictEqual({
-      upvotes: 0,
-      downvotes: 0,
-      upvoterUsernames: [],
-      downvoterUsernames: []
+      upvotes,
+      downvotes,
+      upvoterUsernames,
+      downvoterUsernames
     });
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
-        question_id: itemToStringId(dummyAppData.questions[2]),
-        answer_id: undefined,
-        comment_id: undefined,
+        username,
+        question_id,
+        answer_id,
+        comment_id,
         operation: { op: 'increment', target: 'upvotes' }
       })
     ).resolves.toBeUndefined();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      questionsDb.findOne(
         { _id: itemToObjectId(dummyAppData.questions[2]) },
-        {
-          projection: {
-            _id: false,
-            upvotes: true,
-            downvotes: true,
-            upvoterUsernames: true,
-            downvoterUsernames: true
-          }
-        }
+        { projection }
       )
     ).resolves.toStrictEqual({
-      upvotes: 1,
-      downvotes: 0,
-      upvoterUsernames: [dummyAppData.users[0].username],
-      downvoterUsernames: []
+      upvotes: upvotes + 1,
+      downvotes,
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[0].username],
+      downvoterUsernames
     });
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[1].username,
-        question_id: itemToStringId(dummyAppData.questions[2]),
-        answer_id: undefined,
-        comment_id: undefined,
+        username,
+        question_id,
+        answer_id,
+        comment_id,
         operation: { op: 'decrement', target: 'upvotes' }
       })
     ).resolves.toBeUndefined();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      questionsDb.findOne(
         { _id: itemToObjectId(dummyAppData.questions[2]) },
-        {
-          projection: {
-            _id: false,
-            upvotes: true,
-            downvotes: true,
-            upvoterUsernames: true,
-            downvoterUsernames: true
-          }
-        }
+        { projection }
       )
     ).resolves.toStrictEqual({
-      upvotes: 1,
-      downvotes: 1,
-      upvoterUsernames: [dummyAppData.users[0].username],
-      downvoterUsernames: [dummyAppData.users[1].username]
+      upvotes,
+      downvotes,
+      upvoterUsernames,
+      downvoterUsernames
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username,
+        question_id,
+        answer_id,
+        comment_id,
+        operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      questionsDb.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[2]) },
+        { projection }
+      )
+    ).resolves.toStrictEqual({
+      upvotes,
+      downvotes: downvotes + 1,
+      upvoterUsernames,
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[0].username]
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username,
+        question_id,
+        answer_id,
+        comment_id,
+        operation: { op: 'decrement', target: 'downvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      questionsDb.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[2]) },
+        { projection }
+      )
+    ).resolves.toStrictEqual({
+      upvotes,
+      downvotes,
+      upvoterUsernames,
+      downvoterUsernames
     });
   });
 
@@ -4622,7 +4668,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[3].username,
         question_id: itemToStringId(question_id),
         answer_id: itemToStringId(answer_id),
         comment_id,
@@ -4635,13 +4681,32 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({
       upvotes: upvotes + 1,
       downvotes,
-      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1].username],
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[3].username],
       downvoterUsernames
     });
 
     await expect(
       Backend.applyVotesUpdateOperation({
         username: dummyAppData.users[2].username,
+        question_id: itemToStringId(question_id),
+        answer_id: itemToStringId(answer_id),
+        comment_id,
+        operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectAnswerFromDb({ question_id, answer_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes: upvotes + 1,
+      downvotes: downvotes + 1,
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[3].username],
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[2].username]
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[3].username,
         question_id: itemToStringId(question_id),
         answer_id: itemToStringId(answer_id),
         comment_id,
@@ -4652,10 +4717,29 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       selectAnswerFromDb({ question_id, answer_id, projection })
     ).resolves.toStrictEqual({
-      upvotes: upvotes + 1,
+      upvotes: upvotes,
       downvotes: downvotes + 1,
-      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1].username],
+      upvoterUsernames,
       downvoterUsernames: [...downvoterUsernames, dummyAppData.users[2].username]
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(question_id),
+        answer_id: itemToStringId(answer_id),
+        comment_id,
+        operation: { op: 'decrement', target: 'downvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectAnswerFromDb({ question_id, answer_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes,
+      downvotes,
+      upvoterUsernames,
+      downvoterUsernames
     });
   });
 
@@ -4707,7 +4791,26 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[3].username,
+        question_id: itemToStringId(question_id),
+        answer_id,
+        comment_id: itemToStringId(comment_id),
+        operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectCommentFromDb({ question_id, answer_id, comment_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes: upvotes + 1,
+      downvotes: downvotes + 1,
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1].username],
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[3].username]
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[1].username,
         question_id: itemToStringId(question_id),
         answer_id,
         comment_id: itemToStringId(comment_id),
@@ -4718,10 +4821,29 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       selectCommentFromDb({ question_id, answer_id, comment_id, projection })
     ).resolves.toStrictEqual({
-      upvotes: upvotes + 1,
+      upvotes,
       downvotes: downvotes + 1,
-      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1].username],
-      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[2].username]
+      upvoterUsernames,
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[3].username]
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[3].username,
+        question_id: itemToStringId(question_id),
+        answer_id,
+        comment_id: itemToStringId(comment_id),
+        operation: { op: 'decrement', target: 'downvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectCommentFromDb({ question_id, answer_id, comment_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes,
+      downvotes,
+      upvoterUsernames,
+      downvoterUsernames
     });
   });
 
@@ -4731,6 +4853,7 @@ describe('::applyVotesUpdateOperation', () => {
     const { upvotes, downvotes, upvoterUsernames, downvoterUsernames } =
       dummyAppData.questions[0].answerItems[0].commentItems[0];
 
+    const username = dummyAppData.users[3].username;
     const question_id = itemToObjectId(dummyAppData.questions[0]);
     const answer_id = itemToObjectId(dummyAppData.questions[0].answerItems[0]);
     const comment_id = itemToObjectId(
@@ -4756,7 +4879,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username,
         question_id: itemToStringId(question_id),
         answer_id: itemToStringId(answer_id),
         comment_id: itemToStringId(comment_id),
@@ -4769,13 +4892,13 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({
       upvotes: upvotes + 1,
       downvotes,
-      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[0].username],
+      upvoterUsernames: [...upvoterUsernames, username],
       downvoterUsernames
     });
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[1].username,
+        username,
         question_id: itemToStringId(question_id),
         answer_id: itemToStringId(answer_id),
         comment_id: itemToStringId(comment_id),
@@ -4786,14 +4909,52 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       selectCommentFromDb({ question_id, answer_id, comment_id, projection })
     ).resolves.toStrictEqual({
-      upvotes: upvotes + 1,
+      upvotes,
+      downvotes,
+      upvoterUsernames,
+      downvoterUsernames
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username,
+        question_id: itemToStringId(question_id),
+        answer_id: itemToStringId(answer_id),
+        comment_id: itemToStringId(comment_id),
+        operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectCommentFromDb({ question_id, answer_id, comment_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes,
       downvotes: downvotes + 1,
-      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[0].username],
-      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[1].username]
+      upvoterUsernames,
+      downvoterUsernames: [...downvoterUsernames, username]
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username,
+        question_id: itemToStringId(question_id),
+        answer_id: itemToStringId(answer_id),
+        comment_id: itemToStringId(comment_id),
+        operation: { op: 'decrement', target: 'downvotes' }
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      selectCommentFromDb({ question_id, answer_id, comment_id, projection })
+    ).resolves.toStrictEqual({
+      upvotes,
+      downvotes,
+      upvoterUsernames,
+      downvoterUsernames
     });
   });
 
-  it('updates sorter uvc/uvac counters when updating question upvotes', async () => {
+  it('updates sorter uvc/uvac counters ONLY when updating question upvotes', async () => {
     expect.hasAssertions();
 
     const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
@@ -4803,7 +4964,7 @@ describe('::applyVotesUpdateOperation', () => {
     } = dummyAppData.questions[0];
 
     await Backend.applyVotesUpdateOperation({
-      username: dummyAppData.users[0].username,
+      username: dummyAppData.users[3].username,
       question_id: itemToStringId(dummyAppData.questions[0]),
       answer_id: undefined,
       comment_id: undefined,
@@ -4818,7 +4979,7 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({ uvc: uvc + 1, uvac: uvac + 1 });
 
     await Backend.applyVotesUpdateOperation({
-      username: dummyAppData.users[0].username,
+      username: dummyAppData.users[3].username,
       question_id: itemToStringId(dummyAppData.questions[0]),
       answer_id: undefined,
       comment_id: undefined,
@@ -4831,6 +4992,99 @@ describe('::applyVotesUpdateOperation', () => {
         { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
       )
     ).resolves.toStrictEqual({ uvc, uvac });
+
+    await Backend.applyVotesUpdateOperation({
+      username: dummyAppData.users[3].username,
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      answer_id: undefined,
+      comment_id: undefined,
+      operation: { op: 'increment', target: 'downvotes' }
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc, uvac });
+
+    await Backend.applyVotesUpdateOperation({
+      username: dummyAppData.users[3].username,
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      answer_id: undefined,
+      comment_id: undefined,
+      operation: { op: 'decrement', target: 'downvotes' }
+    });
+
+    await expect(
+      db.findOne(
+        { _id: itemToObjectId(dummyAppData.questions[0]) },
+        { projection: { _id: false, uvc: '$sorter.uvc', uvac: '$sorter.uvac' } }
+      )
+    ).resolves.toStrictEqual({ uvc, uvac });
+
+    await Backend.applyVotesUpdateOperation({
+      username: dummyAppData.users[3].username,
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+      comment_id: undefined,
+      operation: { op: 'increment', target: 'upvotes' }
+    });
+
+    await expect(
+      selectAnswerFromDb({
+        question_id: itemToObjectId(dummyAppData.questions[0]),
+        answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+        projection: { _id: false, upvotes: true, sorter: true }
+      })
+    ).resolves.toStrictEqual({
+      upvotes: dummyAppData.questions[0].answerItems[0].upvotes + 1
+      // * No "sorter"!
+    });
+
+    await Backend.applyVotesUpdateOperation({
+      username: dummyAppData.users[3].username,
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+      comment_id: itemToStringId(
+        dummyAppData.questions[0].answerItems[0].commentItems[0]
+      ),
+      operation: { op: 'increment', target: 'upvotes' }
+    });
+
+    await expect(
+      selectCommentFromDb({
+        question_id: itemToObjectId(dummyAppData.questions[0]),
+        answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: itemToObjectId(
+          dummyAppData.questions[0].answerItems[0].commentItems[0]
+        ),
+        projection: { _id: false, upvotes: true, sorter: true }
+      })
+    ).resolves.toStrictEqual({
+      upvotes: dummyAppData.questions[0].answerItems[0].commentItems[0].upvotes + 1
+      // * No "sorter"!
+    });
+
+    await Backend.applyVotesUpdateOperation({
+      username: dummyAppData.users[3].username,
+      question_id: itemToStringId(dummyAppData.questions[0]),
+      answer_id: undefined,
+      comment_id: itemToStringId(dummyAppData.questions[0].commentItems[0]),
+      operation: { op: 'increment', target: 'upvotes' }
+    });
+
+    await expect(
+      selectCommentFromDb({
+        question_id: itemToObjectId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: itemToObjectId(dummyAppData.questions[0].commentItems[0]),
+        projection: { _id: false, upvotes: true, sorter: true }
+      })
+    ).resolves.toStrictEqual({
+      upvotes: dummyAppData.questions[0].commentItems[0].upvotes + 1
+      // * No "sorter"!
+    });
   });
 
   it('does not reject when duplicating an increment after first undoing it', async () => {
@@ -4903,50 +5157,6 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('does not allow decrement operations to result in a negative value', async () => {
-    expect.hasAssertions();
-
-    await expect(
-      selectCommentFromDb({
-        question_id: itemToObjectId(dummyAppData.questions[0]),
-        answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[1]),
-        comment_id: itemToObjectId(
-          dummyAppData.questions[0].answerItems[1].commentItems[2]
-        ),
-        projection: { _id: false, upvotes: true, upvoterUsernames: true }
-      })
-    ).resolves.toStrictEqual({
-      upvotes: 0,
-      upvoterUsernames: [dummyAppData.users[0].username]
-    });
-
-    await expect(
-      Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
-        question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
-        comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[1].commentItems[2]
-        ),
-        operation: { op: 'decrement', target: 'upvotes' }
-      })
-    ).resolves.toBeUndefined();
-
-    await expect(
-      selectCommentFromDb({
-        question_id: itemToObjectId(dummyAppData.questions[0]),
-        answer_id: itemToObjectId(dummyAppData.questions[0].answerItems[1]),
-        comment_id: itemToObjectId(
-          dummyAppData.questions[0].answerItems[1].commentItems[2]
-        ),
-        projection: { _id: false, upvotes: true, upvoterUsernames: true }
-      })
-    ).resolves.toStrictEqual({
-      upvotes: 0,
-      upvoterUsernames: []
-    });
-  });
-
   it('rejects when duplicating increment operation', async () => {
     expect.hasAssertions();
 
@@ -4979,6 +5189,16 @@ describe('::applyVotesUpdateOperation', () => {
           dummyAppData.questions[0].answerItems[1].commentItems[1]
         ),
         operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.DuplicateIncrementOperation() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[2].username,
+        question_id: itemToStringId(dummyAppData.questions[1]),
+        answer_id: undefined,
+        comment_id: itemToStringId(dummyAppData.questions[1].commentItems[0]),
+        operation: { op: 'increment', target: 'upvotes' }
       })
     ).rejects.toMatchObject({ message: ErrorMessage.DuplicateIncrementOperation() });
   });
@@ -5043,6 +5263,38 @@ describe('::applyVotesUpdateOperation', () => {
         answer_id: undefined,
         comment_id: undefined,
         operation: { op: 'decrement', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.IllegalOperation() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[2]),
+        comment_id: undefined,
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.IllegalOperation() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        comment_id: itemToStringId(
+          dummyAppData.questions[0].answerItems[1].commentItems[0]
+        ),
+        operation: { op: 'increment', target: 'downvotes' }
+      })
+    ).rejects.toMatchObject({ message: ErrorMessage.IllegalOperation() });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id: itemToStringId(dummyAppData.questions[0]),
+        answer_id: undefined,
+        comment_id: itemToStringId(dummyAppData.questions[0].commentItems[1]),
+        operation: { op: 'decrement', target: 'downvotes' }
       })
     ).rejects.toMatchObject({ message: ErrorMessage.IllegalOperation() });
   });
@@ -5124,6 +5376,42 @@ describe('::applyVotesUpdateOperation', () => {
         question_id,
         answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
         comment_id: new ObjectId().toString(),
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id,
+        answer_id: undefined,
+        comment_id: new ObjectId().toString(),
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id,
+        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        comment_id: undefined,
+        operation: { op: 'increment', target: 'upvotes' }
+      })
+    ).rejects.toMatchObject({
+      message: ErrorMessage.ItemNotFound(question_id, 'question')
+    });
+
+    await expect(
+      Backend.applyVotesUpdateOperation({
+        username: dummyAppData.users[0].username,
+        question_id,
+        answer_id: undefined,
+        comment_id: undefined,
         operation: { op: 'increment', target: 'upvotes' }
       })
     ).rejects.toMatchObject({

@@ -6,9 +6,8 @@ import { getEnv } from 'universe/backend/env';
 import {
   addAnswerToDb,
   addCommentToDb,
-  CommentId,
-  InternalComment,
   patchAnswerInDb,
+  patchCommentInDb,
   publicAnswerMap,
   publicAnswerProjection,
   publicCommentMap,
@@ -20,6 +19,7 @@ import {
   removeCommentFromDb,
   selectAnswerFromDb,
   selectCommentFromDb,
+  selectResultProjection,
   toPublicAnswer,
   toPublicComment,
   toPublicMail,
@@ -30,37 +30,43 @@ import {
 } from 'universe/backend/db';
 
 import {
-  ItemNotFoundError,
-  InvalidItemError,
-  ValidationError,
   ClientValidationError,
-  ErrorMessage
+  ErrorMessage,
+  InvalidItemError,
+  ItemNotFoundError,
+  ValidationError,
+  NotAuthorizedError
 } from 'universe/error';
 
 import type {
   AnswerId,
-  QuestionId,
+  CommentId,
   InternalAnswer,
+  InternalComment,
   InternalMail,
   InternalQuestion,
-  MailId,
-  PointsUpdateOperation,
-  PublicUser,
-  NewUser,
-  PatchUser,
-  Username,
-  UserId,
   InternalUser,
+  MailId,
   NewAnswer,
   NewComment,
   NewMail,
   NewQuestion,
+  NewUser,
   PatchAnswer,
   PatchQuestion,
+  PatchUser,
+  PointsUpdateOperation,
   PublicAnswer,
   PublicComment,
   PublicMail,
   PublicQuestion,
+  PublicUser,
+  QuestionId,
+  SelectResult,
+  UserId,
+  Username,
+  VoterStatus,
+  VoterStatusResult,
   VotesUpdateOperation
 } from 'universe/backend/db';
 
@@ -130,9 +136,34 @@ type SorterUpdateAggregationOp = {
 };
 
 /**
- * A shape representing how a user voted on a question, answer, or comment.
+ * Validate a vote update operation object for correctness.
  */
-type VoterStatus = 'upvoted' | 'downvoted' | null;
+function validateVotesUpdateOperation(
+  operation: unknown
+): asserts operation is VotesUpdateOperation {
+  const rawOperation = operation as VotesUpdateOperation;
+
+  if (!rawOperation.op || !['increment', 'decrement'].includes(rawOperation.op)) {
+    throw new ValidationError(
+      ErrorMessage.InvalidFieldValue('op', rawOperation.op, [
+        'increment',
+        'decrement'
+      ])
+    );
+  }
+
+  if (
+    !rawOperation.target ||
+    !['upvotes', 'downvotes'].includes(rawOperation.target)
+  ) {
+    throw new ValidationError(
+      ErrorMessage.InvalidFieldValue('target', rawOperation.target, [
+        'upvotes',
+        'downvotes'
+      ])
+    );
+  }
+}
 
 /**
  * Validate a username string for correctness.
@@ -1773,7 +1804,7 @@ export async function getHowUserVoted({
 
   if (answerId) {
     try {
-      const result = await selectAnswerFromDb<{ voterStatus: VoterStatus } | null>({
+      const result = await selectAnswerFromDb<VoterStatusResult>({
         question_id: questionId,
         answer_id: answerId,
         // ? If we're interested in a comment, only do an existence check
@@ -1798,7 +1829,7 @@ export async function getHowUserVoted({
 
   if (commentId) {
     try {
-      const result = await selectCommentFromDb<{ voterStatus: VoterStatus } | null>({
+      const result = await selectCommentFromDb<VoterStatusResult>({
         question_id: questionId,
         answer_id: answerId,
         comment_id: commentId,
@@ -1821,7 +1852,7 @@ export async function getHowUserVoted({
 
   // ? If we've come this far, then we must only be interested in a question!
 
-  const result = await questionDb.findOne<{ voterStatus: VoterStatus }>(
+  const result = await questionDb.findOne<VoterStatusResult>(
     { _id: questionId },
     { projection: voterStatusProjection(username) }
   );
@@ -1846,6 +1877,161 @@ export async function applyVotesUpdateOperation({
   comment_id: string | undefined;
   operation: Partial<VotesUpdateOperation> | undefined;
 }): Promise<void> {
-  // TODO
-  void username, question_id, answer_id, comment_id, operation;
+  if (!username) {
+    throw new InvalidItemError('username', 'parameter');
+  }
+
+  if (!question_id) {
+    throw new InvalidItemError('question_id', 'parameter');
+  }
+
+  if (!operation) {
+    throw new InvalidItemError('operation', 'parameter');
+  }
+
+  validateVotesUpdateOperation(operation);
+
+  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const userDb = db.collection<InternalUser>('users');
+  const questionDb = db.collection<InternalQuestion>('questions');
+
+  if (!(await itemExists(userDb, { key: 'username', id: username }))) {
+    throw new ItemNotFoundError(username, 'user');
+  }
+
+  const questionId = itemToObjectId<QuestionId>(question_id);
+  const answerId = answer_id ? itemToObjectId<AnswerId>(answer_id) : undefined;
+  const commentId = comment_id ? itemToObjectId<AnswerId>(comment_id) : undefined;
+
+  const validateOperationAuthorization = (
+    selectResult: SelectResult,
+    { skip }: { skip: boolean }
+  ) => {
+    if (!selectResult) {
+      throw new ItemNotFoundError(questionId, 'question');
+    }
+
+    if (!skip) {
+      if (selectResult.isCreator) {
+        throw new NotAuthorizedError(ErrorMessage.IllegalOperation());
+      }
+
+      if (selectResult.voterStatus !== null) {
+        if (operation.op == 'increment') {
+          if (
+            (operation.target == 'upvotes' &&
+              selectResult.voterStatus == 'upvoted') ||
+            (operation.target == 'downvotes' &&
+              selectResult.voterStatus == 'downvoted')
+          ) {
+            throw new NotAuthorizedError(ErrorMessage.DuplicateIncrementOperation());
+          }
+
+          throw new NotAuthorizedError(ErrorMessage.MultipleIncrementTargets());
+        }
+
+        if (operation.op == 'decrement') {
+          if (
+            !(
+              (operation.target == 'upvotes' &&
+                selectResult.voterStatus == 'upvoted') ||
+              (operation.target == 'downvotes' &&
+                selectResult.voterStatus == 'downvoted')
+            )
+          ) {
+            throw new NotAuthorizedError(ErrorMessage.InvalidDecrementOperation());
+          }
+        }
+      } else if (operation.op == 'decrement') {
+        throw new NotAuthorizedError(ErrorMessage.InvalidDecrementOperation());
+      }
+    }
+  };
+
+  const calculateUpdateOps = ({ includeSorter }: { includeSorter: boolean }) => {
+    const { op, target } = operation;
+    const delta = op == 'increment' ? 1 : -1;
+
+    return {
+      $inc: {
+        [target]: delta,
+        ...(includeSorter && target == 'upvotes'
+          ? { 'sorter.uvc': delta, 'sorter.uvac': delta }
+          : {})
+      },
+      [op == 'increment' ? '$push' : '$pull']: {
+        [`${target.slice(0, -1)}rUsernames`]: username
+      }
+    };
+  };
+
+  // ? Ensure answer_id is legit
+  if (answerId) {
+    try {
+      const result = await selectAnswerFromDb<SelectResult>({
+        question_id: questionId,
+        answer_id: answerId,
+        projection: selectResultProjection(username)
+      });
+
+      validateOperationAuthorization(result, {
+        // ? If we're actually interested in a comment, defer authorization
+        skip: !!commentId
+      });
+
+      if (!commentId) {
+        return void (await patchAnswerInDb({
+          question_id: questionId,
+          answer_id: answerId,
+          updateOps: calculateUpdateOps({ includeSorter: false })
+        }));
+      }
+    } catch (e) {
+      if (e instanceof MongoServerError) {
+        throw new ItemNotFoundError(answerId, 'answer');
+      }
+
+      throw e;
+    }
+  }
+
+  // ? Ensure comment_id is legit
+  if (commentId) {
+    try {
+      const result = await selectCommentFromDb<SelectResult>({
+        question_id: questionId,
+        answer_id: answerId,
+        comment_id: commentId,
+        projection: selectResultProjection(username)
+      });
+
+      validateOperationAuthorization(result, { skip: false });
+
+      return void (await patchCommentInDb({
+        question_id: questionId,
+        answer_id: answerId,
+        comment_id: commentId,
+        updateOps: calculateUpdateOps({ includeSorter: false })
+      }));
+    } catch (e) {
+      if (e instanceof MongoServerError) {
+        throw new ItemNotFoundError(commentId, 'comment');
+      }
+
+      throw e;
+    }
+  }
+
+  // ? If we've come this far, then we must only be interested in a question!
+  const result = await questionDb.findOne<SelectResult>(
+    { _id: questionId },
+    { projection: selectResultProjection(username) }
+  );
+
+  validateOperationAuthorization(result, { skip: false });
+
+  await questionDb.updateOne(
+    { _id: questionId },
+    calculateUpdateOps({ includeSorter: true })
+  );
 }
