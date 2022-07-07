@@ -5,18 +5,28 @@ import { getEnv } from 'universe/backend/env';
 
 import {
   addAnswerToDb,
+  addCommentToDb,
+  CommentId,
+  InternalComment,
   patchAnswerInDb,
   publicAnswerMap,
   publicAnswerProjection,
+  publicCommentMap,
   publicMailProjection,
   publicQuestionProjection,
   publicUserProjection,
   questionStatuses,
+  removeAnswerFromDb,
+  removeCommentFromDb,
   selectAnswerFromDb,
+  selectCommentFromDb,
   toPublicAnswer,
+  toPublicComment,
   toPublicMail,
   toPublicQuestion,
-  toPublicUser
+  toPublicUser,
+  vacuousProjection,
+  voterStatusProjection
 } from 'universe/backend/db';
 
 import {
@@ -57,14 +67,6 @@ import type {
 import { isPlainObject } from 'multiverse/is-plain-object';
 import { getDb } from 'multiverse/mongo-schema';
 import { itemExists, itemToObjectId } from 'multiverse/mongo-item';
-
-type SorterUpdateAggregationOp = {
-  $add: [
-    original: string,
-    nUpdate: number,
-    ...sUpdates: { $subtract: (string | number)[] }[]
-  ];
-};
 
 const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 const usernameRegex = /^[a-zA-Z0-9_-]+$/;
@@ -113,6 +115,24 @@ const matchableSubStrings = ['$gt', '$lt', '$gte', '$lte'];
 type SubSpecifierObject = {
   [subspecifier in '$gt' | '$lt' | '$gte' | '$lte']?: number;
 };
+
+/**
+ * The shape of a specification used to construct $inc update operations to feed
+ * directly to MongoDB. Used for complex updates involving the `sorter.uvc` and
+ * `sorter.uvac` fields.
+ */
+type SorterUpdateAggregationOp = {
+  $add: [
+    original: string,
+    nUpdate: number,
+    ...sUpdates: { $subtract: (string | number)[] }[]
+  ];
+};
+
+/**
+ * A shape representing how a user voted on a question, answer, or comment.
+ */
+type VoterStatus = 'upvoted' | 'downvoted' | null;
 
 /**
  * Validate a username string for correctness.
@@ -253,11 +273,9 @@ export async function getAllUsers({
 }: {
   after_id: string | undefined;
 }): Promise<PublicUser[]> {
-  // ? Derive the actual after_id
-  const afterId = after_id ? itemToObjectId<UserId>(after_id) : undefined;
-
   const db = await getDb({ name: 'hscc-api-qoverflow' });
   const userDb = db.collection<InternalUser>('users');
+  const afterId = after_id ? itemToObjectId<UserId>(after_id) : undefined;
 
   if (afterId && !(await itemExists(userDb, afterId))) {
     throw new ItemNotFoundError(after_id, 'user_id');
@@ -302,11 +320,9 @@ export async function getUserQuestions({
     throw new InvalidItemError('username', 'parameter');
   }
 
-  // ? Derive the actual after_id
-  const afterId = after_id ? itemToObjectId<QuestionId>(after_id) : undefined;
-
   const db = await getDb({ name: 'hscc-api-qoverflow' });
   const userDb = db.collection<InternalUser>('users');
+  const afterId = after_id ? itemToObjectId<QuestionId>(after_id) : undefined;
   const questionDb = db.collection<InternalQuestion>('questions');
 
   const { questionIds } =
@@ -355,11 +371,9 @@ export async function getUserAnswers({
     throw new InvalidItemError('username', 'parameter');
   }
 
-  // ? Derive the actual after_id
-  const afterId = after_id ? itemToObjectId<AnswerId>(after_id) : undefined;
-
   const db = await getDb({ name: 'hscc-api-qoverflow' });
   const userDb = db.collection<InternalUser>('users');
+  const afterId = after_id ? itemToObjectId<AnswerId>(after_id) : undefined;
 
   const { answerIds: answerIdTuples } =
     (await userDb
@@ -605,12 +619,10 @@ export async function getUserMessages({
     throw new InvalidItemError('username', 'parameter');
   }
 
-  // ? Derive the actual after_id
-  const afterId = after_id ? itemToObjectId<MailId>(after_id) : undefined;
-
   const db = await getDb({ name: 'hscc-api-qoverflow' });
   const userDb = db.collection<InternalUser>('users');
   const mailDb = db.collection<InternalMail>('mail');
+  const afterId = after_id ? itemToObjectId<MailId>(after_id) : undefined;
 
   if (!(await itemExists(userDb, { key: 'username', id: username }))) {
     throw new ItemNotFoundError(username, 'user');
@@ -703,6 +715,24 @@ export async function createMessage({
   return toPublicMail(newMail);
 }
 
+export async function deleteMessage({
+  mail_id
+}: {
+  mail_id: string | undefined;
+}): Promise<void> {
+  if (!mail_id) {
+    throw new InvalidItemError('mail_id', 'parameter');
+  }
+
+  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const mailDb = db.collection<InternalMail>('mail');
+  const result = await mailDb.deleteOne({ _id: itemToObjectId(mail_id) });
+
+  if (!result.deletedCount) {
+    throw new ItemNotFoundError(mail_id, 'mail message');
+  }
+}
+
 export async function searchQuestions({
   after_id,
   match,
@@ -732,8 +762,6 @@ export async function searchQuestions({
   }
 
   const { RESULTS_PER_PAGE } = getEnv();
-
-  // ? Derive the actual after_id
   const afterId = after_id ? itemToObjectId<QuestionId>(after_id) : undefined;
 
   // ? Initial matcher validation
@@ -1090,21 +1118,59 @@ export async function updateQuestion({
     }
   }
 
-  const result = await questionDb.updateOne({ _id: itemToObjectId(question_id) }, [
-    {
-      $set: {
-        ...(title ? { title, 'title-lowercase': title.toLowerCase() } : {}),
-        ...(text ? { text } : {}),
-        ...(status ? { status } : {}),
-        ...(typeof downvotes == 'number' ? { downvotes } : {}),
-        ...incrementor
+  const result = await questionDb.updateOne(
+    { _id: itemToObjectId<QuestionId>(question_id) },
+    [
+      {
+        $set: {
+          ...(title ? { title, 'title-lowercase': title.toLowerCase() } : {}),
+          ...(text ? { text } : {}),
+          ...(status ? { status } : {}),
+          ...(typeof downvotes == 'number' ? { downvotes } : {}),
+          ...incrementor
+        }
       }
-    }
-  ]);
+    ]
+  );
 
   if (!result.matchedCount) {
     throw new ItemNotFoundError(question_id, 'question');
   }
+}
+
+export async function deleteQuestion({
+  question_id
+}: {
+  question_id: string | undefined;
+}): Promise<void> {
+  if (!question_id) {
+    throw new InvalidItemError('question_id', 'parameter');
+  }
+
+  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const userDb = db.collection<InternalUser>('users');
+  const questionDb = db.collection<InternalQuestion>('questions');
+  const questionId = itemToObjectId<QuestionId>(question_id);
+
+  const { value: deletedQuestion } = await questionDb.findOneAndDelete(
+    { _id: questionId },
+    { projection: { creator: true } }
+  );
+
+  if (!deletedQuestion) {
+    throw new ItemNotFoundError(questionId, 'question');
+  }
+
+  await userDb.updateOne(
+    { username: deletedQuestion.creator },
+    { $pull: { questionIds: questionId } }
+  );
+
+  await userDb.updateMany(
+    { answerIds: { $elemMatch: { $elemMatch: { $in: [questionId] } } } },
+    // @ts-expect-error: work around MongoDB driver bug
+    { $pull: { answerIds: { $in: [questionId] } } }
+  );
 }
 
 export async function getAnswers({
@@ -1118,9 +1184,8 @@ export async function getAnswers({
     throw new InvalidItemError('question_id', 'parameter');
   }
 
-  // ? Derive the actual after_id and question_id
   const afterId = after_id ? itemToObjectId<AnswerId>(after_id) : undefined;
-  const questionId = itemToObjectId(question_id);
+  const questionId = itemToObjectId<QuestionId>(question_id);
 
   // ? Ensure after_id exists
   if (afterId) {
@@ -1128,7 +1193,7 @@ export async function getAnswers({
       void (await selectAnswerFromDb({
         question_id: questionId,
         answer_id: afterId,
-        projection: { exists: { $literal: true } }
+        projection: vacuousProjection
       }));
     } catch (e) {
       if (e instanceof MongoServerError) {
@@ -1203,7 +1268,7 @@ export async function createAnswer({
 
   const db = await getDb({ name: 'hscc-api-qoverflow' });
   const userDb = db.collection<InternalUser>('users');
-  const questionId = itemToObjectId(question_id);
+  const questionId = itemToObjectId<QuestionId>(question_id);
 
   if (!(await itemExists(userDb, { key: 'username', id: creator }))) {
     throw new ItemNotFoundError(creator, 'user');
@@ -1214,7 +1279,7 @@ export async function createAnswer({
       await selectAnswerFromDb({
         question_id: questionId,
         answer_creator: creator,
-        projection: { exists: { $literal: true } }
+        projection: vacuousProjection
       })
     ) {
       throw new ClientValidationError(ErrorMessage.UserAlreadyAnswered());
@@ -1308,8 +1373,8 @@ export async function updateAnswer({
 
   const db = await getDb({ name: 'hscc-api-qoverflow' });
   const questionDb = db.collection<InternalQuestion>('questions');
-  const questionId = itemToObjectId(question_id);
-  const answerId = itemToObjectId(answer_id);
+  const questionId = itemToObjectId<QuestionId>(question_id);
+  const answerId = itemToObjectId<AnswerId>(answer_id);
 
   if (
     accepted &&
@@ -1323,10 +1388,14 @@ export async function updateAnswer({
     void (await selectAnswerFromDb({
       question_id: questionId,
       answer_id: answerId,
-      projection: { exists: { $literal: true } }
+      projection: vacuousProjection
     }));
-  } catch {
-    throw new ItemNotFoundError(answerId, 'answer');
+  } catch (e) {
+    if (e instanceof MongoServerError) {
+      throw new ItemNotFoundError(answerId, 'answer');
+    }
+
+    throw e;
   }
 
   const result = await patchAnswerInDb({
@@ -1354,6 +1423,59 @@ export async function updateAnswer({
   }
 }
 
+export async function deleteAnswer({
+  question_id,
+  answer_id
+}: {
+  question_id: string | undefined;
+  answer_id: string | undefined;
+}): Promise<void> {
+  if (!question_id) {
+    throw new InvalidItemError('question_id', 'parameter');
+  }
+
+  if (!answer_id) {
+    throw new InvalidItemError('answer_id', 'parameter');
+  }
+
+  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const userDb = db.collection<InternalUser>('users');
+  const questionId = itemToObjectId<QuestionId>(question_id);
+  const answerId = itemToObjectId<AnswerId>(answer_id);
+
+  const { creator } = await (async () => {
+    try {
+      const result = await selectAnswerFromDb<{ creator: Username } | null>({
+        question_id: questionId,
+        answer_id: answerId,
+        projection: { creator: true }
+      });
+
+      return result || { creator: null };
+    } catch (e) {
+      if (e instanceof MongoServerError) {
+        throw new ItemNotFoundError(answerId, 'answer');
+      }
+
+      throw e;
+    }
+  })();
+
+  if (!creator) {
+    throw new ItemNotFoundError(question_id, 'question');
+  }
+
+  await removeAnswerFromDb({
+    question_id: questionId,
+    answer_id: answerId
+  });
+
+  await userDb.updateOne(
+    { username: creator },
+    { $pull: { answerIds: [questionId, answerId] } }
+  );
+}
+
 export async function getComments({
   question_id,
   answer_id,
@@ -1363,9 +1485,103 @@ export async function getComments({
   answer_id: string | undefined;
   after_id: string | undefined;
 }): Promise<PublicComment[]> {
-  // TODO
-  void question_id, answer_id, after_id;
-  return [];
+  if (!question_id) {
+    throw new InvalidItemError('question_id', 'parameter');
+  }
+
+  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const questionDb = db.collection<InternalQuestion>('questions');
+  const questionId = itemToObjectId<QuestionId>(question_id);
+  const answerId = answer_id ? itemToObjectId<AnswerId>(answer_id) : undefined;
+  const afterId = after_id ? itemToObjectId<AnswerId>(after_id) : undefined;
+
+  if (answerId) {
+    try {
+      void (await selectAnswerFromDb({
+        question_id: questionId,
+        answer_id: answerId,
+        projection: vacuousProjection
+      }));
+    } catch (e) {
+      if (e instanceof MongoServerError) {
+        throw new ItemNotFoundError(answerId, 'answer');
+      }
+
+      throw e;
+    }
+  }
+
+  // ? Ensure after_id exists
+  if (afterId) {
+    try {
+      await selectCommentFromDb({
+        question_id: questionId,
+        answer_id: answerId,
+        comment_id: afterId,
+        projection: vacuousProjection
+      });
+    } catch (e) {
+      if (e instanceof MongoServerError) {
+        throw new ItemNotFoundError(afterId, 'comment_id');
+      }
+
+      throw e;
+    }
+  }
+
+  const pipeline = [
+    { $match: { _id: questionId } },
+    ...(answerId
+      ? [
+          {
+            $project: {
+              answer: {
+                $first: {
+                  $filter: {
+                    input: '$answerItems',
+                    as: 'answer',
+                    cond: { $eq: ['$$answer._id', answerId] }
+                  }
+                }
+              }
+            }
+          },
+          {
+            $replaceWith: '$answer'
+          }
+        ]
+      : []),
+    {
+      $project: {
+        comments: {
+          $map: {
+            input: {
+              $slice: [
+                afterId
+                  ? {
+                      $filter: {
+                        input: '$commentItems',
+                        as: 'this',
+                        cond: { $gt: ['$$this._id', afterId] }
+                      }
+                    }
+                  : '$commentItems',
+                getEnv().RESULTS_PER_PAGE
+              ]
+            },
+            as: 'comment',
+            in: publicCommentMap('comment')
+          }
+        }
+      }
+    }
+  ];
+
+  const { comments } =
+    (await questionDb.aggregate<{ comments: PublicComment[] }>(pipeline).next()) ||
+    toss(new ItemNotFoundError(question_id, 'question'));
+
+  return comments;
 }
 
 export async function createComment({
@@ -1377,9 +1593,88 @@ export async function createComment({
   answer_id: string | undefined;
   data: NewComment | undefined;
 }): Promise<PublicComment> {
-  // TODO
-  void question_id, answer_id, data;
-  return {} as PublicComment;
+  if (!question_id) {
+    throw new InvalidItemError('question_id', 'parameter');
+  }
+
+  if (!isPlainObject(data)) {
+    throw new ValidationError(ErrorMessage.InvalidJSON());
+  }
+
+  const { creator, text, ...rest } = data as Required<NewComment>;
+  const restKeys = Object.keys(rest);
+
+  if (restKeys.length != 0) {
+    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  }
+
+  if (!creator) {
+    throw new ValidationError(ErrorMessage.InvalidFieldValue('creator'));
+  }
+
+  const { MAX_COMMENT_LENGTH: maxTextLen } = getEnv();
+
+  if (typeof text != 'string' || !text || text.length > maxTextLen) {
+    throw new ValidationError(
+      ErrorMessage.InvalidStringLength('text', 1, maxTextLen, 'string')
+    );
+  }
+
+  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const userDb = db.collection<InternalUser>('users');
+  const questionDb = db.collection<InternalQuestion>('questions');
+  const questionId = itemToObjectId<QuestionId>(question_id);
+  const answerId = answer_id ? itemToObjectId<AnswerId>(answer_id) : undefined;
+
+  if (!(await itemExists(userDb, { key: 'username', id: creator }))) {
+    throw new ItemNotFoundError(creator, 'user');
+  }
+
+  if ((await questionDb.countDocuments({ _id: questionId })) == 0) {
+    throw new ItemNotFoundError(questionId, 'question');
+  }
+
+  if (answerId) {
+    try {
+      await selectAnswerFromDb({
+        question_id: questionId,
+        answer_id: answerId,
+        projection: vacuousProjection
+      });
+    } catch (e) {
+      if (e instanceof MongoServerError) {
+        throw new ItemNotFoundError(answerId, 'answer');
+      }
+
+      throw e;
+    }
+  }
+
+  const newComment: InternalComment = {
+    _id: new ObjectId(),
+    creator,
+    createdAt: Date.now(),
+    text,
+    upvotes: 0,
+    upvoterUsernames: [],
+    downvotes: 0,
+    downvoterUsernames: []
+  };
+
+  // * At this point, we can finally trust this data is not malicious, but not
+  // * necessarily valid...
+
+  const result = await addCommentToDb({
+    question_id: questionId,
+    ...(answerId ? { answer_id: answerId } : {}),
+    comment: newComment
+  });
+
+  if (!result.matchedCount) {
+    throw new ItemNotFoundError(question_id, 'question');
+  }
+
+  return toPublicComment(newComment);
 }
 
 export async function deleteComment({
@@ -1391,8 +1686,58 @@ export async function deleteComment({
   answer_id: string | undefined;
   comment_id: string | undefined;
 }): Promise<void> {
-  // TODO
-  void question_id, answer_id, comment_id;
+  if (!question_id) {
+    throw new InvalidItemError('question_id', 'parameter');
+  }
+
+  if (!comment_id) {
+    throw new InvalidItemError('comment_id', 'parameter');
+  }
+
+  const questionId = itemToObjectId<QuestionId>(question_id);
+  const answerId = answer_id ? itemToObjectId<AnswerId>(answer_id) : undefined;
+  const commentId = itemToObjectId<CommentId>(comment_id);
+
+  if (answerId) {
+    try {
+      void (await selectAnswerFromDb({
+        question_id: questionId,
+        answer_id: answerId,
+        projection: vacuousProjection
+      }));
+    } catch (e) {
+      if (e instanceof MongoServerError) {
+        throw new ItemNotFoundError(answerId, 'answer');
+      }
+
+      throw e;
+    }
+  }
+
+  try {
+    void (await selectCommentFromDb({
+      question_id: questionId,
+      answer_id: answerId,
+      comment_id: commentId,
+      projection: vacuousProjection
+    }));
+  } catch (e) {
+    if (e instanceof MongoServerError) {
+      throw new ItemNotFoundError(commentId, 'comment');
+    }
+
+    throw e;
+  }
+
+  const result = await removeCommentFromDb({
+    question_id: questionId,
+    answer_id: answerId,
+    comment_id: commentId
+  });
+
+  if (!result.matchedCount) {
+    throw new ItemNotFoundError(question_id, 'question');
+  }
 }
 
 export async function getHowUserVoted({
@@ -1405,10 +1750,87 @@ export async function getHowUserVoted({
   question_id: string | undefined;
   answer_id: string | undefined;
   comment_id: string | undefined;
-}): Promise<'upvoted' | 'downvoted' | null> {
-  // TODO
-  void username, question_id, answer_id, comment_id;
-  return null;
+}): Promise<VoterStatus> {
+  if (!username) {
+    throw new InvalidItemError('username', 'parameter');
+  }
+
+  if (!question_id) {
+    throw new InvalidItemError('question_id', 'parameter');
+  }
+
+  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const userDb = db.collection<InternalUser>('users');
+  const questionDb = db.collection<InternalQuestion>('questions');
+
+  if (!(await itemExists(userDb, { key: 'username', id: username }))) {
+    throw new ItemNotFoundError(username, 'user');
+  }
+
+  const questionId = itemToObjectId<QuestionId>(question_id);
+  const answerId = answer_id ? itemToObjectId<AnswerId>(answer_id) : undefined;
+  const commentId = comment_id ? itemToObjectId<AnswerId>(comment_id) : undefined;
+
+  if (answerId) {
+    try {
+      const result = await selectAnswerFromDb<{ voterStatus: VoterStatus } | null>({
+        question_id: questionId,
+        answer_id: answerId,
+        // ? If we're interested in a comment, only do an existence check
+        projection: commentId ? vacuousProjection : voterStatusProjection(username)
+      });
+
+      if (!result) {
+        throw new ItemNotFoundError(questionId, 'question');
+      }
+
+      if (!commentId) {
+        return result.voterStatus;
+      }
+    } catch (e) {
+      if (e instanceof MongoServerError) {
+        throw new ItemNotFoundError(answerId, 'answer');
+      }
+
+      throw e;
+    }
+  }
+
+  if (commentId) {
+    try {
+      const result = await selectCommentFromDb<{ voterStatus: VoterStatus } | null>({
+        question_id: questionId,
+        answer_id: answerId,
+        comment_id: commentId,
+        projection: voterStatusProjection(username)
+      });
+
+      if (!result) {
+        throw new ItemNotFoundError(questionId, 'question');
+      }
+
+      return result.voterStatus;
+    } catch (e) {
+      if (e instanceof MongoServerError) {
+        throw new ItemNotFoundError(commentId, 'comment');
+      }
+
+      throw e;
+    }
+  }
+
+  // ? If we've come this far, then we must only be interested in a question!
+
+  const result = await questionDb.findOne<{ voterStatus: VoterStatus }>(
+    { _id: questionId },
+    { projection: voterStatusProjection(username) }
+  );
+
+  if (!result) {
+    throw new ItemNotFoundError(questionId, 'question');
+  }
+
+  return result.voterStatus;
 }
 
 export async function applyVotesUpdateOperation({

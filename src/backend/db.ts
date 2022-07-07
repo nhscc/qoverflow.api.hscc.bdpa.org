@@ -535,6 +535,35 @@ export const publicCommentMap = (variable: string) =>
     downvotes: `$$${variable}.downvotes`
   } as const);
 
+/**
+ * A meaningless MongoDB cursor projection used for existence checking without
+ * wasting the bandwidth to pull down all of the data that might be embedded
+ * within an object's fields.
+ */
+export const vacuousProjection = { exists: { $literal: true } };
+
+/**
+ * A MongoDB cursor projection that evaluates an internal question, answer, or
+ * comment and returns how the specified user voted on said item.
+ */
+export const voterStatusProjection = (username: Username) => ({
+  voterStatus: {
+    $switch: {
+      branches: [
+        {
+          case: { $in: [username, '$upvoterUsernames'] },
+          then: 'upvoted'
+        },
+        {
+          case: { $in: [username, '$downvoterUsernames'] },
+          then: 'downvoted'
+        }
+      ],
+      default: null
+    }
+  }
+});
+
 async function genericSelectAggregation<T>({
   question_id,
   answer_id,
@@ -794,7 +823,13 @@ export async function removeAnswerFromDb({
 }) {
   return (await getDb({ name: 'hscc-api-qoverflow' }))
     .collection<InternalQuestion>('questions')
-    .updateOne({ _id: question_id }, { $pull: { 'answerItems._id': answer_id } });
+    .updateOne(
+      { _id: question_id },
+      {
+        $inc: { answers: -1, 'sorter.uvac': -1 },
+        $pull: { answerItems: { _id: answer_id } }
+      }
+    );
 }
 
 /**
@@ -816,13 +851,16 @@ export async function removeCommentFromDb({
   if (answer_id) {
     return db.updateOne(
       { _id: question_id },
-      { $pull: { 'answerItems.$[answer].commentItems._id': comment_id } },
+      { $pull: { 'answerItems.$[answer].commentItems': { _id: comment_id } } },
       { arrayFilters: [{ 'answer._id': answer_id }] }
     );
   } else {
     return db.updateOne(
       { _id: question_id },
-      { $pull: { 'commentItems._id': comment_id } }
+      {
+        $inc: { comments: -1, 'sorter.uvc': -1, 'sorter.uvac': -1 },
+        $pull: { commentItems: { _id: comment_id } }
+      }
     );
   }
 }
