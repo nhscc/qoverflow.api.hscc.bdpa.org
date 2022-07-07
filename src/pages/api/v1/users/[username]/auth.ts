@@ -27,7 +27,5 @@ export default withMiddleware(
       ? sendHttpOk(res)
       : sendHttpUnauthorized(res);
   },
-  {
-    options: { allowedMethods: ['POST'], apiVersion: '1' }
-  }
+  { options: { allowedMethods: ['POST'], apiVersion: '1' } }
 );

@@ -26,7 +26,7 @@ export function sendHttpSuccessResponse(
   statusCode: HttpStatusCode,
   responseJson?: Record<string, unknown>
 ) {
-  const json: JsonSuccess = { ...responseJson, success: true };
+  const json: JsonSuccess = { success: true, ...responseJson };
   sendGenericHttpResponse(res, statusCode, json);
   return json;
 }
@@ -41,7 +41,7 @@ export function sendHttpErrorResponse(
   statusCode: HttpStatusCode,
   responseJson: Record<string, unknown> & { error: string }
 ) {
-  const json: JsonError = { ...responseJson, success: false };
+  const json: JsonError = { success: false, ...responseJson };
   sendGenericHttpResponse(res, statusCode, json);
   return json;
 }
@@ -201,7 +201,6 @@ export function sendHttpContrivedError(
 ) {
   sendHttpErrorResponse(res, 555, {
     error: '(note: do not report this contrived error)',
-    success: false,
     ...responseJson
   });
 }

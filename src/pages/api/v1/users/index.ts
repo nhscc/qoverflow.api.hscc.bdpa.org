@@ -14,7 +14,5 @@ export default withMiddleware(
       // * POST
     } else sendHttpOk(res, { user: await createUser({ data: req.body }) });
   },
-  {
-    options: { allowedMethods: ['GET', 'POST'], apiVersion: '1' }
-  }
+  { options: { allowedMethods: ['GET', 'POST'], apiVersion: '1' } }
 );

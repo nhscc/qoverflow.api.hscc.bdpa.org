@@ -20,7 +20,5 @@ export default withMiddleware(
       sendHttpOk(res);
     }
   },
-  {
-    options: { allowedMethods: ['GET', 'DELETE', 'PATCH'], apiVersion: '1' }
-  }
+  { options: { allowedMethods: ['GET', 'DELETE', 'PATCH'], apiVersion: '1' } }
 );

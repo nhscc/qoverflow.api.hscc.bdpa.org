@@ -1,15 +1,19 @@
 import { withMiddleware } from 'universe/backend/middleware';
 import { sendHttpOk } from 'multiverse/next-api-respond';
+import { getUserQuestions } from 'universe/backend';
 
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
 export default withMiddleware(
   async (req, res) => {
-    void req, res, sendHttpOk;
-    // TODO
+    // * GET
+    sendHttpOk(res, {
+      questions: await getUserQuestions({
+        username: req.query.username?.toString(),
+        after_id: req.query.after?.toString()
+      })
+    });
   },
-  {
-    options: { allowedMethods: ['GET'], apiVersion: '1' }
-  }
+  { options: { allowedMethods: ['GET'], apiVersion: '1' } }
 );

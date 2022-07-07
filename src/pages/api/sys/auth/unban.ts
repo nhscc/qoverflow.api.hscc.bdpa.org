@@ -20,7 +20,5 @@ export default withSysMiddleware(
       });
     }
   },
-  {
-    options: { allowedMethods: ['DELETE', 'GET'] }
-  }
+  { options: { allowedMethods: ['DELETE', 'GET'] } }
 );

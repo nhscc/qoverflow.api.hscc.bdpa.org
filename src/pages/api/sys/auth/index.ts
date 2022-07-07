@@ -43,7 +43,5 @@ export default withSysMiddleware(
       sendHttpOk(res);
     }
   },
-  {
-    options: { allowedMethods: ['GET', 'POST', 'PATCH', 'DELETE'] }
-  }
+  { options: { allowedMethods: ['GET', 'POST', 'PATCH', 'DELETE'] } }
 );

@@ -14,7 +14,7 @@ jest.mock('universe/backend/middleware', () => {
   };
 });
 
-setupMockBackend();
+const { mockedGetHowUserVoted } = setupMockBackend();
 
 describe('api/v1/questions', () => {
   describe('/ [POST]', () => {
@@ -148,20 +148,32 @@ describe('api/v1/questions', () => {
   });
 
   describe('/:question_id/vote/:username [GET]', () => {
-    it('accepts GET requests', async () => {
+    it('accepts GET requests and responds with 200 or 404', async () => {
       expect.hasAssertions();
 
       await testApiHandler({
         handler: api.v1.questionsQuestionIdVoteUsername,
         test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'GET' }).then(
+          mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve(null));
+          mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve('upvoted'));
+
+          const [status1, json1] = await fetch({ method: 'GET' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
           );
 
-          expect(status).toBe(200);
-          expect(json.success).toBeTrue();
-          expect(json.vote).toBeString();
-          expect(Object.keys(json)).toHaveLength(2);
+          const [status2, json2] = await fetch({ method: 'GET' }).then(
+            async (r) => [r.status, await r.json()] as [status: number, json: any]
+          );
+
+          expect(status1).toBe(404);
+          expect(json1.success).toBeTrue();
+          expect(json1.error).toBeString();
+          expect(Object.keys(json1)).toHaveLength(2);
+
+          expect(status2).toBe(200);
+          expect(json2.success).toBeTrue();
+          expect(json2.vote).toBeString();
+          expect(Object.keys(json2)).toHaveLength(2);
         }
       });
     });
@@ -246,20 +258,32 @@ describe('api/v1/questions', () => {
   });
 
   describe('/:question_id/comments/:comment_id/vote/:username [GET]', () => {
-    it('accepts GET requests', async () => {
+    it('accepts GET requests and responds with 200 or 404', async () => {
       expect.hasAssertions();
 
       await testApiHandler({
         handler: api.v1.questionsQuestionIdCommentsCommentIdVoteUsername,
         test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'GET' }).then(
+          mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve(null));
+          mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve('upvoted'));
+
+          const [status1, json1] = await fetch({ method: 'GET' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
           );
 
-          expect(status).toBe(200);
-          expect(json.success).toBeTrue();
-          expect(json.vote).toBeString();
-          expect(Object.keys(json)).toHaveLength(2);
+          const [status2, json2] = await fetch({ method: 'GET' }).then(
+            async (r) => [r.status, await r.json()] as [status: number, json: any]
+          );
+
+          expect(status1).toBe(404);
+          expect(json1.success).toBeTrue();
+          expect(json1.error).toBeString();
+          expect(Object.keys(json1)).toHaveLength(2);
+
+          expect(status2).toBe(200);
+          expect(json2.success).toBeTrue();
+          expect(json2.vote).toBeString();
+          expect(Object.keys(json2)).toHaveLength(2);
         }
       });
     });
@@ -344,20 +368,32 @@ describe('api/v1/questions', () => {
   });
 
   describe('/:question_id/answers/:answer_id/vote/:username [GET]', () => {
-    it('accepts GET requests', async () => {
+    it('accepts GET requests and responds with 200 or 404', async () => {
       expect.hasAssertions();
 
       await testApiHandler({
         handler: api.v1.questionsQuestionIdAnswersAnswerIdVoteUsername,
         test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'GET' }).then(
+          mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve(null));
+          mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve('upvoted'));
+
+          const [status1, json1] = await fetch({ method: 'GET' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
           );
 
-          expect(status).toBe(200);
-          expect(json.success).toBeTrue();
-          expect(json.vote).toBeString();
-          expect(Object.keys(json)).toHaveLength(2);
+          const [status2, json2] = await fetch({ method: 'GET' }).then(
+            async (r) => [r.status, await r.json()] as [status: number, json: any]
+          );
+
+          expect(status1).toBe(404);
+          expect(json1.success).toBeTrue();
+          expect(json1.error).toBeString();
+          expect(Object.keys(json1)).toHaveLength(2);
+
+          expect(status2).toBe(200);
+          expect(json2.success).toBeTrue();
+          expect(json2.vote).toBeString();
+          expect(Object.keys(json2)).toHaveLength(2);
         }
       });
     });
@@ -442,21 +478,33 @@ describe('api/v1/questions', () => {
   });
 
   describe('/:question_id/answers/:answer_id/comments/:comment_id/vote/:username [GET]', () => {
-    it('accepts GET requests', async () => {
+    it('accepts GET requests and responds with 200 or 404', async () => {
       expect.hasAssertions();
 
       await testApiHandler({
         handler:
           api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername,
         test: async ({ fetch }) => {
-          const [status, json] = await fetch({ method: 'GET' }).then(
+          mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve(null));
+          mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve('upvoted'));
+
+          const [status1, json1] = await fetch({ method: 'GET' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
           );
 
-          expect(status).toBe(200);
-          expect(json.success).toBeTrue();
-          expect(json.vote).toBeString();
-          expect(Object.keys(json)).toHaveLength(2);
+          const [status2, json2] = await fetch({ method: 'GET' }).then(
+            async (r) => [r.status, await r.json()] as [status: number, json: any]
+          );
+
+          expect(status1).toBe(404);
+          expect(json1.success).toBeTrue();
+          expect(json1.error).toBeString();
+          expect(Object.keys(json1)).toHaveLength(2);
+
+          expect(status2).toBe(200);
+          expect(json2.success).toBeTrue();
+          expect(json2.vote).toBeString();
+          expect(Object.keys(json2)).toHaveLength(2);
         }
       });
     });

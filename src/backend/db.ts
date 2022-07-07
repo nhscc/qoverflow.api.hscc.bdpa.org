@@ -148,7 +148,15 @@ export type PatchUser = Partial<
   Omit<
     WithoutId<InternalUser>,
     'username' | 'questionIds' | 'answerIds' | 'points'
-  > & { points: InternalUser['points'] | PointsUpdateOperation }
+  > & {
+    points:
+      | InternalUser['points']
+      | {
+          [key in keyof PointsUpdateOperation]?: PointsUpdateOperation[key] extends string
+            ? string
+            : PointsUpdateOperation[key];
+        };
+  }
 >;
 
 /**

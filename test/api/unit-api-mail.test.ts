@@ -30,7 +30,7 @@ describe('api/v1/mail', () => {
 
           expect(status).toBe(200);
           expect(json.success).toBeTrue();
-          expect(json.mail).toBeObject();
+          expect(json.message).toBeObject();
           expect(Object.keys(json)).toHaveLength(2);
         }
       });
@@ -50,7 +50,7 @@ describe('api/v1/mail', () => {
 
           expect(status).toBe(200);
           expect(json.success).toBeTrue();
-          expect(json.mail).toBeArray();
+          expect(json.messages).toBeArray();
           expect(Object.keys(json)).toHaveLength(2);
         }
       });

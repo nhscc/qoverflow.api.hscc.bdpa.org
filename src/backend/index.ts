@@ -539,7 +539,7 @@ export async function updateUser({
         throw new ValidationError(
           ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
         );
-      } else if (!['increment', 'decrement'].includes(points.op)) {
+      } else if (!['increment', 'decrement'].includes(points.op as string)) {
         throw new ValidationError(
           ErrorMessage.InvalidFieldValue('points.operation', 'decrement', [
             'increment',
@@ -555,7 +555,7 @@ export async function updateUser({
         throw new ValidationError(ErrorMessage.UnknownField(restOpKeys[0]));
       }
 
-      pointsUpdateOp = points;
+      pointsUpdateOp = points as PointsUpdateOperation;
     } else if (typeof points != 'number' || points < 0) {
       throw new ValidationError(
         ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')

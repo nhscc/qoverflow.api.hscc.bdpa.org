@@ -1,15 +1,43 @@
 import { withMiddleware } from 'universe/backend/middleware';
-import { sendHttpOk } from 'multiverse/next-api-respond';
+import { sendHttpNotFound, sendHttpOk } from 'multiverse/next-api-respond';
+import { applyVotesUpdateOperation, getHowUserVoted } from 'universe/backend';
 
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
 export default withMiddleware(
   async (req, res) => {
-    void req, res, sendHttpOk;
-    // TODO
+    if (req.method == 'GET') {
+      const vote = await getHowUserVoted({
+        username: req.query.username?.toString(),
+        question_id: req.query.question_id?.toString(),
+        answer_id: req.query.answer_id?.toString(),
+        comment_id: undefined
+      });
+
+      if (!vote) {
+        sendHttpNotFound(res, {
+          success: true,
+          error: 'a vote matching this user was not found on this answer'
+        });
+      } else {
+        sendHttpOk(res, { vote });
+      }
+    } // * PATCH
+    else {
+      await applyVotesUpdateOperation({
+        username: req.query.username?.toString(),
+        question_id: req.query.question_id?.toString(),
+        answer_id: req.query.answer_id?.toString(),
+        comment_id: undefined,
+        operation: {
+          op: req.body.operation,
+          target: req.body.target
+        }
+      });
+
+      sendHttpOk(res);
+    }
   },
-  {
-    options: { allowedMethods: ['GET', 'PATCH'], apiVersion: '1' }
-  }
+  { options: { allowedMethods: ['GET', 'PATCH'], apiVersion: '1' } }
 );
