@@ -141,22 +141,36 @@ describe('::itemToObjectId', () => {
     expect(itemToObjectId(id)).toBe(id);
   });
 
-  it('reduces an array of items down to ObjectId instances', async () => {
+  it('reduces an array of items down to their respective ObjectId instances', async () => {
+    expect.hasAssertions();
+
+    const ids = [new ObjectId(), new ObjectId(), new ObjectId()];
+
+    expect(itemToObjectId(ids)).toStrictEqual(ids);
+
+    expect(
+      itemToObjectId([{ _id: ids[0] }, { _id: ids[1] }, { _id: ids[2] }])
+    ).toStrictEqual(ids);
+
+    expect(
+      itemToObjectId([ids[0].toString(), ids[1].toString(), ids[2].toString()])
+    ).toStrictEqual(ids);
+  });
+
+  it('duplicate ObjectIds are eliminated during simple array reduction', async () => {
     expect.hasAssertions();
 
     const id = new ObjectId();
-    const ids = [id, id, id];
+    const ids = [id];
 
     expect(itemToObjectId(ids)).toStrictEqual(ids);
-    expect(itemToObjectId([{ _id: id }, { _id: id }, { _id: id }])).toStrictEqual(
-      ids
-    );
+
     expect(
       itemToObjectId([id.toString(), id.toString(), id.toString()])
     ).toStrictEqual(ids);
   });
 
-  it('throws if item is irreducible', async () => {
+  it('throws if an item is irreducible or invalid', async () => {
     expect.hasAssertions();
 
     expect(() => itemToObjectId(null)).toThrow('irreducible');
@@ -167,8 +181,9 @@ describe('::itemToObjectId', () => {
     expect(() => itemToObjectId({})).toThrow('irreducible');
     // @ts-expect-error: bad param
     expect(() => itemToObjectId([{}])).toThrow('irreducible');
-    expect(() => itemToObjectId('bad')).toThrow('must be a string of');
-    expect(() => itemToObjectId(['bad'])).toThrow('must be a string of');
+    expect(() => itemToObjectId('bad')).toThrow('invalid id "bad"');
+    expect(() => itemToObjectId(['bad'])).toThrow('invalid id "bad"');
+    expect(() => itemToObjectId([new ObjectId(), 'bad'])).toThrow('invalid id "bad"');
   });
 });
 
@@ -187,16 +202,17 @@ describe('::itemToStringId', () => {
   it('reduces an array of items down to string representations', async () => {
     expect.hasAssertions();
 
-    const id = new ObjectId();
-    const idStrings = [id.toString(), id.toString(), id.toString()];
+    const ids = [new ObjectId(), new ObjectId(), new ObjectId()];
+    const idStrings = ids.map(String);
 
-    expect(itemToStringId(idStrings)).toStrictEqual(idStrings);
-    expect(itemToStringId([{ _id: id }, { _id: id }, { _id: id }])).toStrictEqual(
-      idStrings
-    );
+    expect(itemToStringId(ids)).toStrictEqual(idStrings);
 
     expect(
-      itemToStringId([id.toString(), id.toString(), id.toString()])
+      itemToStringId([{ _id: ids[0] }, { _id: ids[1] }, { _id: ids[2] }])
+    ).toStrictEqual(idStrings);
+
+    expect(
+      itemToStringId([ids[0].toString(), ids[1].toString(), ids[2].toString()])
     ).toStrictEqual(idStrings);
   });
 
@@ -211,7 +227,8 @@ describe('::itemToStringId', () => {
     expect(() => itemToStringId({})).toThrow('irreducible');
     // @ts-expect-error: bad param
     expect(() => itemToStringId([{}])).toThrow('irreducible');
-    expect(() => itemToStringId('bad')).toThrow('must be a string of');
-    expect(() => itemToStringId(['bad'])).toThrow('must be a string of');
+    expect(() => itemToStringId('bad')).toThrow('invalid id "bad"');
+    expect(() => itemToStringId(['bad'])).toThrow('invalid id "bad"');
+    expect(() => itemToStringId([new ObjectId(), 'bad'])).toThrow('invalid id "bad"');
   });
 });

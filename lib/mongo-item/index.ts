@@ -1,4 +1,5 @@
 import { ObjectId } from 'mongodb';
+import { isError } from '@xunnamius/types';
 import { toss } from 'toss-expression';
 import { GuruMeditationError, ValidationError } from 'named-app-errors';
 
@@ -120,24 +121,23 @@ export type IdItem<T extends ObjectId> =
   | undefined;
 
 /**
- * The shape of an object that can be translated into an array of `ObjectId` (or
- * `T`) instances or is `null`/`undefined`.
+ * The shape of an array of objects that can be translated into an array of
+ * `ObjectId` (or `T`) instances or are `null`/`undefined`.
  */
-export type IdItemArray<T extends ObjectId> =
-  | WithId<unknown>[]
-  | string[]
-  | T[]
-  | null[]
-  | undefined[];
+export type IdItemArray<T extends ObjectId> = IdItem<T>[];
 
 /**
  * Reduces an `item` down to its `ObjectId` instance.
  */
 export function itemToObjectId<T extends ObjectId>(item: IdItem<T>): T;
 /**
- * Reduces an array of `item`s down to its `ObjectId` instances.
+ * Reduces an array of `items` down to their respective `ObjectId` instances.
+ *
+ * An attempt is made to eliminate duplicates via `new Set(...)`, but the
+ * absence of duplicates is not guaranteed when `items` contains `WithId<...>`
+ * objects.
  */
-export function itemToObjectId<T extends ObjectId>(item: IdItemArray<T>): T[];
+export function itemToObjectId<T extends ObjectId>(items: IdItemArray<T>): T[];
 export function itemToObjectId<T extends ObjectId>(
   item: IdItem<T> | IdItemArray<T>
 ): T | T[] {
@@ -165,8 +165,12 @@ export function itemToObjectId<T extends ObjectId>(
       : item?._id instanceof ObjectId
       ? (item._id as T)
       : toss(new GuruMeditationError(`encountered irreducible item: ${item}`));
-  } catch {
-    throw new ValidationError(`invalid id "${_id}"`);
+  } catch (e) {
+    if (isError(e) && e.name == 'BSONTypeError') {
+      throw new ValidationError(`invalid id "${_id}"`);
+    }
+
+    throw e;
   }
 }
 
@@ -176,14 +180,14 @@ export function itemToObjectId<T extends ObjectId>(
  */
 export function itemToStringId<T extends ObjectId>(item: IdItem<T>): string;
 /**
- * Reduces an array of `item`s down to the string representations of their
+ * Reduces an array of `items` down to the string representations of their
  * respective `ObjectId` instances.
  */
-export function itemToStringId<T extends ObjectId>(item: IdItemArray<T>): string[];
+export function itemToStringId<T extends ObjectId>(items: IdItemArray<T>): string[];
 export function itemToStringId<T extends ObjectId>(
   item: IdItem<T> | IdItemArray<T>
 ): string | string[] {
   return Array.isArray(item)
-    ? itemToObjectId<T>(item).map((i) => i.toString())
+    ? itemToObjectId<T>(item).map(String)
     : itemToObjectId<T>(item).toString();
 }
