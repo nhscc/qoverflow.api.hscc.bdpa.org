@@ -9,7 +9,7 @@ export default withMiddleware(
   async (req, res) => {
     if (req.method == 'GET') {
       sendHttpOk(res, {
-        users: await getAllUsers({ after: req.query.after?.toString() })
+        users: await getAllUsers({ after_id: req.query.after?.toString() })
       });
       // * POST
     } else sendHttpOk(res, { user: await createUser({ data: req.body }) });

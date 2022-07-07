@@ -21,7 +21,11 @@ import {
   searchQuestions,
   updateAnswer,
   updateQuestion,
-  updateUser
+  updateUser,
+  deleteAnswer,
+  deleteMessage,
+  deleteQuestion,
+  getHowUserVoted
 } from 'universe/backend';
 
 import V1EndpointUsers, {
@@ -247,6 +251,10 @@ export function setupMockBackend() {
   const mockedUpdateAnswer = asMockedFunction(updateAnswer);
   const mockedUpdateQuestion = asMockedFunction(updateQuestion);
   const mockedUpdateUser = asMockedFunction(updateUser);
+  const mockedDeleteAnswer = asMockedFunction(deleteAnswer);
+  const mockedDeleteMessage = asMockedFunction(deleteMessage);
+  const mockedDeleteQuestion = asMockedFunction(deleteQuestion);
+  const mockedGetHowUserVoted = asMockedFunction(getHowUserVoted);
 
   beforeEach(() => {
     mockedApplyVotesUpdateOperation.mockReturnValue(Promise.resolve());
@@ -270,6 +278,10 @@ export function setupMockBackend() {
     mockedUpdateAnswer.mockReturnValue(Promise.resolve());
     mockedUpdateQuestion.mockReturnValue(Promise.resolve());
     mockedUpdateUser.mockReturnValue(Promise.resolve());
+    mockedDeleteAnswer.mockReturnValue(Promise.resolve());
+    mockedDeleteMessage.mockReturnValue(Promise.resolve());
+    mockedDeleteQuestion.mockReturnValue(Promise.resolve());
+    mockedGetHowUserVoted.mockReturnValue(Promise.resolve(null));
   });
 
   return {
@@ -293,6 +305,10 @@ export function setupMockBackend() {
     mockedSearchQuestions,
     mockedUpdateAnswer,
     mockedUpdateQuestion,
-    mockedUpdateUser
+    mockedUpdateUser,
+    mockedDeleteAnswer,
+    mockedDeleteMessage,
+    mockedDeleteQuestion,
+    mockedGetHowUserVoted
   };
 }
