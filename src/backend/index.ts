@@ -145,7 +145,7 @@ function validateVotesUpdateOperation(
 
   if (!rawOperation.op || !['increment', 'decrement'].includes(rawOperation.op)) {
     throw new ValidationError(
-      ErrorMessage.InvalidFieldValue('op', rawOperation.op, [
+      ErrorMessage.InvalidFieldValue('operation', rawOperation.op, [
         'increment',
         'decrement'
       ])

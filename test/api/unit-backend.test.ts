@@ -5547,23 +5547,38 @@ describe('::applyVotesUpdateOperation', () => {
       [undefined, ErrorMessage.InvalidItem('operation', 'parameter')],
       [
         {},
-        ErrorMessage.InvalidFieldValue('op', undefined, ['increment', 'decrement'])
+        ErrorMessage.InvalidFieldValue('operation', undefined, [
+          'increment',
+          'decrement'
+        ])
       ],
       [
         { target: 'downvotes' },
-        ErrorMessage.InvalidFieldValue('op', undefined, ['increment', 'decrement'])
+        ErrorMessage.InvalidFieldValue('operation', undefined, [
+          'increment',
+          'decrement'
+        ])
       ],
       [
         { op: undefined },
-        ErrorMessage.InvalidFieldValue('op', undefined, ['increment', 'decrement'])
+        ErrorMessage.InvalidFieldValue('operation', undefined, [
+          'increment',
+          'decrement'
+        ])
       ],
       [
         { op: null } as unknown as Op,
-        ErrorMessage.InvalidFieldValue('op', undefined, ['increment', 'decrement'])
+        ErrorMessage.InvalidFieldValue('operation', undefined, [
+          'increment',
+          'decrement'
+        ])
       ],
       [
         { op: 'fake' } as unknown as Op,
-        ErrorMessage.InvalidFieldValue('op', 'fake', ['increment', 'decrement'])
+        ErrorMessage.InvalidFieldValue('operation', 'fake', [
+          'increment',
+          'decrement'
+        ])
       ],
       [
         { op: 'increment' } as unknown as Op,
