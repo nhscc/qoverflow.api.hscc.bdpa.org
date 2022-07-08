@@ -12,13 +12,7 @@ import { deleteUser } from 'universe/backend';
 import { debugFactory } from 'multiverse/debug-extended';
 import { closeClient, getDb } from 'multiverse/mongo-schema';
 
-import type {
-  AggregationCursor,
-  Document,
-  FindCursor,
-  ObjectId,
-  WithId
-} from 'mongodb';
+import type { Document, ObjectId, WithId } from 'mongodb';
 import type { Promisable } from 'type-fest';
 import type { InternalUser } from 'universe/backend/db';
 
