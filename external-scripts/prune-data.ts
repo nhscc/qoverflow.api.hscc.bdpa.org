@@ -1,5 +1,9 @@
 import { toss } from 'toss-expression';
-import { AppError, InvalidAppEnvironmentError } from 'named-app-errors';
+import {
+  AppError,
+  GuruMeditationError,
+  InvalidAppEnvironmentError
+} from 'named-app-errors';
 
 import { debugNamespace as namespace } from 'universe/constants';
 import { getEnv } from 'universe/backend/env';
@@ -8,7 +12,13 @@ import { deleteUser } from 'universe/backend';
 import { debugFactory } from 'multiverse/debug-extended';
 import { closeClient, getDb } from 'multiverse/mongo-schema';
 
-import type { Document, FindCursor, WithId } from 'mongodb';
+import type {
+  AggregationCursor,
+  Document,
+  FindCursor,
+  ObjectId,
+  WithId
+} from 'mongodb';
 import type { Promisable } from 'type-fest';
 import type { InternalUser } from 'universe/backend/db';
 
@@ -38,11 +48,11 @@ const getDbCollectionLimits = (env: ReturnType<typeof getEnv>) => {
       'request-log': {
         limit: {
           maxBytes:
-            env.PRUNE_DATA_MAX_LOGS && env.PRUNE_DATA_MAX_LOGS > 0
-              ? env.PRUNE_DATA_MAX_LOGS
+            env.PRUNE_DATA_MAX_LOGS_BYTES && env.PRUNE_DATA_MAX_LOGS_BYTES > 0
+              ? env.PRUNE_DATA_MAX_LOGS_BYTES
               : toss(
                   new InvalidAppEnvironmentError(
-                    'PRUNE_DATA_MAX_LOGS must be greater than zero'
+                    'PRUNE_DATA_MAX_LOGS_BYTES must be greater than zero'
                   )
                 )
         }
@@ -50,11 +60,11 @@ const getDbCollectionLimits = (env: ReturnType<typeof getEnv>) => {
       'limited-log': {
         limit: {
           maxBytes:
-            env.PRUNE_DATA_MAX_BANNED && env.PRUNE_DATA_MAX_BANNED > 0
-              ? env.PRUNE_DATA_MAX_BANNED
+            env.PRUNE_DATA_MAX_BANNED_BYTES && env.PRUNE_DATA_MAX_BANNED_BYTES > 0
+              ? env.PRUNE_DATA_MAX_BANNED_BYTES
               : toss(
                   new InvalidAppEnvironmentError(
-                    'PRUNE_DATA_MAX_BANNED must be greater than zero'
+                    'PRUNE_DATA_MAX_BANNED_BYTES must be greater than zero'
                   )
                 )
         }
@@ -64,11 +74,11 @@ const getDbCollectionLimits = (env: ReturnType<typeof getEnv>) => {
       mail: {
         limit: {
           maxBytes:
-            env.PRUNE_DATA_MAX_MAIL && env.PRUNE_DATA_MAX_MAIL > 0
-              ? env.PRUNE_DATA_MAX_MAIL
+            env.PRUNE_DATA_MAX_MAIL_BYTES && env.PRUNE_DATA_MAX_MAIL_BYTES > 0
+              ? env.PRUNE_DATA_MAX_MAIL_BYTES
               : toss(
                   new InvalidAppEnvironmentError(
-                    'PRUNE_DATA_MAX_MAIL must be greater than zero'
+                    'PRUNE_DATA_MAX_MAIL_BYTES must be greater than zero'
                   )
                 )
         }
@@ -76,11 +86,12 @@ const getDbCollectionLimits = (env: ReturnType<typeof getEnv>) => {
       questions: {
         limit: {
           maxBytes:
-            env.PRUNE_DATA_MAX_QUESTIONS && env.PRUNE_DATA_MAX_QUESTIONS > 0
-              ? env.PRUNE_DATA_MAX_QUESTIONS
+            env.PRUNE_DATA_MAX_QUESTIONS_BYTES &&
+            env.PRUNE_DATA_MAX_QUESTIONS_BYTES > 0
+              ? env.PRUNE_DATA_MAX_QUESTIONS_BYTES
               : toss(
                   new InvalidAppEnvironmentError(
-                    'PRUNE_DATA_MAX_QUESTIONS must be greater than zero'
+                    'PRUNE_DATA_MAX_QUESTIONS_BYTES must be greater than zero'
                   )
                 )
         }
@@ -88,11 +99,11 @@ const getDbCollectionLimits = (env: ReturnType<typeof getEnv>) => {
       users: {
         limit: {
           maxBytes:
-            env.PRUNE_DATA_MAX_USERS && env.PRUNE_DATA_MAX_USERS > 0
-              ? env.PRUNE_DATA_MAX_USERS
+            env.PRUNE_DATA_MAX_USERS_BYTES && env.PRUNE_DATA_MAX_USERS_BYTES > 0
+              ? env.PRUNE_DATA_MAX_USERS_BYTES
               : toss(
                   new InvalidAppEnvironmentError(
-                    'PRUNE_DATA_MAX_USERS must be greater than zero'
+                    'PRUNE_DATA_MAX_USERS_BYTES must be greater than zero'
                   )
                 )
         },
@@ -135,7 +146,7 @@ const invoked = async () => {
 
             const subLog = log.extend(name);
             const collection = db.collection(collectionName);
-            const total = await collection.countDocuments();
+            const totalCount = await collection.countDocuments();
 
             const {
               limit: limitSpec,
@@ -143,13 +154,11 @@ const invoked = async () => {
               deleteFn = undefined
             } = colLimitsObj;
 
-            let cursor: FindCursor<WithId<Document>>;
-
             const pruneCollectionAtThreshold = async (
               thresholdEntry: WithId<Document> | null,
               deleteFn: DataLimit['deleteFn'],
-              successContext: string,
-              failContext: string
+              pruneMessage: string,
+              noPruneMessage: string
             ) => {
               if (thresholdEntry) {
                 debug(`determined threshold entry: ${thresholdEntry._id}`);
@@ -167,12 +176,10 @@ const invoked = async () => {
                   ).deletedCount;
                 }
 
-                subLog(`${deletedCount} pruned (${successContext})`);
+                subLog(`${deletedCount} pruned (${pruneMessage})`);
               } else {
-                subLog(`0 pruned (${failContext})`);
+                subLog(`0 pruned (${noPruneMessage})`);
               }
-
-              await cursor.close();
             };
 
             if ('maxBytes' in limitSpec) {
@@ -185,35 +192,54 @@ const invoked = async () => {
                 `iteratively summing document size until limit is reached (${maxBytes} bytes)`
               );
 
-              // TODO: Use $bsonSize operator to sort by most recent first, then
-              // TODO: sum them until either documents are exhausted or total
-              // TODO: size > limit, then delete the (old) documents that exist
-              // TODO: beyond the limit.
-              // TODO:
-              // TODO: Also, replace all PRUNE_X numerical environment variables
-              // TODO: with string variables representing byte amounts
-              cursor = collection
-                .find()
-                .sort({ [orderBy]: -1 })
-                .limit(1);
+              // ? Use $bsonSize operator to sort by most recent first, then sum
+              // ? them until either documents are exhausted or total size >
+              // ? limit, then delete the (old) documents that exist beyond the
+              // ? limit.
+              const cursor = collection.aggregate<WithId<{ size: number }>>([
+                { $sort: { [orderBy]: -1 } },
+                { $project: { _id: true, size: { $bsonSize: '$$ROOT' } } }
+              ]);
 
-              const thresholdEntry = await cursor.next();
+              let totalSizeBytes = 0;
+              let thresholdId: ObjectId | null = null;
+              let foundThresholdId = false;
+
+              (await cursor.toArray()).forEach(({ _id, size }) => {
+                if (!thresholdId) {
+                  thresholdId = _id;
+                }
+
+                totalSizeBytes += size;
+
+                if (!foundThresholdId) {
+                  if (totalSizeBytes > maxBytes) {
+                    foundThresholdId = true;
+                  } else {
+                    thresholdId = _id;
+                  }
+                }
+              });
 
               await pruneCollectionAtThreshold(
-                thresholdEntry,
+                foundThresholdId && thresholdId ? { _id: thresholdId } : null,
                 deleteFn,
-                `size of ${total} entries > ${maxBytes} bytes`,
-                `size of ${total} entries <= ${maxBytes} bytes`
-              );
+                `${totalCount} entries, ${totalSizeBytes}b > ${maxBytes} bytes`,
+                `${totalCount} entries, ${totalSizeBytes}b <= ${maxBytes} bytes`
+              ).then(() => cursor.close());
             } else {
               debug('limiting metric: document count');
 
               const { maxDocuments } = limitSpec;
 
+              if (!maxDocuments) {
+                throw new GuruMeditationError('invalid limit spec');
+              }
+
               debug(`sorting ${name} by "${orderBy}"`);
               debug(`skipping ${maxDocuments} entries"`);
 
-              cursor = collection
+              const cursor = collection
                 .find()
                 .sort({ [orderBy]: -1 })
                 .skip(maxDocuments)
@@ -224,9 +250,9 @@ const invoked = async () => {
               await pruneCollectionAtThreshold(
                 thresholdEntry,
                 deleteFn,
-                `${total} > ${maxDocuments}`,
-                `${total} <= ${maxDocuments}`
-              );
+                `${totalCount} > ${maxDocuments}`,
+                `${totalCount} <= ${maxDocuments}`
+              ).then(() => cursor.close());
             }
           })
         );

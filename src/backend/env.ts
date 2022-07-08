@@ -29,11 +29,11 @@ export function getEnv<T extends Environment = Environment>() {
       parseAsBytes(process.env.MAX_MAIL_BODY_LENGTH_BYTES ?? '-Infinity') || 512,
 
     PRUNE_DATA_MAX_MAIL_BYTES:
-      parseAsBytes(process.env.PRUNE_DATA_MAX_MAIL ?? '-Infinity') || null,
+      parseAsBytes(process.env.PRUNE_DATA_MAX_MAIL_BYTES ?? '-Infinity') || null,
     PRUNE_DATA_MAX_QUESTIONS_BYTES:
-      parseAsBytes(process.env.PRUNE_DATA_MAX_QUESTIONS ?? '-Infinity') || null,
+      parseAsBytes(process.env.PRUNE_DATA_MAX_QUESTIONS_BYTES ?? '-Infinity') || null,
     PRUNE_DATA_MAX_USERS_BYTES:
-      parseAsBytes(process.env.PRUNE_DATA_MAX_USERS ?? '-Infinity') || null
+      parseAsBytes(process.env.PRUNE_DATA_MAX_USERS_BYTES ?? '-Infinity') || null
   });
 
   // TODO: retire all of the following logic when expect-env is created. Also,

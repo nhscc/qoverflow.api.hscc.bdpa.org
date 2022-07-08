@@ -1,7 +1,6 @@
 import { setupMemoryServerOverride } from 'multiverse/mongo-test';
 import { getDb } from 'multiverse/mongo-schema';
-import { dummyRootData, useMockDateNow } from 'multiverse/mongo-common';
-import { dummyAppData } from 'testverse/db';
+import { useMockDateNow } from 'multiverse/mongo-common';
 
 import {
   mockEnvFactory,
@@ -9,7 +8,7 @@ import {
   withMockedOutput
 } from 'testverse/setup';
 
-import { TrialError } from 'universe/error';
+import { GuruMeditationError, TrialError } from 'universe/error';
 
 // * Follow the steps (below) to tailor these tests to this specific project 😉
 
@@ -18,27 +17,34 @@ jest.mock('multiverse/mongo-schema', () => {
   return jest.requireActual('multiverse/mongo-schema');
 });
 
-const testCollectionsMap = {
-  'root.request-log': dummyRootData['request-log'].length,
-  'root.limited-log': dummyRootData['limited-log'].length,
-  // * Step 1: Add new collections here w/ keys of the form: database.collection
-  'hscc-api-qoverflow.mail': dummyAppData['mail'].length,
-  'hscc-api-qoverflow.questions': dummyAppData['questions'].length,
-  'hscc-api-qoverflow.users': dummyAppData['users'].length
-};
+// // * Step 1: Add new collections here w/ keys of form: database.collection
+// ! Only do step 1 if you're using count-based limits and NOT byte-based!
+// const testCollectionsMap = {
+//   'root.request-log': dummyRootData['request-log'].length,
+//   'root.limited-log': dummyRootData['limited-log'].length,
+//   'hscc-api-qoverflow.mail': dummyAppData['mail'].length,
+//   'hscc-api-qoverflow.questions': dummyAppData['questions'].length,
+//   'hscc-api-qoverflow.users': dummyAppData['users'].length
+// };
+
+const testCollections = [
+  'root.request-log',
+  'root.limited-log',
+  'hscc-api-qoverflow.mail',
+  'hscc-api-qoverflow.questions',
+  'hscc-api-qoverflow.users'
+] as const;
 
 // TODO: replace with byte versions
 const withMockedEnv = mockEnvFactory({
   NODE_ENV: 'test',
-  PRUNE_DATA_MAX_LOGS: '200000',
-  PRUNE_DATA_MAX_BANNED: '100000',
+  PRUNE_DATA_MAX_LOGS_BYTES: '50mb',
+  PRUNE_DATA_MAX_BANNED_BYTES: '10mb',
   // * Step 2: Add new env var default values here
-  PRUNE_DATA_MAX_FILE_NODES: '10000',
-  PRUNE_DATA_MAX_META_NODES: '100000',
-  PRUNE_DATA_MAX_USERS: '100000'
+  PRUNE_DATA_MAX_MAIL_BYTES: '50mb',
+  PRUNE_DATA_MAX_QUESTIONS_BYTES: '250mb',
+  PRUNE_DATA_MAX_USERS_BYTES: '75mb'
 });
-
-const testCollections = Object.keys(testCollectionsMap);
 
 const importPruneData = protectedImportFactory<
   typeof import('externals/prune-data').default
@@ -50,18 +56,23 @@ const importPruneData = protectedImportFactory<
 setupMemoryServerOverride();
 useMockDateNow();
 
-// TODO: create a collection byte size version
 /**
  * Accepts one or more database and collection names in the form
  * `database.collection` and returns the number of documents contained in each
- * collection.
+ * collection or the size of each collection in bytes depending on the value of
+ * `metric`.
  */
-async function countCollection(collections: string): Promise<number>;
-async function countCollection(
-  collections: string[]
-): Promise<Record<string, number>>;
-async function countCollection(
-  collections: string | string[]
+async function getCollectionSize(
+  collection: string,
+  { metric }: { metric: 'count' | 'bytes' }
+): Promise<number>;
+async function getCollectionSize(
+  collections: readonly string[],
+  { metric }: { metric: 'count' | 'bytes' }
+): Promise<Record<typeof testCollections[number], number>>;
+async function getCollectionSize(
+  collections: string | readonly string[],
+  { metric }: { metric: 'count' | 'bytes' }
 ): Promise<number | Record<string, number>> {
   const targetCollections = [collections].flat();
   const result = Object.assign(
@@ -74,10 +85,29 @@ async function countCollection(
           throw new TrialError(`invalid input "${dbCollection}" to countCollection`);
         }
 
-        return (await getDb({ name: dbName }))
-          .collection(rawCollectionName[0])
-          .countDocuments()
-          .then((count) => ({ [dbCollection]: count }));
+        const colDb = (await getDb({ name: dbName })).collection(
+          rawCollectionName[0]
+        );
+
+        if (metric == 'count') {
+          return colDb.countDocuments().then((count) => ({ [dbCollection]: count }));
+        } else if (metric == 'bytes') {
+          return colDb
+            .aggregate<{ size: number }>([
+              {
+                $group: {
+                  _id: null,
+                  size: { $sum: { $bsonSize: '$$ROOT' } }
+                }
+              }
+            ])
+            .next()
+            .then((r) => ({
+              [dbCollection]: r?.size ?? 0
+            }));
+        } else {
+          throw new GuruMeditationError(`unknown metric "${metric}"`);
+        }
       })
     ))
   );
@@ -119,93 +149,128 @@ it('rejects on bad environment', async () => {
   // ? with all the PRUNE_DATA_MAX_X env vars already defined.
 
   await withMockedEnv(() => importPruneData({ expectedExitCode: 2 }), {
-    PRUNE_DATA_MAX_LOGS: '',
-    PRUNE_DATA_MAX_BANNED: '',
-    PRUNE_DATA_MAX_FILE_NODES: '',
-    PRUNE_DATA_MAX_META_NODES: '',
-    PRUNE_DATA_MAX_USERS: ''
+    PRUNE_DATA_MAX_LOGS_BYTES: '',
+    PRUNE_DATA_MAX_BANNED_BYTES: '',
+    PRUNE_DATA_MAX_MAIL_BYTES: '',
+    PRUNE_DATA_MAX_QUESTIONS_BYTES: '',
+    PRUNE_DATA_MAX_USERS_BYTES: ''
   });
 
   await withMockedEnv(() => importPruneData({ expectedExitCode: 2 }), {
-    PRUNE_DATA_MAX_LOGS: ''
+    PRUNE_DATA_MAX_LOGS_BYTES: ''
   });
 
   await withMockedEnv(() => importPruneData({ expectedExitCode: 2 }), {
-    PRUNE_DATA_MAX_BANNED: ''
+    PRUNE_DATA_MAX_BANNED_BYTES: ''
   });
 
   await withMockedEnv(() => importPruneData({ expectedExitCode: 2 }), {
-    PRUNE_DATA_MAX_FILE_NODES: ''
+    PRUNE_DATA_MAX_MAIL_BYTES: ''
   });
 
   await withMockedEnv(() => importPruneData({ expectedExitCode: 2 }), {
-    PRUNE_DATA_MAX_META_NODES: ''
+    PRUNE_DATA_MAX_QUESTIONS_BYTES: ''
   });
 
   await withMockedEnv(() => importPruneData({ expectedExitCode: 2 }), {
-    PRUNE_DATA_MAX_USERS: ''
+    PRUNE_DATA_MAX_USERS_BYTES: ''
   });
 });
 
+// ? This is a bytes-based test. Look elsewhere for the old count-based tests!
 it('respects the limits imposed by PRUNE_DATA_MAX_X environment variables', async () => {
   expect.hasAssertions();
 
-  await expect(countCollection(testCollections)).resolves.toStrictEqual(
-    testCollectionsMap
+  const initialSizes = await getCollectionSize(testCollections, { metric: 'bytes' });
+
+  // * Step 4: Add new env vars low-prune-threshold tests below.
+
+  const expectedSizes = {
+    'root.request-log': initialSizes['root.request-log'] / 2,
+    'root.limited-log': initialSizes['root.limited-log'] / 2,
+    'hscc-api-qoverflow.mail': initialSizes['hscc-api-qoverflow.mail'] / 2,
+    'hscc-api-qoverflow.questions': initialSizes['hscc-api-qoverflow.questions'] / 2,
+    'hscc-api-qoverflow.users': initialSizes['hscc-api-qoverflow.users'] / 2
+  };
+
+  await withMockedEnv(importPruneData, {
+    PRUNE_DATA_MAX_LOGS_BYTES: String(expectedSizes['root.request-log']),
+    PRUNE_DATA_MAX_BANNED_BYTES: String(expectedSizes['root.limited-log']),
+    PRUNE_DATA_MAX_MAIL_BYTES: String(expectedSizes['hscc-api-qoverflow.mail']),
+    PRUNE_DATA_MAX_QUESTIONS_BYTES: String(
+      expectedSizes['hscc-api-qoverflow.questions']
+    ),
+    PRUNE_DATA_MAX_USERS_BYTES: String(expectedSizes['hscc-api-qoverflow.users'])
+  });
+
+  const newSizes = await getCollectionSize(testCollections, { metric: 'bytes' });
+
+  expect(newSizes['root.request-log']).toBeLessThanOrEqual(
+    expectedSizes['root.request-log']
   );
 
-  // TODO: retrofit for total collection byte size considerations
-  // * Step 4: Add new env vars low-prune-threshold tests below
+  expect(newSizes['root.limited-log']).toBeLessThanOrEqual(
+    expectedSizes['root.limited-log']
+  );
+
+  expect(newSizes['hscc-api-qoverflow.mail']).toBeLessThanOrEqual(
+    expectedSizes['hscc-api-qoverflow.mail']
+  );
+
+  expect(newSizes['hscc-api-qoverflow.questions']).toBeLessThanOrEqual(
+    expectedSizes['hscc-api-qoverflow.questions']
+  );
+
+  expect(newSizes['hscc-api-qoverflow.users']).toBeLessThanOrEqual(
+    expectedSizes['hscc-api-qoverflow.users']
+  );
 
   await withMockedEnv(importPruneData, {
-    PRUNE_DATA_MAX_LOGS: '10',
-    PRUNE_DATA_MAX_BANNED: '2',
-    PRUNE_DATA_MAX_FILE_NODES: '1',
-    PRUNE_DATA_MAX_META_NODES: '1',
-    PRUNE_DATA_MAX_USERS: '1'
+    PRUNE_DATA_MAX_LOGS_BYTES: '1',
+    PRUNE_DATA_MAX_BANNED_BYTES: '1',
+    PRUNE_DATA_MAX_MAIL_BYTES: '1',
+    PRUNE_DATA_MAX_QUESTIONS_BYTES: '1',
+    PRUNE_DATA_MAX_USERS_BYTES: '1'
   });
 
-  await expect(countCollection(testCollections)).resolves.toStrictEqual({
-    'root.request-log': 10,
-    'root.limited-log': 2,
-    'hscc-api-qoverflow.mail': 1,
-    'hscc-api-qoverflow.questions': 1,
-    'hscc-api-qoverflow.users': 1
-  });
+  const latestSizes = await getCollectionSize(testCollections, { metric: 'bytes' });
 
-  await withMockedEnv(importPruneData, {
-    PRUNE_DATA_MAX_LOGS: '1',
-    PRUNE_DATA_MAX_BANNED: '1'
-  });
-
-  await expect(countCollection(testCollections)).resolves.toStrictEqual({
-    'root.request-log': 1,
-    'root.limited-log': 1,
-    'hscc-api-qoverflow.mail': 1,
-    'hscc-api-qoverflow.questions': 1,
-    'hscc-api-qoverflow.users': 1
-  });
+  expect(latestSizes['root.request-log']).toBe(0);
+  expect(latestSizes['root.limited-log']).toBe(0);
+  expect(latestSizes['hscc-api-qoverflow.mail']).toBe(0);
+  expect(latestSizes['hscc-api-qoverflow.questions']).toBe(0);
+  expect(latestSizes['hscc-api-qoverflow.users']).toBe(0);
 });
 
-// TODO: create a collection document count version and a total collection byte
-// TODO: size version
+// ? This is a bytes-based test. Look elsewhere for the old count-based tests!
 it('only deletes entries if necessary', async () => {
   expect.hasAssertions();
 
-  await expect(countCollection(testCollections)).resolves.toStrictEqual(
-    testCollectionsMap
-  );
+  const initialSizes = await getCollectionSize(testCollections, { metric: 'bytes' });
 
   await withMockedEnv(importPruneData, {
-    PRUNE_DATA_MAX_LOGS: '100',
-    PRUNE_DATA_MAX_BANNED: '100',
+    PRUNE_DATA_MAX_LOGS_BYTES: '100gb',
+    PRUNE_DATA_MAX_BANNED_BYTES: '100gb',
     // * Step 5: Add new env vars high-prune-threshold values here
-    PRUNE_DATA_MAX_FILE_NODES: '100',
-    PRUNE_DATA_MAX_META_NODES: '100',
-    PRUNE_DATA_MAX_USERS: '100'
+    PRUNE_DATA_MAX_MAIL_BYTES: '100gb',
+    PRUNE_DATA_MAX_QUESTIONS_BYTES: '100gb',
+    PRUNE_DATA_MAX_USERS_BYTES: '100gb'
   });
 
-  await expect(countCollection(testCollections)).resolves.toStrictEqual(
-    testCollectionsMap
+  const newSizes = await getCollectionSize(testCollections, { metric: 'bytes' });
+
+  expect(newSizes['root.request-log']).toBe(initialSizes['root.request-log']);
+  expect(newSizes['root.limited-log']).toBe(initialSizes['root.limited-log']);
+
+  expect(newSizes['hscc-api-qoverflow.mail']).toBe(
+    initialSizes['hscc-api-qoverflow.mail']
+  );
+
+  expect(newSizes['hscc-api-qoverflow.questions']).toBe(
+    initialSizes['hscc-api-qoverflow.questions']
+  );
+
+  expect(newSizes['hscc-api-qoverflow.users']).toBe(
+    initialSizes['hscc-api-qoverflow.users']
   );
 });
