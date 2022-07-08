@@ -224,8 +224,8 @@ const invoked = async () => {
               await pruneCollectionAtThreshold(
                 foundThresholdId && thresholdId ? { _id: thresholdId } : null,
                 deleteFn,
-                `${totalCount} entries, ${totalSizeBytes}b > ${maxBytes} bytes`,
-                `${totalCount} entries, ${totalSizeBytes}b <= ${maxBytes} bytes`
+                `${totalCount}, ${totalSizeBytes}b > ${maxBytes}b`,
+                `${totalCount}, ${totalSizeBytes}b <= ${maxBytes}b`
               ).then(() => cursor.close());
             } else {
               debug('limiting metric: document count');
