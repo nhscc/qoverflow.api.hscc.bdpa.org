@@ -35,49 +35,51 @@ memory.idMap = {};
 let lastRunSuccess = true;
 
 describe('> middleware correctness tests', () => {
-  [...Object.values(api.v1), ...Object.values(api.v2)].forEach((endpoint) => {
-    it(`${endpoint.uri} fails on bad authentication`, async () => {
-      expect.hasAssertions();
+  Object.values(api)
+    .flatMap((v) => Object.values(v))
+    .forEach((endpoint) => {
+      it(`${endpoint.uri} fails on bad authentication`, async () => {
+        expect.hasAssertions();
 
-      await withMockedEnv(
-        async () => {
-          await testApiHandler({
-            handler: endpoint,
-            test: async ({ fetch }) => {
-              await expect(fetch().then((r) => r.status)).resolves.toBe(401);
-            }
-          });
-        },
-        {
-          REQUESTS_PER_CONTRIVED_ERROR: '0',
-          IGNORE_RATE_LIMITS: 'true'
-        }
-      );
+        await withMockedEnv(
+          async () => {
+            await testApiHandler({
+              handler: endpoint,
+              test: async ({ fetch }) => {
+                await expect(fetch().then((r) => r.status)).resolves.toBe(401);
+              }
+            });
+          },
+          {
+            REQUESTS_PER_CONTRIVED_ERROR: '0',
+            IGNORE_RATE_LIMITS: 'true'
+          }
+        );
+      });
+
+      it(`${endpoint.uri} fails if rate limited`, async () => {
+        expect.hasAssertions();
+
+        await withMockedEnv(
+          async () => {
+            await testApiHandler({
+              handler: endpoint,
+              test: async ({ fetch }) => {
+                await expect(
+                  fetch({
+                    headers: { Authorization: `bearer ${BANNED_BEARER_TOKEN}` }
+                  }).then((r) => r.status)
+                ).resolves.toBe(429);
+              }
+            });
+          },
+          {
+            REQUESTS_PER_CONTRIVED_ERROR: '0',
+            IGNORE_RATE_LIMITS: 'false'
+          }
+        );
+      });
     });
-
-    it(`${endpoint.uri} fails if rate limited`, async () => {
-      expect.hasAssertions();
-
-      await withMockedEnv(
-        async () => {
-          await testApiHandler({
-            handler: endpoint,
-            test: async ({ fetch }) => {
-              await expect(
-                fetch({
-                  headers: { Authorization: `bearer ${BANNED_BEARER_TOKEN}` }
-                }).then((r) => r.status)
-              ).resolves.toBe(429);
-            }
-          });
-        },
-        {
-          REQUESTS_PER_CONTRIVED_ERROR: '0',
-          IGNORE_RATE_LIMITS: 'false'
-        }
-      );
-    });
-  });
 });
 
 describe('> fable integration tests', () => {

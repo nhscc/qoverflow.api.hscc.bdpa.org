@@ -1,26 +1,40 @@
 import { name as pkgName } from 'package';
 import { toss } from 'toss-expression';
-import { GuruMeditationError } from 'universe/error';
-import { dummyAppData } from 'testverse/db';
 import { ObjectId } from 'mongodb';
-import { getEnv } from 'universe/backend/env';
 import debugFactory from 'debug';
 
+import { GuruMeditationError } from 'universe/error';
+import { getEnv } from 'universe/backend/env';
+
 import {
-  NewFileNode,
-  NewMetaNode,
-  NewUser,
-  NodeLock,
-  PatchMetaNode,
-  PublicFileNode,
-  PublicMetaNode,
-  PublicNode,
-  toPublicUser
+  toPublicUser,
+  toPublicAnswer,
+  toPublicComment,
+  toPublicMail,
+  toPublicQuestion
 } from 'universe/backend/db';
 
+import { dummyAppData } from 'testverse/db';
+
 import type { Promisable } from 'type-fest';
+
+import type {
+  NewUser,
+  PatchUser,
+  PublicUser,
+  NewAnswer,
+  PatchAnswer,
+  PublicAnswer,
+  NewComment,
+  PublicComment,
+  NewMail,
+  PublicMail,
+  NewQuestion,
+  PatchQuestion,
+  PublicQuestion
+} from 'universe/backend/db';
+
 import type { NextApiHandlerMixin } from 'testverse/fixtures';
-import type { PatchUser, PublicUser } from 'universe/backend/db';
 
 // TODO: XXX: turn a lot of this into some kind of package; needs to be generic
 // TODO: XXX: enough to handle various use cases though :) Maybe
@@ -189,9 +203,10 @@ export function getFixtures(
 
   // * Note: user passwords are their usernames
   const fixtures: Omit<TestFixture, 'displayIndex'>[] = [
+    // * Creating, retrieving, authenticating, and updating users
     {
       id: 'user-hillary',
-      subject: 'valid create user #1',
+      subject: 'create new user "the-hill"',
       handler: api.v1.users,
       method: 'POST',
       body: {
@@ -207,13 +222,16 @@ export function getFixtures(
             user_id: expect.any(String),
             username: 'the-hill',
             email: 'h@hillaryclinton.com',
-            salt: 'd63a897a76ece8b9a503913db68c95af'
+            salt: 'd63a897a76ece8b9a503913db68c95af',
+            questions: 0,
+            answers: 0,
+            points: 1
           } as PublicUser
         }
       }
     },
     {
-      subject: 'fetch created user',
+      subject: 'verify user the-hill can be fetched',
       handler: api.v1.usersUsername,
       params: { username: 'the-hill' },
       method: 'GET',
@@ -225,7 +243,7 @@ export function getFixtures(
       }
     },
     {
-      subject: 'get all users in LIFO order',
+      subject: 'verify the-hill appears in LIFO list of all users',
       handler: api.v1.users,
       method: 'GET',
       response: {
@@ -241,26 +259,30 @@ export function getFixtures(
       }
     },
     {
-      subject: 'update user',
+      subject: 'update the-hill',
       handler: api.v1.usersUsername,
       method: 'PATCH',
       params: { username: 'the-hill' },
       body: {
         salt: '2a9e8128c6641c2fe7642abd14b09e14',
-        key: '8df1042284e5cc64ff722e473bba9deebb7ef06927c96a004faa1f4dc60f3b1c01fc42612f495cd91ac7041060860b4626e6a5af04b6e31104e6f896b4e3d153'
+        key: '8df1042284e5cc64ff722e473bba9deebb7ef06927c96a004faa1f4dc60f3b1c01fc42612f495cd91ac7041060860b4626e6a5af04b6e31104e6f896b4e3d153',
+        points: 1000
       } as PatchUser,
       response: { status: 200 }
     },
     {
       id: 'updated-user-hillary',
-      subject: 'get updated user #1',
+      subject: 'verify the-hill was updated',
       handler: api.v1.usersUsername,
       params: { username: 'the-hill' },
       method: 'GET',
-      response: { status: 200 }
+      response: {
+        status: 200,
+        json: { user: expect.objectContaining({ points: 1000 }) }
+      }
     },
     {
-      subject: 'auth user',
+      subject: 'authenticate the-hill',
       handler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'the-hill' },
@@ -270,7 +292,7 @@ export function getFixtures(
       response: { status: 200 }
     },
     {
-      subject: 'auth user (case-insensitively)',
+      subject: 'authenticate the-hill case-insensitively',
       handler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'the-hill' },
@@ -280,7 +302,7 @@ export function getFixtures(
       response: { status: 200 }
     },
     {
-      subject: 'bad auth',
+      subject: 'attempt to authenticate the-hill with bad key',
       handler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'the-hill' },
@@ -288,21 +310,21 @@ export function getFixtures(
       response: { status: 403 }
     },
     {
-      subject: 'attempt to delete non-existent user',
+      subject: 'attempt to delete a non-existent user',
       handler: api.v1.usersUsername,
       method: 'DELETE',
       params: { username: 'does-not-exist' },
       response: { status: 404 }
     },
     {
-      subject: 'delete user',
+      subject: `delete ${dummyAppData.users[0].username}`,
       handler: api.v1.usersUsername,
       method: 'DELETE',
       params: { username: dummyAppData.users[0].username },
       response: { status: 200 }
     },
     {
-      subject: 'get all users in LIFO order',
+      subject: `verify ${dummyAppData.users[0].username} is not present in LIFO list of all users`,
       handler: api.v1.users,
       method: 'GET',
       response: {
@@ -318,7 +340,7 @@ export function getFixtures(
       }
     },
     {
-      subject: 'attempt to fetch deleted user',
+      subject: `verify ${dummyAppData.users[0].username} cannot be fetched`,
       handler: api.v1.usersUsername,
       params: { username: dummyAppData.users[0].username },
       method: 'GET',
@@ -326,8 +348,8 @@ export function getFixtures(
     },
     {
       id: 'user-obama',
-      subject: 'valid create user #2',
-      handler: api.v2.users,
+      subject: 'create new user "baracko"',
+      handler: api.v1.users,
       method: 'POST',
       body: {
         username: 'baracko',
@@ -342,13 +364,16 @@ export function getFixtures(
             user_id: expect.any(String),
             username: 'baracko',
             email: 'o@barackobama.com',
-            salt: 'e1a3593dbf0ff964292398251f3b47ad'
+            salt: 'e1a3593dbf0ff964292398251f3b47ad',
+            questions: 0,
+            answers: 0,
+            points: 1
           } as PublicUser
         }
       }
     },
     {
-      subject: 'invalid create user (duplicate username)',
+      subject: 'attempt to create another user named "baracko"',
       handler: api.v1.users,
       method: 'POST',
       body: {
@@ -360,8 +385,8 @@ export function getFixtures(
       response: { status: 400 }
     },
     {
-      subject: 'invalid create user (duplicate email)',
-      handler: api.v2.users,
+      subject: 'attempt to create a user with a duplicate email',
+      handler: api.v1.users,
       method: 'POST',
       body: {
         username: 'xyz-abc',
@@ -372,8 +397,8 @@ export function getFixtures(
       response: { status: 400 }
     },
     {
-      subject: 'fetch created user',
-      handler: api.v2.usersUsername,
+      subject: 'verify baracko can be fetched',
+      handler: api.v1.usersUsername,
       params: { username: 'baracko' },
       method: 'GET',
       response: {
@@ -384,8 +409,8 @@ export function getFixtures(
       }
     },
     {
-      subject: 'get all users in LIFO order',
-      handler: api.v2.users,
+      subject: 'verify baracko appears in LIFO list of all users',
+      handler: api.v1.users,
       method: 'GET',
       response: {
         status: 200,
@@ -401,27 +426,49 @@ export function getFixtures(
       }
     },
     {
-      subject: 'update user',
-      handler: api.v2.usersUsername,
+      subject: 'attempt to update baracko with bad salt',
+      handler: api.v1.usersUsername,
+      method: 'PATCH',
+      params: { username: 'baracko' },
+      body: {
+        salt: '2',
+        key: 'ac4ab7f9f19fb198a0e1ec3c3970d8b8a2a47e19127a988c02299807210927dfb915d66af69f4a8b53c7610b31604eed6ebe0273a9dc73831892a86250082ebf'
+      } as PatchUser,
+      response: { status: 400 }
+    },
+    {
+      subject: 'attempt to update baracko with bad key',
+      handler: api.v1.usersUsername,
       method: 'PATCH',
       params: { username: 'baracko' },
       body: {
         salt: '2a9e8128c6641c2fe7642abd14b09e14',
-        key: 'ac4ab7f9f19fb198a0e1ec3c3970d8b8a2a47e19127a988c02299807210927dfb915d66af69f4a8b53c7610b31604eed6ebe0273a9dc73831892a86250082ebf'
+        key: 'a'
       } as PatchUser,
-      response: { status: 200 }
+      response: { status: 400 }
+    },
+    {
+      subject: 'attempt to update baracko with no key',
+      handler: api.v1.usersUsername,
+      method: 'PATCH',
+      params: { username: 'baracko' },
+      body: {
+        salt: '2a9e8128c6641c2fe7642abd14b09e14',
+        key: undefined
+      } as PatchUser,
+      response: { status: 400 }
     },
     {
       id: 'updated-user-obama',
-      subject: 'get updated user #1',
-      handler: api.v2.usersUsername,
+      subject: 'verify baracko was updated',
+      handler: api.v1.usersUsername,
       params: { username: 'baracko' },
       method: 'GET',
       response: { status: 200 }
     },
     {
-      subject: 'auth user',
-      handler: api.v2.usersUsernameAuth,
+      subject: 'authenticate baracko',
+      handler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'baracko' },
       body: {
@@ -430,956 +477,733 @@ export function getFixtures(
       response: { status: 200 }
     },
     {
-      subject: 'bad auth',
-      handler: api.v2.usersUsernameAuth,
-      method: 'POST',
-      params: { username: 'baracko' },
-      body: { key: 'x' },
-      response: { status: 403 }
-    },
-    {
-      subject: 'worse auth',
-      handler: api.v2.usersUsernameAuth,
+      subject: 'attempt to authenticate baracko with no key',
+      handler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'baracko' },
       body: {},
       response: { status: 403 }
     },
     {
-      subject: 'attempt to delete non-existent user',
-      handler: api.v2.usersUsername,
-      method: 'DELETE',
-      params: { username: 'does-not-exist' },
-      response: { status: 404 }
-    },
-    {
-      subject: 'delete user',
-      handler: api.v2.usersUsername,
-      method: 'DELETE',
-      params: { username: dummyAppData.users[1].username },
-      response: { status: 200 }
-    },
-    {
-      subject: 'get all users in LIFO order with quasi-pagination',
-      handler: api.v2.users,
-      method: 'GET',
-      params: { after: '' },
-      response: {
-        status: 200,
-        json: (_json, { getResultAt }) => {
-          return {
-            users: [
-              getResultAt<PublicUser>('updated-user-obama', 'user'),
-              getResultAt<PublicUser>('updated-user-hillary', 'user'),
-              ...dummyAppData.users.slice(2).reverse().map(toPublicUser)
-            ]
-          };
-        }
-      }
-    },
-    {
-      subject: 'attempt to get all users in LIFO order using bad id',
-      handler: api.v2.users,
+      subject: 'attempt to fetch all users in LIFO order using bad after_id',
+      handler: api.v1.users,
       method: 'GET',
       params: { after: 'bad-id' },
       response: { status: 400 }
     },
     {
-      subject: 'attempt to get all users in LIFO order using non-existent id',
-      handler: api.v2.users,
+      subject: 'attempt to fetch all users in LIFO order using non-existent after_id',
+      handler: api.v1.users,
       method: 'GET',
       params: { after: new ObjectId().toString() },
       response: { status: 404 }
     },
     {
-      subject: 'attempt to fetch deleted user',
-      handler: api.v2.usersUsername,
-      params: { username: dummyAppData.users[1].username },
-      method: 'GET',
-      response: { status: 404 }
-    },
-    {
-      subject: 'attempt to update deleted user',
-      handler: api.v2.usersUsername,
-      params: { username: dummyAppData.users[1].username },
+      subject: `attempt to update deleted ${dummyAppData.users[0].username}`,
+      handler: api.v1.usersUsername,
+      params: { username: dummyAppData.users[0].username },
       method: 'PATCH',
       body: { email: 'some@new.email' },
       response: { status: 404 }
     },
     {
-      subject: 'attempt to update using a bad email',
-      handler: api.v2.usersUsername,
+      subject: `attempt to update ${dummyAppData.users[2].username} using a bad email`,
+      handler: api.v1.usersUsername,
       params: { username: dummyAppData.users[2].username },
       method: 'PATCH',
       body: { email: 'bad email address' },
       response: { status: 400 }
     },
     {
-      subject: 'attempt to update using a too-long email',
-      handler: api.v2.usersUsername,
+      subject: `attempt to update ${dummyAppData.users[2].username} using a too-long email`,
+      handler: api.v1.usersUsername,
       params: { username: dummyAppData.users[2].username },
       method: 'PATCH',
       body: { email: 'x'.repeat(getEnv().MAX_USER_EMAIL_LENGTH) + '@aol.com' },
       response: { status: 400 }
     },
     {
-      subject: 'attempt to update using a short non-hex salt',
-      handler: api.v2.usersUsername,
+      subject: `attempt to update ${dummyAppData.users[2].username} using a short non-hex salt`,
+      handler: api.v1.usersUsername,
       params: { username: dummyAppData.users[2].username },
       method: 'PATCH',
       body: { salt: 'xyz' },
       response: { status: 400 }
     },
     {
-      subject: 'attempt to update using a short non-hex key',
-      handler: api.v2.usersUsername,
+      subject: `attempt to update ${dummyAppData.users[2].username} using a short non-hex key`,
+      handler: api.v1.usersUsername,
       params: { username: dummyAppData.users[2].username },
       method: 'PATCH',
       body: { key: 'xyz' },
       response: { status: 400 }
     },
     {
-      subject: 'no-op updates are okay',
-      handler: api.v2.usersUsername,
+      subject: `"update" ${dummyAppData.users[2].username} with a no-op`,
+      handler: api.v1.usersUsername,
       params: { username: dummyAppData.users[2].username },
       method: 'PATCH',
       body: {},
       response: { status: 200 }
     },
     {
-      subject: 'get all users in LIFO order using pagination',
-      handler: api.v2.users,
+      subject: 'fetch all users in LIFO order using pagination',
+      handler: api.v1.users,
       method: 'GET',
       params: ({ getResultAt }) => {
         return { after: getResultAt<string>('updated-user-hillary', 'user.user_id') };
       },
       response: {
         status: 200,
-        json: { users: dummyAppData.users.slice(2).reverse().map(toPublicUser) }
+        json: { users: dummyAppData.users.slice(1).reverse().map(toPublicUser) }
       }
     },
     {
-      id: 'lifo-nodes',
-      subject: `count ${dummyAppData.users[2].username}'s nodes`,
-      handler: api.v1.filesystemUsernameSearch,
+      subject: "fetch all of baracko's answers",
+      handler: api.v1.usersUsernameAnswers,
       method: 'GET',
-      params: { username: dummyAppData.users[2].username },
+      params: { username: 'baracko' },
       response: {
         status: 200,
-        json: {
-          nodes: expect.toBeArrayOfSize(
-            [...dummyAppData['meta-nodes'], ...dummyAppData['file-nodes']].filter(
-              (n) => n.owner == dummyAppData.users[2].username
-            ).length
-          )
-        }
+        json: { answers: [] }
       }
     },
     {
-      subject: `ensure LIFO nodes have had permissions of deleted users removed #1`,
-      handler: api.v1.filesystemUsernameSearch,
+      subject: "fetch all of baracko's questions",
+      handler: api.v1.usersUsernameQuestions,
       method: 'GET',
-      params: {
-        username: dummyAppData.users[2].username,
-        regexMatch: JSON.stringify({
-          [`permissions.dummyAppData.users[0].username`]: 'view|edit'
-        })
-      },
-      response: { status: 200, json: { nodes: [] } }
-    },
-    {
-      subject: `ensure LIFO nodes have had permissions of deleted users removed #2`,
-      handler: api.v1.filesystemUsernameSearch,
-      method: 'GET',
-      params: {
-        username: dummyAppData.users[2].username,
-        regexMatch: JSON.stringify({
-          [`permissions.dummyAppData.users[1].username`]: 'view|edit'
-        })
-      },
-      response: { status: 200, json: { nodes: [] } }
+      params: { username: 'baracko' },
+      response: {
+        status: 200,
+        json: { questions: [] }
+      }
     },
 
+    // * Incrementing/updating user points
     {
-      id: 'target-node',
-      subject: 'search for target node by tag (case-insensitive)',
-      handler: api.v1.filesystemUsernameSearch,
-      method: 'GET',
-      params: {
-        username: dummyAppData.users[2].username,
-        match: JSON.stringify({ tags: ['MaTeRiAlS'] })
-      },
-      response: {
-        status: 200,
-        json: (_json, { getResultAt }) => {
-          return {
-            nodes: [
-              getResultAt<PublicNode[]>('lifo-nodes', 'nodes').find(
-                (n) => n.type == 'file' && n.tags.includes('materials')
-              )
-            ]
-          };
-        }
-      }
-    },
-    {
-      subject: 'get target node',
-      handler: api.v1.filesystemUsernameNodeId,
-      method: 'GET',
-      params: ({ getResultAt }) => {
-        return {
-          username: dummyAppData.users[2].username,
-          node_ids: [getResultAt<PublicNode[]>('target-node', 'nodes')[0].node_id]
-        };
-      },
-      response: {
-        status: 200,
-        json: (_json, { getResultAt }) => {
-          return { nodes: [getResultAt<PublicNode[]>('target-node', 'nodes')[0]] };
-        }
-      }
-    },
-    {
-      subject: 'update target node name and lock',
-      handler: api.v1.filesystemUsernameNodeId,
+      subject: "increment baracko's points",
+      handler: api.v1.usersUsernamePoints,
       method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: dummyAppData.users[2].username,
-          node_ids: [getResultAt<PublicNode[]>('target-node', 'nodes')[0].node_id]
-        };
-      },
-      body: {
-        name: 'new-name',
-        lock: {
-          client: 'abc123',
-          user: dummyAppData.users[2].username,
-          createdAt: Date.now()
-        } as NodeLock
-      },
-      response: { status: 200 }
-    },
-    {
-      subject: 'update target node permissions (v2)',
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: dummyAppData.users[2].username,
-          node_ids: [getResultAt<PublicNode[]>('target-node', 'nodes')[0].node_id]
-        };
-      },
-      body: { permissions: { 'the-hill': 'view' } },
-      response: { status: 200 }
-    },
-    {
-      subject: 'no-op updates are ok',
-      handler: api.v1.filesystemUsernameNodeId,
-      method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: dummyAppData.users[2].username,
-          node_ids: [getResultAt<PublicNode[]>('target-node', 'nodes')[0].node_id]
-        };
-      },
-      body: {},
-      response: { status: 200 }
-    },
-    {
-      subject: 'get updated target node',
-      handler: api.v1.filesystemUsernameNodeId,
-      method: 'GET',
-      params: ({ getResultAt }) => {
-        return {
-          username: dummyAppData.users[2].username,
-          node_ids: [getResultAt<PublicNode[]>('target-node', 'nodes')[0].node_id]
-        };
-      },
-      response: {
-        status: 200,
-        json: (json, { getResultAt }) => {
-          const targetNode = getResultAt<PublicFileNode[]>('target-node', 'nodes')[0];
-
-          expect((json?.nodes as PublicFileNode[])?.[0].modifiedAt).toBeGreaterThan(
-            targetNode.modifiedAt
-          );
-
-          return {
-            nodes: [
-              {
-                ...targetNode,
-                modifiedAt: expect.any(Number),
-                name: 'new-name',
-                lock: {
-                  client: 'abc123',
-                  user: dummyAppData.users[2].username,
-                  createdAt: expect.any(Number)
-                },
-                permissions: { 'the-hill': 'view' }
-              }
-            ]
-          };
-        }
-      }
-    },
-    {
-      subject: 'delete updated target node',
-      handler: api.v1.filesystemUsernameNodeId,
-      method: 'DELETE',
-      params: ({ getResultAt }) => {
-        return {
-          username: dummyAppData.users[2].username,
-          node_ids: [getResultAt<PublicNode[]>('target-node', 'nodes')[0].node_id]
-        };
-      },
-      response: { status: 200 }
-    },
-    {
-      subject: 'attempt to search for deleted updated target node by tag',
-      handler: api.v1.filesystemUsernameSearch,
-      method: 'GET',
-      params: {
-        username: dummyAppData.users[2].username,
-        match: JSON.stringify({ tags: ['materials'] })
-      },
-      response: { status: 200, json: { nodes: [] } }
-    },
-    {
-      subject: 'ensure LIFO meta nodes have had deleted nodes removed from contents',
-      handler: api.v1.filesystemUsernameNodeId,
-      method: 'GET',
-      params: {
-        username: dummyAppData.users[2].username,
-        node_ids: dummyAppData['meta-nodes'].slice(1).map((n) => n._id.toString())
-      },
-      response: {
-        status: 200,
-        json: (json) => {
-          expect(json?.nodes).toHaveLength(2);
-          expect(
-            (json?.nodes as PublicMetaNode[]).every((n) => n.contents.length == 0)
-          ).toBeTrue();
-          return undefined;
-        }
-      }
-    },
-    {
-      subject: 'search fails when attempting to match by permissions twice #1',
-      handler: api.v1.filesystemUsernameSearch,
-      method: 'GET',
-      params: {
-        username: dummyAppData.users[2].username,
-        regexMatch: JSON.stringify({
-          [`permissions.dummyAppData.users[0].username`]: 'view|edit',
-          [`permissions.dummyAppData.users[1].username`]: 'view|edit'
-        })
-      },
-      response: { status: 400 }
-    },
-    {
-      subject: 'search fails when attempting to match by permissions twice #2',
-      handler: api.v1.filesystemUsernameSearch,
-      method: 'GET',
-      params: {
-        username: dummyAppData.users[2].username,
-        match: JSON.stringify({
-          [`permissions.dummyAppData.users[0].username`]: 'view|edit'
-        }),
-        regexMatch: JSON.stringify({
-          [`permissions.dummyAppData.users[1].username`]: 'view|edit'
-        })
-      },
-      response: { status: 400 }
-    },
-    {
-      subject: "attempt to get non-existent user's nodes",
-      handler: api.v1.filesystemUsernameSearch,
-      method: 'GET',
-      params: { username: dummyAppData.users[1].username },
-      response: { status: 404 }
-    },
-    {
-      subject: "get all the-hill's nodes in LIFO order",
-      handler: api.v1.filesystemUsernameSearch,
-      method: 'GET',
-      params: { username: 'the-hill' },
-      response: { status: 200, json: { nodes: [] } }
-    },
-    {
-      id: 'node-1',
-      subject: 'create file node #1 (v1) owned by baracko (the-hill has view perms)',
-      handler: api.v1.filesystemUsername,
-      method: 'POST',
       params: { username: 'baracko' },
       body: {
-        type: 'file',
-        name: 'File Node #1',
-        text: "The latest breaking news, reporting and live coverage of the day's important stories; hosted by trusted NBC News journalists, these dynamic hours offer discussions with newsmakers, journalists and politicians.",
-        tags: ['live', 'tv', 'reporter', 'nbc', 'coverage'],
-        lock: {
-          client: 'abc123',
-          user: dummyAppData.users[2].username,
-          createdAt: Date.now()
-        }
-      } as NewFileNode,
+        operation: 'increment',
+        amount: 1000
+      },
+      response: { status: 200 }
+    },
+    {
+      subject: "verify baracko's points #1",
+      handler: api.v1.usersUsername,
+      method: 'GET',
+      params: { username: 'baracko' },
       response: {
         status: 200,
-        json: {
-          node: {
-            node_id: expect.any(String),
-            type: 'file',
-            owner: 'baracko',
-            createdAt: expect.any(Number),
-            modifiedAt: expect.any(Number),
-            name: 'File Node #1',
-            size: 209,
-            text: "The latest breaking news, reporting and live coverage of the day's important stories; hosted by trusted NBC News journalists, these dynamic hours offer discussions with newsmakers, journalists and politicians.",
-            tags: ['live', 'tv', 'reporter', 'nbc', 'coverage'],
-            lock: {
-              client: 'abc123',
-              user: dummyAppData.users[2].username,
-              createdAt: Date.now()
-            },
-            permissions: {}
-          } as PublicFileNode
-        }
+        json: { user: expect.objectContaining({ points: 1001 }) }
       }
     },
     {
-      id: 'node-2',
-      subject: 'create file node #2 (v2) owned by baracko (the-hill has edit perms)',
-      handler: api.v2.usersUsernameFilesystem,
-      method: 'POST',
+      subject: "increment baracko's points again",
+      handler: api.v1.usersUsernamePoints,
+      method: 'PATCH',
       params: { username: 'baracko' },
       body: {
-        type: 'file',
-        name: 'File Node #2',
-        text: "The latest breaking news, reporting and live coverage of the day's important stories; hosted by trusted NBC News journalists, these dynamic hours offer discussions with newsmakers, journalists and politicians.",
-        tags: ['live', 'tv', 'reporter', 'nbc', 'coverage'],
-        lock: null,
-        permissions: {
-          'the-hill': 'edit',
-          public: 'view'
-        }
-      } as NewFileNode,
+        operation: 'increment',
+        amount: 1000
+      },
+      response: { status: 200 }
+    },
+    {
+      subject: "verify baracko's points #2",
+      handler: api.v1.usersUsername,
+      method: 'GET',
+      params: { username: 'baracko' },
       response: {
         status: 200,
-        json: {
-          node: {
-            node_id: expect.any(String),
-            type: 'file',
-            owner: 'baracko',
-            createdAt: expect.any(Number),
-            modifiedAt: expect.any(Number),
-            name: 'File Node #2',
-            size: 209,
-            text: "The latest breaking news, reporting and live coverage of the day's important stories; hosted by trusted NBC News journalists, these dynamic hours offer discussions with newsmakers, journalists and politicians.",
-            tags: ['live', 'tv', 'reporter', 'nbc', 'coverage'],
-            lock: null,
-            permissions: {
-              'the-hill': 'edit',
-              public: 'view'
-            }
-          } as PublicFileNode
-        }
+        json: { user: expect.objectContaining({ points: 2001 }) }
       }
     },
     {
-      subject: 'add permissions to file node #1 for the-hill as baracko',
-      handler: api.v2.usersUsernameFilesystemNodeId,
+      subject: "decrement baracko's points",
+      handler: api.v1.usersUsernamePoints,
       method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'baracko',
-          node_ids: [getResultAt<string>('node-1', 'node.node_id')]
-        };
-      },
-      body: { permissions: { 'the-hill': 'view' } },
-      response: { status: 200 }
-    },
-    {
-      subject: 'attempt to edit file node #1 as the-hill',
-      handler: api.v1.filesystemUsernameNodeId,
-      method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [getResultAt<string>('node-1', 'node.node_id')]
-        };
-      },
-      body: { permissions: { 'the-hill': 'edit' } },
-      response: { status: 404 }
-    },
-    {
-      subject: 'edit file node #2 as the-hill',
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [getResultAt<string>('node-2', 'node.node_id')]
-        };
-      },
-      body: { permissions: { 'the-hill': 'edit' }, name: 'NODE NUMBER 2!' },
-      response: { status: 200 }
-    },
-    {
-      subject:
-        'create symlink node owned by the-hill with unowned contents (bad on frontend)',
-      handler: api.v1.filesystemUsername,
-      method: 'POST',
-      params: { username: 'the-hill' },
+      params: { username: 'baracko' },
       body: {
-        type: 'symlink',
-        name: 'broken symlink',
-        contents: [dummyAppData['meta-nodes'][0]._id.toString()]
-      } as NewMetaNode,
+        operation: 'decrement',
+        amount: 100
+      },
+      response: { status: 200 }
+    },
+    {
+      subject: "verify baracko's points #3",
+      handler: api.v1.usersUsername,
+      method: 'GET',
+      params: { username: 'baracko' },
       response: {
         status: 200,
-        json: {
-          node: {
-            owner: 'the-hill',
-            createdAt: expect.any(Number),
-            type: 'symlink',
-            name: 'broken symlink',
-            node_id: expect.any(String),
-            permissions: {},
-            contents: [dummyAppData['meta-nodes'][0]._id.toString()]
-          }
-        }
+        json: { user: expect.objectContaining({ points: 1901 }) }
       }
     },
     {
-      subject:
-        'attempt to create symlink node owned by the-hill with illegal contents (too many)',
-      handler: api.v2.usersUsernameFilesystem,
-      method: 'POST',
-      params: { username: 'the-hill' },
-      body: ({ getResultAt }) => {
-        return {
-          type: 'symlink',
-          name: 'bad symlink',
-          permissions: {},
-          contents: [
-            getResultAt<string>('node-1', 'node.node_id'),
-            getResultAt<string>('node-2', 'node.node_id')
-          ]
-        } as NewMetaNode;
-      },
-      response: { status: 400 }
-    },
-    {
-      id: 'hill-symlink',
-      subject: 'create empty symlink node owned by the-hill',
-      handler: api.v1.filesystemUsername,
-      method: 'POST',
-      params: { username: 'the-hill' },
+      subject: "decrement baracko's points greatly",
+      handler: api.v1.usersUsernamePoints,
+      method: 'PATCH',
+      params: { username: 'baracko' },
       body: {
-        type: 'symlink',
-        name: 'empty symlink',
-        contents: []
-      } as NewMetaNode,
-      response: {
-        status: 200,
-        json: {
-          node: {
-            owner: 'the-hill',
-            createdAt: expect.any(Number),
-            type: 'symlink',
-            name: 'empty symlink',
-            permissions: {},
-            node_id: expect.any(String),
-            contents: []
-          } as PublicMetaNode
-        }
-      }
-    },
-    {
-      subject:
-        "attempt to update the-hill's symlink to point to file nodes #1 and #2",
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [getResultAt('hill-symlink', 'node.node_id')]
-        };
-      },
-      body: ({ getResultAt }) => {
-        return {
-          contents: [
-            getResultAt<string>('node-1', 'node.node_id'),
-            getResultAt<string>('node-2', 'node.node_id')
-          ]
-        } as PatchMetaNode;
-      },
-      response: { status: 400 }
-    },
-    {
-      subject: "update the-hill's symlink to point to file node #1",
-      handler: api.v1.filesystemUsernameNodeId,
-      method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [getResultAt('hill-symlink', 'node.node_id')]
-        };
-      },
-      body: ({ getResultAt }) => {
-        return {
-          contents: [getResultAt<string>('node-1', 'node.node_id')]
-        } as PatchMetaNode;
+        operation: 'decrement',
+        amount: 10000
       },
       response: { status: 200 }
     },
     {
-      id: 'hill-dir',
-      subject: 'create empty dir node owned by the-hill',
-      handler: api.v2.usersUsernameFilesystem,
-      method: 'POST',
-      params: { username: 'the-hill' },
+      subject: "verify baracko's points #4",
+      handler: api.v1.usersUsername,
+      method: 'GET',
+      params: { username: 'baracko' },
+      response: {
+        status: 200,
+        json: { user: expect.objectContaining({ points: -8099 }) }
+      }
+    },
+    {
+      subject: "set baracko's points",
+      handler: api.v1.usersUsername,
+      method: 'PATCH',
+      params: { username: 'baracko' },
       body: {
-        type: 'directory',
-        name: 'empty directory',
-        permissions: {},
-        contents: []
-      } as NewMetaNode,
+        points: 0
+      },
+      response: { status: 200 }
+    },
+    {
+      subject: "verify baracko's points #5",
+      handler: api.v1.usersUsername,
+      method: 'GET',
+      params: { username: 'baracko' },
       response: {
         status: 200,
-        json: {
-          node: {
-            owner: 'the-hill',
-            createdAt: expect.any(Number),
-            type: 'directory',
-            name: 'empty directory',
-            permissions: {},
-            node_id: expect.any(String),
-            contents: []
-          } as PublicMetaNode
-        }
+        json: { user: expect.objectContaining({ points: 0 }) }
       }
+    },
+
+    // * Creating new questions, answers, and comments
+    {
+      subject: 'create question as baracko'
+    },
+    {
+      subject: "verify new question is in baracko's questions"
+    },
+    {
+      subject: 'create answer to own question as baracko'
+    },
+    {
+      subject: "verify new answer is in baracko's answers"
+    },
+    {
+      subject: "verify new answer is in question's answers"
+    },
+    {
+      subject: 'create comment to own question as baracko'
+    },
+    {
+      subject: "verify new comment is in question's comments"
+    },
+    {
+      subject: 'create comment to own answer as baracko'
+    },
+    {
+      subject: 'create second comment to own answer as baracko'
+    },
+    {
+      subject: "verify new comments are in answer's comments"
+    },
+
+    // * Voting on own questions, answers, and comments
+    {
+      subject: 'attempt to upvote new question as baracko'
+    },
+    {
+      subject: 'attempt to upvote new answer as baracko'
+    },
+    {
+      subject: 'attempt to downvote new question as baracko'
+    },
+    {
+      subject: 'attempt to downvote new answer as baracko'
+    },
+    {
+      subject: 'attempt to upvote new question comment as baracko'
+    },
+    {
+      subject: 'attempt to upvote new answer comment as baracko'
+    },
+    {
+      subject: 'attempt to downvote new question comment as baracko'
+    },
+    {
+      subject: 'attempt to downvote new answer comment as baracko'
+    },
+
+    // * Deleting comments
+    {
+      subject: 'delete new question comment'
+    },
+    {
+      subject: "verify new question's comments no longer include deleted comment"
+    },
+    {
+      subject: 'delete new answer comment'
+    },
+    {
+      subject: "verify new answer's comments no longer include deleted comment"
+    },
+    {
+      subject: 'attempt to delete already-deleted comment'
+    },
+
+    // * Upvoting/downvoting on questions
+    {
+      subject: "upvote baracko's question as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's question #1"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's question #1"
+    },
+    {
+      subject: "attempt to upvote baracko's question as the-hill again"
+    },
+    {
+      subject: "attempt to downvote baracko's question as the-hill"
+    },
+    {
+      subject: "undo upvote on baracko's question as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's question #2"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's question #2"
+    },
+    {
+      subject: "attempt to undo upvote on baracko's question as the-hill again"
+    },
+    {
+      subject: "downvote baracko's question as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's question #3"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's question #3"
+    },
+    {
+      subject: "attempt to downvote baracko's question as the-hill again"
+    },
+    {
+      subject: "attempt to upvote baracko's question as the-hill"
+    },
+    {
+      subject: "undo downvote on baracko's question as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's question #4"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's question #4"
+    },
+    {
+      subject: "attempt to undo downvote on baracko's question as the-hill again"
+    },
+    {
+      subject: "re-upvote baracko's question as the-hill"
+    },
+
+    // * Upvoting/downvoting on answers
+    {
+      subject: "upvote baracko's answer as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's answer #1"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's answer #1"
+    },
+    {
+      subject: "attempt to upvote baracko's answer as the-hill again"
+    },
+    {
+      subject: "attempt to downvote baracko's answer as the-hill"
+    },
+    {
+      subject: "undo upvote on baracko's answer as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's answer #2"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's answer #2"
+    },
+    {
+      subject: "attempt to undo upvote on baracko's answer as the-hill again"
+    },
+    {
+      subject: "downvote baracko's answer as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's answer #3"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's answer #3"
+    },
+    {
+      subject: "attempt to downvote baracko's answer as the-hill again"
+    },
+    {
+      subject: "attempt to upvote baracko's answer as the-hill"
+    },
+    {
+      subject: "undo downvote on baracko's answer as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's answer #4"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's answer #4"
+    },
+    {
+      subject: "attempt to undo downvote on baracko's answer as the-hill again"
+    },
+    {
+      subject: "re-upvote baracko's answer as the-hill"
+    },
+
+    // * Upvoting/downvoting on question comments
+    {
+      subject: "upvote baracko's question comment as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's question comment #1"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's question comment #1"
+    },
+    {
+      subject: "attempt to upvote baracko's question comment as the-hill again"
+    },
+    {
+      subject: "attempt to downvote baracko's question comment as the-hill"
+    },
+    {
+      subject: "undo upvote on baracko's question comment as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's question comment #2"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's question comment #2"
     },
     {
       subject:
-        'update dir node name, permissions, and make dir node self-referential',
-      handler: api.v1.filesystemUsernameNodeId,
-      method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [getResultAt('hill-dir', 'node.node_id')]
-        };
-      },
-      body: ({ getResultAt }) => {
-        return {
-          name: 'EMPTY dir node',
-          contents: [getResultAt('hill-dir', 'node.node_id')],
-          permissions: {}
-        } as PatchMetaNode;
-      },
-      response: { status: 200 }
+        "attempt to undo upvote on baracko's question comment as the-hill again"
     },
     {
-      subject: 'get dir node as the-hill',
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'GET',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [getResultAt('hill-dir', 'node.node_id')]
-        };
-      },
-      response: {
-        status: 200,
-        json: (_, { getResultAt }) => {
-          return {
-            nodes: [
-              {
-                ...getResultAt<PublicMetaNode>('hill-dir', 'node'),
-                name: 'EMPTY dir node',
-                contents: [getResultAt('hill-dir', 'node.node_id')]
-              }
-            ]
-          };
-        }
-      }
+      subject: "downvote baracko's question comment as the-hill"
     },
     {
-      subject: 'update dir node to contain file nodes #1 and #2',
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [getResultAt('hill-dir', 'node.node_id')]
-        };
-      },
-      body: ({ getResultAt }) => {
-        return {
-          contents: [
-            getResultAt<string>('node-1', 'node.node_id'),
-            getResultAt<string>('node-2', 'node.node_id')
-          ]
-        } as PatchMetaNode;
-      },
-      response: { status: 200 }
+      subject: "verify the metadata of baracko's question comment #3"
     },
     {
-      subject: 'attempt to update dir node to contain non-existent node_ids',
-      handler: api.v1.filesystemUsernameNodeId,
-      method: 'PATCH',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [getResultAt('hill-dir', 'node.node_id')]
-        };
-      },
-      body: { contents: [new ObjectId().toString()] } as PatchMetaNode,
-      response: { status: 404 }
+      subject: "verify the-hill's vote on baracko's question comment #3"
     },
     {
-      subject: 'get dir node as the-hill',
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'GET',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [getResultAt('hill-dir', 'node.node_id')]
-        };
-      },
-      response: {
-        status: 200,
-        json: (_, { getResultAt }) => {
-          return {
-            nodes: [
-              {
-                ...getResultAt<PublicMetaNode>('hill-dir', 'node'),
-                name: 'EMPTY dir node',
-                contents: [
-                  getResultAt<string>('node-1', 'node.node_id'),
-                  getResultAt<string>('node-2', 'node.node_id')
-                ]
-              }
-            ]
-          };
-        }
-      }
+      subject: "attempt to downvote baracko's question comment as the-hill again"
     },
     {
-      subject: 'attempt to delete file nodes #1 and #2 as the-hill (fails silently)',
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'DELETE',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [
-            getResultAt('node-1', 'node.node_id'),
-            getResultAt('node-2', 'node.node_id')
-          ]
-        };
-      },
-      response: { status: 200 }
+      subject: "attempt to upvote baracko's question comment as the-hill"
     },
     {
-      subject: 'search for file nodes #1 and #2 as the-hill (using V2 api)',
-      handler: api.v2.usersUsernameFilesystemSearch,
-      method: 'GET',
-      params: {
-        username: 'the-hill',
-        match: JSON.stringify({ tags: ['LIVE', 'Tv', 'Reporter'] })
-      },
-      response: {
-        status: 200,
-        json: (_json, { getResultAt }) => {
-          return {
-            nodes: [
-              {
-                ...getResultAt<PublicFileNode>('node-2', 'node'),
-                modifiedAt: expect.any(Number),
-                name: 'NODE NUMBER 2!',
-                permissions: { 'the-hill': 'edit' }
-              },
-              {
-                ...getResultAt<PublicFileNode>('node-1', 'node'),
-                modifiedAt: expect.any(Number),
-                permissions: { 'the-hill': 'view' }
-              }
-            ]
-          };
-        }
-      }
+      subject: "undo downvote on baracko's question comment as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's question comment #4"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's question comment #4"
     },
     {
       subject:
-        'search for file nodes #1 and #2 as the-hill using pagination (using V2 api)',
-      handler: api.v2.usersUsernameFilesystemSearch,
-      method: 'GET',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          after: getResultAt('node-2', 'node.node_id'),
-          match: JSON.stringify({ tags: ['LIVE', 'Tv', 'Reporter'] })
-        };
-      },
-      response: {
-        status: 200,
-        json: (_json, { getResultAt }) => {
-          return {
-            nodes: [
-              {
-                ...getResultAt<PublicFileNode>('node-1', 'node'),
-                modifiedAt: expect.any(Number),
-                permissions: { 'the-hill': 'view' }
-              }
-            ]
-          };
-        }
-      }
+        "attempt to undo downvote on baracko's question comment as the-hill again"
     },
     {
-      subject: 'V1 search does not return shared nodes',
-      handler: api.v1.filesystemUsernameSearch,
-      method: 'GET',
-      params: {
-        username: 'the-hill',
-        match: JSON.stringify({ name: 'node number 2!' })
-      },
-      response: {
-        status: 200,
-        json: { nodes: [] }
-      }
+      subject: "re-upvote baracko's question comment as the-hill"
+    },
+
+    // * Upvoting/downvoting on answer comments
+    {
+      subject: "upvote baracko's answer comment as the-hill"
     },
     {
-      subject: 'V2 search returns shared nodes matched case-insensitively (name)',
-      handler: api.v2.usersUsernameFilesystemSearch,
-      method: 'GET',
-      params: {
-        username: 'the-hill',
-        match: JSON.stringify({ name: 'node number 2!' })
-      },
-      response: {
-        status: 200,
-        json: (_json, { getResultAt }) => {
-          return {
-            nodes: [
-              {
-                ...getResultAt<PublicFileNode>('node-2', 'node'),
-                modifiedAt: expect.any(Number),
-                name: 'NODE NUMBER 2!',
-                permissions: { 'the-hill': 'edit' }
-              }
-            ]
-          };
-        }
-      }
+      subject: "verify the metadata of baracko's answer comment #1"
     },
     {
-      subject: 'get file nodes #1 and #2 as baracko',
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'GET',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'baracko',
-          node_ids: [
-            getResultAt('node-1', 'node.node_id'),
-            getResultAt('node-2', 'node.node_id')
-          ]
-        };
-      },
-      response: {
-        status: 200,
-        json: (_json, { getResultAt }) => {
-          return {
-            nodes: [
-              {
-                ...getResultAt<PublicFileNode>('node-2', 'node'),
-                modifiedAt: expect.any(Number),
-                name: 'NODE NUMBER 2!',
-                permissions: { 'the-hill': 'edit' }
-              },
-              {
-                ...getResultAt<PublicFileNode>('node-1', 'node'),
-                modifiedAt: expect.any(Number),
-                permissions: { 'the-hill': 'view' }
-              }
-            ]
-          };
-        }
-      }
+      subject: "verify the-hill's vote on baracko's answer comment #1"
     },
     {
-      subject: 'get file nodes #1 and #2 as the-hill',
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'GET',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [
-            getResultAt('node-1', 'node.node_id'),
-            getResultAt('node-2', 'node.node_id')
-          ]
-        };
-      },
-      response: {
-        status: 200,
-        json: (_json, { getResultAt }) => {
-          return {
-            nodes: [
-              {
-                ...getResultAt<PublicFileNode>('node-2', 'node'),
-                modifiedAt: expect.any(Number),
-                name: 'NODE NUMBER 2!',
-                permissions: { 'the-hill': 'edit' }
-              },
-              {
-                ...getResultAt<PublicFileNode>('node-1', 'node'),
-                modifiedAt: expect.any(Number),
-                permissions: { 'the-hill': 'view' }
-              }
-            ]
-          };
-        }
-      }
+      subject: "attempt to upvote baracko's answer comment as the-hill again"
     },
     {
-      subject: `attempt to get file nodes #1 and #2 as ${dummyAppData.users[2].username}`,
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'GET',
-      params: ({ getResultAt }) => {
-        return {
-          username: dummyAppData.users[2].username,
-          node_ids: [
-            getResultAt('node-1', 'node.node_id'),
-            getResultAt('node-2', 'node.node_id')
-          ]
-        };
-      },
-      response: { status: 404 }
+      subject: "attempt to downvote baracko's answer comment as the-hill"
     },
     {
-      subject: 'delete file node #1 as baracko',
-      handler: api.v2.usersUsernameFilesystemNodeId,
-      method: 'DELETE',
-      params: ({ getResultAt }) => {
-        return {
-          username: 'the-hill',
-          node_ids: [getResultAt('node-1', 'node.node_id')]
-        };
-      },
-      response: { status: 200 }
+      subject: "undo upvote on baracko's answer comment as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's answer comment #2"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's answer comment #2"
+    },
+    {
+      subject: "attempt to undo upvote on baracko's answer comment as the-hill again"
+    },
+    {
+      subject: "downvote baracko's answer comment as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's answer comment #3"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's answer comment #3"
+    },
+    {
+      subject: "attempt to downvote baracko's answer comment as the-hill again"
+    },
+    {
+      subject: "attempt to upvote baracko's answer comment as the-hill"
+    },
+    {
+      subject: "undo downvote on baracko's answer comment as the-hill"
+    },
+    {
+      subject: "verify the metadata of baracko's answer comment #4"
+    },
+    {
+      subject: "verify the-hill's vote on baracko's answer comment #4"
+    },
+    {
+      subject:
+        "attempt to undo downvote on baracko's answer comment as the-hill again"
+    },
+    {
+      subject: "re-upvote baracko's answer comment as the-hill"
+    },
+
+    // * Answer duplication
+    {
+      subject: "create answer to baracko's question as the-hill"
+    },
+    {
+      subject: 'attempt to upvote new answer as the-hill'
+    },
+    {
+      subject: 'upvote new answer as baracko'
+    },
+    {
+      subject: "verify new answer is in baracko's question's answers"
+    },
+    {
+      subject: "attempt to create another answer to baracko's question as the-hill"
+    },
+
+    // * View manipulation
+    {
+      subject: "increment the views of baracko's question"
+    },
+    {
+      subject: "verify baracko's question has 1 views"
+    },
+    {
+      subject: "set views of baracko's question to 0"
+    },
+    {
+      subject: "verify baracko's question has 0 views"
+    },
+
+    // * Searching
+    {
+      subject: 'verify parameter-less search returns latest questions in LIFO order'
+    },
+    {
+      subject: 'search for questions sorted by the highest upvotes'
+    },
+    {
+      subject: 'search for unanswered questions sorted by uvc'
+    },
+    {
+      subject: 'search for questions without an accepted answer sorted by uvac'
+    },
+    {
+      subject: 'search for questions matching a title case-insensitively'
+    },
+    {
+      subject:
+        'search for questions regex-matching a text fragment case-insensitively'
+    },
+    {
+      subject: 'search for questions matching a specific creator'
+    },
+    {
+      subject: 'search for questions created after a specific point in time'
+    },
+    {
+      subject: 'search for questions created between two specific points in time'
+    },
+    {
+      subject:
+        'search for questions that regex-match, match, and complex match simultaneously'
+      // TODO: search for questions that regex-match a text and a title
+      // TODO: fragment, match a specific creator, and were created between two
+      // TODO: specific points in time
+    },
+
+    // * Limits and checks
+    {
+      subject: 'attempt to create a question with an empty title'
+    },
+    {
+      subject: 'attempt to create a question with a title that is too large'
+    },
+    {
+      subject: 'attempt to create a question with an empty body'
+    },
+    {
+      subject: 'attempt to create a question with a body that is too large'
+    },
+    {
+      subject: 'attempt to create an answer with an empty body'
+    },
+    {
+      subject: 'attempt to create an answer with a body that is too large'
+    },
+    {
+      subject: 'attempt to create an empty comment on a question'
+    },
+    {
+      subject: 'attempt to create a comment on a question that is too large'
+    },
+    {
+      subject: 'attempt to create an empty comment on an answer'
+    },
+    {
+      subject: 'attempt to create a comment on an answer that is too large'
+    },
+    {
+      subject: 'attempt to create a message with an empty body'
+    },
+    {
+      subject: 'attempt to create a message with a body that is too large'
+    },
+    {
+      subject: 'attempt to create a message with an empty subject'
+    },
+    {
+      subject: 'attempt to create a message with a subject that is too large'
+    },
+    {
+      subject: 'attempt to create a message with a non-existent sender'
+    },
+    {
+      subject: 'attempt to create a message with a non-existent receiver'
+    },
+
+    // * Accepting an answer
+    {
+      subject: "verify baracko's question does not have an accepted answer"
+    },
+    {
+      subject: "accept an answer on baracko's question"
+    },
+    {
+      subject: "verify baracko's question has an accepted answer"
+    },
+    {
+      subject: "verify accepted answer's metadata"
+    },
+    {
+      subject: "attempt to accept another answer on baracko's question"
+    },
+
+    // * Update question status
+    {
+      subject: `set baracko's question's status to "protected"`
+    },
+    {
+      subject: `verify baracko's question is protected`
+    },
+
+    // * Transacting mail
+    {
+      subject: 'verify the-hill has an empty mailbox'
+    },
+    {
+      subject: 'send a message from baracko to the-hill'
+    },
+    {
+      subject: 'send another message from baracko to the-hill'
+    },
+    {
+      subject: 'send a message from the-hill to baracko'
+    },
+    {
+      subject: 'verify baracko sees expected messages in LIFO order'
+    },
+    {
+      subject: 'verify the-hill sees expected messages in LIFO order'
+    },
+
+    // * Updating question and answer title/body
+    {
+      subject: "update baracko's question's title and body"
+    },
+    {
+      subject: "verify baracko's question's has updated title and body"
+    },
+    {
+      subject: "update baracko's answer's body"
+    },
+    {
+      subject: "verify baracko's answer's has updated body"
     }
   ];
 
   // TODO: XXX: ability to specify "depends" via index or name/id
 
+  const willSkipFixture = (fixture: typeof fixtures[number]) => {
+    const shouldSkip =
+      !fixture.subject ||
+      !fixture.handler ||
+      !fixture.method ||
+      (!fixture.invisible &&
+        (!fixture.response ||
+          !['number', 'function'].includes(typeof fixture.response.status)));
+
+    return shouldSkip;
+  };
+
   const filteredFixtures = fixtures.filter<TestFixture>(
-    (test, ndx): test is TestFixture => {
+    (fixture, ndx): fixture is TestFixture => {
       const displayIndex = ndx + 1;
-      if (runOnly && !runOnly.includes(displayIndex)) return false;
-      (test as TestFixture).displayIndex = !runOnly
+
+      if (runOnly && !runOnly.includes(displayIndex)) {
+        return false;
+      }
+
+      (fixture as TestFixture).displayIndex = !runOnly
         ? displayIndex
         : runOnly.shift() ??
           toss(new GuruMeditationError('ran out of RUN_ONLY indices'));
+
       return true;
     }
   );
@@ -1392,26 +1216,24 @@ export function getFixtures(
 
   const reqPerContrived = getEnv().REQUESTS_PER_CONTRIVED_ERROR;
 
-  for (let i = 0; i < filteredFixtures.length; i += reqPerContrived) {
-    const invisibleCount = filteredFixtures
-      .slice(Math.max(0, i - reqPerContrived), i)
-      .filter((f) => f.invisible).length;
-
-    // ? Ensure counts remain aligned by skipping tests that don't increase
-    // ? internal contrived counter
-    i += invisibleCount;
-
-    filteredFixtures.splice(i, 0, {
-      displayIndex: -1,
-      subject: 'handle contrived',
-      handler: api.v1.users,
-      method: 'POST',
-      body: {},
-      response: {
-        status: 555,
-        json: { error: expect.stringContaining('contrived') }
+  if (reqPerContrived) {
+    for (let i = 0, noSkipCount = 0; i < filteredFixtures.length; i++) {
+      if (!willSkipFixture(filteredFixtures[i])) {
+        if (noSkipCount++ % reqPerContrived == 0) {
+          filteredFixtures.splice(i, 0, {
+            displayIndex: -1,
+            subject: 'handle contrived',
+            handler: api.v1.users,
+            method: 'POST',
+            body: {},
+            response: {
+              status: 555,
+              json: { error: expect.stringContaining('contrived') }
+            }
+          });
+        }
       }
-    });
+    }
   }
 
   return filteredFixtures;
