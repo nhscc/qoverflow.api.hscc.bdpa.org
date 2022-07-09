@@ -48,7 +48,8 @@ const invoked = async () => {
             ip: '$ip',
             header: '$header'
           },
-          requests: { $sum: 1 }
+          requests: { $sum: 1 },
+          latestAt: { $max: '$createdAt' }
         }
       },
       {
@@ -60,7 +61,8 @@ const invoked = async () => {
               requests: '$requests'
             }
           },
-          requests: { $sum: '$requests' }
+          requests: { $sum: '$requests' },
+          latestAt: { $max: '$latestAt' }
         }
       },
       {
@@ -71,8 +73,9 @@ const invoked = async () => {
           _id: false,
           header: '$_id',
           token: { $arrayElemAt: [{ $split: ['$_id', ' '] }, 1] },
-          requests: '$requests',
-          ips: '$ips'
+          requests: true,
+          ips: true,
+          latestAt: true
         }
       },
       {
@@ -101,9 +104,10 @@ const invoked = async () => {
               else: '<unauthenticated>'
             }
           },
-          header: '$header',
-          requests: '$requests',
-          ips: '$ips'
+          header: true,
+          requests: true,
+          ips: true,
+          latestAt: true
         }
       }
     ];
@@ -112,10 +116,10 @@ const invoked = async () => {
       {
         $project: {
           _id: false,
-          header: '$header',
+          header: true,
           token: { $arrayElemAt: [{ $split: ['$header', ' '] }, 1] },
-          ip: '$ip',
-          until: '$until'
+          ip: true,
+          until: true
         }
       },
       {
@@ -143,9 +147,9 @@ const invoked = async () => {
               else: '<unauthenticated>'
             }
           },
-          header: '$header',
-          ip: '$ip',
-          until: '$until',
+          header: true,
+          ip: true,
+          until: true,
           dummy: true
         }
       },
@@ -169,6 +173,7 @@ const invoked = async () => {
       header: string | null;
       requests: number;
       ips: { ip: string; requests: number }[];
+      latestAt: number;
     }>(requestLogPipeline);
 
     const limitedLogCursor = db.collection('limited-log').aggregate<{
@@ -215,9 +220,12 @@ const invoked = async () => {
     if (!requestLogStats.length) {
       outputStrings.push('  <request-log collection is empty>');
     } else {
-      requestLogStats.forEach(({ owner, token, header, requests, ips }) => {
+      requestLogStats.forEach(({ owner, token, header, requests, ips, latestAt }) => {
         addAuthInfo(owner, token, header);
         outputStrings.push(`  total requests: ${requests}`);
+        outputStrings.push(
+          `  most recent request: ${new Date(latestAt).toLocaleString()}`
+        );
         outputStrings.push('  requests by ip:');
 
         ips.forEach(({ ip, requests: requestsFromIp }) =>
