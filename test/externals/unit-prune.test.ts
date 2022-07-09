@@ -121,11 +121,11 @@ async function getCollectionSize(
   return resultLength == 1 ? result[collections.toString()] : result;
 }
 
-it('becomes verbose when no DEBUG environment variable set and NODE_ENV is not test', async () => {
+it('verbose when no DEBUG environment variable set and compiled NODE_ENV is not test', async () => {
   expect.hasAssertions();
 
   await withMockedOutput(async ({ infoSpy }) => {
-    await withMockedEnv(importPruneData, {
+    await withMockedEnv(() => importPruneData({ expectedExitCode: 0 }), {
       DEBUG: undefined,
       NODE_ENV: 'something-else',
       OVERRIDE_EXPECT_ENV: 'force-no-check'
@@ -135,7 +135,7 @@ it('becomes verbose when no DEBUG environment variable set and NODE_ENV is not t
   });
 
   await withMockedOutput(async ({ infoSpy }) => {
-    await withMockedEnv(importPruneData);
+    await withMockedEnv(() => importPruneData({ expectedExitCode: 0 }));
     expect(infoSpy).not.toBeCalled();
   });
 });
@@ -193,7 +193,7 @@ it('respects the limits imposed by PRUNE_DATA_MAX_X environment variables', asyn
     'hscc-api-qoverflow.users': initialSizes['hscc-api-qoverflow.users'] / 2
   };
 
-  await withMockedEnv(importPruneData, {
+  await withMockedEnv(() => importPruneData({ expectedExitCode: 0 }), {
     PRUNE_DATA_MAX_LOGS_BYTES: String(expectedSizes['root.request-log']),
     PRUNE_DATA_MAX_BANNED_BYTES: String(expectedSizes['root.limited-log']),
     PRUNE_DATA_MAX_MAIL_BYTES: String(expectedSizes['hscc-api-qoverflow.mail']),
@@ -225,7 +225,7 @@ it('respects the limits imposed by PRUNE_DATA_MAX_X environment variables', asyn
     expectedSizes['hscc-api-qoverflow.users']
   );
 
-  await withMockedEnv(importPruneData, {
+  await withMockedEnv(() => importPruneData({ expectedExitCode: 0 }), {
     PRUNE_DATA_MAX_LOGS_BYTES: '1',
     PRUNE_DATA_MAX_BANNED_BYTES: '1',
     PRUNE_DATA_MAX_MAIL_BYTES: '1',
@@ -248,7 +248,7 @@ it('only deletes entries if necessary', async () => {
 
   const initialSizes = await getCollectionSize(testCollections, { metric: 'bytes' });
 
-  await withMockedEnv(importPruneData, {
+  await withMockedEnv(() => importPruneData({ expectedExitCode: 0 }), {
     PRUNE_DATA_MAX_LOGS_BYTES: '100gb',
     PRUNE_DATA_MAX_BANNED_BYTES: '100gb',
     // * Step 5: Add new env vars high-prune-threshold values here

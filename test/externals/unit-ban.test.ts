@@ -67,11 +67,11 @@ const getRateLimitUntils = async () => {
     .toArray();
 };
 
-it('becomes verbose when no DEBUG environment variable and NODE_ENV is not test', async () => {
+it('verbose when no DEBUG environment variable set and compiled NODE_ENV is not test', async () => {
   expect.hasAssertions();
 
   await withMockedOutput(async ({ infoSpy }) => {
-    await withMockedEnv(importBanHammer, {
+    await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
       DEBUG: undefined,
       NODE_ENV: 'something-else',
       OVERRIDE_EXPECT_ENV: 'force-no-check'
@@ -81,7 +81,7 @@ it('becomes verbose when no DEBUG environment variable and NODE_ENV is not test'
   });
 
   await withMockedOutput(async ({ infoSpy }) => {
-    await withMockedEnv(importBanHammer);
+    await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }));
     expect(infoSpy).not.toBeCalled();
   });
 });
@@ -120,7 +120,7 @@ it('rate limits only those ips and auth headers that exceed limits', async () =>
     await getRequestLogCollection()
   ).updateMany({}, { $set: { createdAt: now } });
 
-  await withMockedEnv(importBanHammer, {
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
     BAN_HAMMER_MAX_REQUESTS_PER_WINDOW: '10',
     BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: '1'
   });
@@ -138,7 +138,7 @@ it('rate limits only those ips and auth headers that exceed limits', async () =>
     { $set: { ip: '9.8.7.6' } }
   );
 
-  await withMockedEnv(importBanHammer, {
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
     BAN_HAMMER_MAX_REQUESTS_PER_WINDOW: '10',
     BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: '1'
   });
@@ -162,14 +162,14 @@ it('rate limits only those ips and auth headers that exceed limits', async () =>
     createdAt: now - 1000
   });
 
-  await withMockedEnv(importBanHammer, {
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
     BAN_HAMMER_MAX_REQUESTS_PER_WINDOW: '11',
     BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: '1'
   });
 
   await expect(getRateLimits()).resolves.toBeArrayOfSize(0);
 
-  await withMockedEnv(importBanHammer, {
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
     BAN_HAMMER_MAX_REQUESTS_PER_WINDOW: '11',
     BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: '5'
   });
@@ -181,7 +181,7 @@ it('rate limits only those ips and auth headers that exceed limits', async () =>
 
   await (await getRateLimitsCollection()).deleteMany({});
 
-  await withMockedEnv(importBanHammer, {
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
     BAN_HAMMER_MAX_REQUESTS_PER_WINDOW: '11',
     BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: '1'
   });
@@ -208,7 +208,7 @@ it('rate limits with respect to invocation interval', async () => {
   );
   await requestLogDb.updateMany({}, { $set: { createdAt: now } });
 
-  await withMockedEnv(importBanHammer, {
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
     BAN_HAMMER_MAX_REQUESTS_PER_WINDOW: '10',
     BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: '5',
     BAN_HAMMER_WILL_BE_CALLED_EVERY_SECONDS: '1'
@@ -216,7 +216,7 @@ it('rate limits with respect to invocation interval', async () => {
 
   await expect(getRateLimits()).resolves.toBeArrayOfSize(0);
 
-  await withMockedEnv(importBanHammer, {
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
     BAN_HAMMER_MAX_REQUESTS_PER_WINDOW: '10',
     BAN_HAMMER_RESOLUTION_WINDOW_SECONDS: '5',
     BAN_HAMMER_WILL_BE_CALLED_EVERY_SECONDS: '8'
@@ -243,7 +243,7 @@ it('repeat offenders are punished to the maximum extent', async () => {
   const now = mockDateNowMs;
   let untils;
 
-  await withMockedEnv(importBanHammer, {
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
     BAN_HAMMER_DEFAULT_BAN_TIME_MINUTES: '10',
     BAN_HAMMER_MAX_REQUESTS_PER_WINDOW: '10'
   });
@@ -260,7 +260,7 @@ it('repeat offenders are punished to the maximum extent', async () => {
 
   await (await getRateLimitsCollection()).deleteMany({});
 
-  await withMockedEnv(importBanHammer, {
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
     BAN_HAMMER_DEFAULT_BAN_TIME_MINUTES: '20',
     BAN_HAMMER_MAX_REQUESTS_PER_WINDOW: '10'
   });
@@ -275,7 +275,7 @@ it('repeat offenders are punished to the maximum extent', async () => {
     );
   });
 
-  await withMockedEnv(importBanHammer, {
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {
     BAN_HAMMER_DEFAULT_BAN_TIME_MINUTES: '20',
     BAN_HAMMER_MAX_REQUESTS_PER_WINDOW: '10',
     BAN_HAMMER_RECIDIVISM_PUNISH_MULTIPLIER: '5'
@@ -301,7 +301,7 @@ it('does not replace longer bans with shorter bans', async () => {
     await getRateLimitsCollection()
   ).updateMany({ ip: { $ne: '5.6.7.8' } }, { $set: { until: 9998784552826 } });
 
-  await withMockedEnv(importBanHammer);
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }));
 
   let saw = 0;
   (await getRateLimitUntils()).forEach((u) => u.until == 9998784552826 && saw++);
@@ -318,7 +318,7 @@ it('deletes outdated entries outside the punishment period', async () => {
     await getRateLimitsCollection()
   ).updateMany({ ip: '5.6.7.8' }, { $set: { until: 0 } });
 
-  await withMockedEnv(importBanHammer);
+  await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }));
 
   await expect(getRateLimits()).resolves.toIncludeSameMembers([
     { ip: '1.2.3.4' },

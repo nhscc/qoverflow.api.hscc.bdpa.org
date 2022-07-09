@@ -1,21 +1,25 @@
+import { AppError, InvalidAppEnvironmentError } from 'named-app-errors';
+
 import { debugNamespace as namespace } from 'universe/constants';
 import { getEnv } from 'universe/backend/env';
-import { AppError, InvalidAppEnvironmentError } from 'named-app-errors';
-import { closeClient, getDb } from 'multiverse/mongo-schema';
+
+import { getDb } from 'multiverse/mongo-schema';
 import { debugFactory } from 'multiverse/debug-extended';
 
 const debugNamespace = `${namespace}:ban-hammer`;
 
 const oneSecondInMs = 1000;
 const log = debugFactory(debugNamespace);
-const debug = debugFactory(debugNamespace);
+const debug = debugFactory(`${debugNamespace}:debug`);
 
 // eslint-disable-next-line no-console
 log.log = console.info.bind(console);
 
-if (!getEnv().DEBUG && getEnv().NODE_ENV != 'test') {
-  debugFactory.enable(`${debugNamespace},${debugNamespace}:*`);
-  debug.enabled = false;
+// ? Ensure this next line survives Webpack
+if (!globalThis.process.env.DEBUG && getEnv().NODE_ENV != 'test') {
+  debugFactory.enable(
+    `${debugNamespace},${debugNamespace}:*,-${debugNamespace}:debug`
+  );
 }
 
 /**
@@ -270,21 +274,15 @@ const invoked = async () => {
 
     await cursor.next();
     await cursor.close();
+
+    log('execution complete');
+    process.exit(0);
   } catch (e) {
     throw new AppError(`${e}`);
-  } finally {
-    /* istanbul ignore if */
-    if (['production', 'development'].includes(getEnv().NODE_ENV)) {
-      await closeClient();
-      log('execution complete');
-      process.exit(0);
-    } else {
-      log('execution complete');
-    }
   }
 };
 
 export default invoked().catch((e: Error) => {
-  debug.error(e.message);
+  log.error(e.message);
   process.exit(2);
 });

@@ -1,4 +1,5 @@
 import { toss } from 'toss-expression';
+
 import {
   AppError,
   GuruMeditationError,
@@ -10,7 +11,7 @@ import { getEnv } from 'universe/backend/env';
 import { deleteUser } from 'universe/backend';
 
 import { debugFactory } from 'multiverse/debug-extended';
-import { closeClient, getDb } from 'multiverse/mongo-schema';
+import { getDb } from 'multiverse/mongo-schema';
 
 import type { Document, ObjectId, WithId } from 'mongodb';
 import type { Promisable } from 'type-fest';
@@ -19,7 +20,7 @@ import type { InternalUser } from 'universe/backend/db';
 const debugNamespace = `${namespace}:prune-data`;
 
 const log = debugFactory(debugNamespace);
-const debug = debugFactory(debugNamespace);
+const debug = debugFactory(`${debugNamespace}:debug`);
 
 type DataLimit = {
   limit: { maxBytes: number } | { maxDocuments: number };
@@ -30,9 +31,11 @@ type DataLimit = {
 // eslint-disable-next-line no-console
 log.log = console.info.bind(console);
 
-if (!getEnv().DEBUG && getEnv().NODE_ENV != 'test') {
-  debugFactory.enable(`${debugNamespace},${debugNamespace}:*`);
-  debug.enabled = false;
+// ? Ensure this next line survives Webpack
+if (!globalThis.process.env.DEBUG && getEnv().NODE_ENV != 'test') {
+  debugFactory.enable(
+    `${debugNamespace},${debugNamespace}:*,-${debugNamespace}:debug`
+  );
 }
 
 // * Add new env var configurations here
@@ -252,21 +255,15 @@ const invoked = async () => {
         );
       })
     );
+
+    log('execution complete');
+    process.exit(0);
   } catch (e) {
     throw new AppError(`${e}`);
-  } finally {
-    /* istanbul ignore if */
-    if (['production', 'development'].includes(getEnv().NODE_ENV)) {
-      await closeClient();
-      log('execution complete');
-      process.exit(0);
-    } else {
-      log('execution complete');
-    }
   }
 };
 
 export default invoked().catch((e: Error) => {
-  debug.error(e.message);
+  log.error(e.message);
   process.exit(2);
 });
