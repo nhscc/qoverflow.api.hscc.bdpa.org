@@ -12,6 +12,8 @@ module.exports = {
     '@types/node-fetch',
     // ? Pin the CJS version of find-up
     'find-up',
+    // ? Pin the CJS version of find-up
+    'chalk',
     // ? Pin this until it gets unbroken... or maybe we'll just fork it
     'request-ip'
   ]
