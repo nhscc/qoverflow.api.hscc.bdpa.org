@@ -278,7 +278,7 @@ const questions: InternalQuestion[] = [
     text: `As the title says, I'm looking for the BDPA NHSCC GitHub page, but I can't seem to find it. Any help would be appreciated.\n\nAlso: ![XSS attack!]("onerror="alert('your app has been hacked'))`,
     status: 'open',
     hasAcceptedAnswer: false,
-    upvotes: 0,
+    upvotes: 0, // ! For testing purposes, at least 3 questions need 0 upvotes
     upvoterUsernames: [],
     downvotes: 0,
     downvoterUsernames: [],
@@ -301,7 +301,7 @@ const questions: InternalQuestion[] = [
     text: `For some reason I've created this question a few seconds from now. How is that possible? **HELP ME!**`,
     status: 'closed',
     hasAcceptedAnswer: false,
-    upvotes: 0,
+    upvotes: 0, // ! For testing purposes, at least 3 questions need 0 upvotes
     upvoterUsernames: [],
     downvotes: 0,
     downvoterUsernames: [],
@@ -373,11 +373,34 @@ const questions: InternalQuestion[] = [
       uvc: 11,
       uvac: 13
     }
+  },
+  {
+    _id: new ObjectId(),
+    creator: 'User2',
+    title: 'How to export functions from a custom hook',
+    'title-lowercase': 'how to export functions from a custom hook',
+    createdAt: mockDateNowMs + 65432,
+    text: 'When running `yarn build`, I am faced with this error:\n\n`Objects are not valid as a React child (found: object with keys {func1, func2, func3}). If you meant to render a collection of children, use an array instead.`\n\nMy attempt at solving this was to export my custom hook functions in an array, as the error seemed to suggest.',
+    status: 'open',
+    hasAcceptedAnswer: false,
+    upvotes: 0, // ! For testing purposes, at least 3 questions need 0 upvotes
+    upvoterUsernames: [],
+    downvotes: 0,
+    downvoterUsernames: [],
+    views: 24,
+    answers: 0,
+    answerItems: [],
+    comments: 0,
+    commentItems: [],
+    sorter: {
+      uvc: 24,
+      uvac: 24
+    }
   }
 ];
 
 users[0].questionIds.push(questions[0]._id, questions[1]._id);
-users[1].questionIds.push(questions[2]._id);
+users[1].questionIds.push(questions[2]._id, questions[5]._id);
 users[2].questionIds.push(questions[3]._id, questions[4]._id);
 
 users[0].answerIds.push(

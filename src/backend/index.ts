@@ -74,6 +74,8 @@ import { isPlainObject } from 'multiverse/is-plain-object';
 import { getDb } from 'multiverse/mongo-schema';
 import { itemExists, itemToObjectId } from 'multiverse/mongo-item';
 
+import type { Document } from 'mongodb';
+
 const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 const usernameRegex = /^[a-zA-Z0-9_-]+$/;
 const hexadecimalRegex = /^[a-fA-F0-9]+$/;
@@ -815,8 +817,28 @@ export async function searchQuestions({
   const db = await getDb({ name: 'hscc-api-qoverflow' });
   const questionDb = db.collection<InternalQuestion>('questions');
 
-  if (afterId && !(await itemExists(questionDb, afterId))) {
-    throw new ItemNotFoundError(after_id, 'question_id');
+  const sortByField =
+    sort === undefined
+      ? '_id'
+      : sort == 'u'
+      ? 'upvotes'
+      : sort == 'uvc'
+      ? 'sorter.uvc'
+      : 'sorter.uvac';
+
+  let afterCriterion = undefined;
+
+  if (afterId) {
+    const afterItem = await questionDb.findOne<Document>(
+      { _id: afterId },
+      { projection: { [sortByField]: true } }
+    );
+
+    if (afterItem) {
+      afterCriterion = afterItem[sortByField];
+    } else {
+      throw new ItemNotFoundError(after_id, 'question_id');
+    }
   }
 
   // ? Validate the match object
@@ -941,7 +963,14 @@ export async function searchQuestions({
   });
 
   const $match = {
-    ...(afterId ? { _id: { $lt: afterId } } : {}),
+    ...(afterId
+      ? {
+          [sortByField]: {
+            // ? "$lte" for all fields that are not guaranteed to be unique!
+            [sortByField == '_id' ? '$lt' : '$lte']: afterCriterion
+          }
+        }
+      : {}),
     ...match,
     ...(orMatcher.length ? { $or: orMatcher } : {}),
     ...finalRegexMatch
@@ -950,21 +979,36 @@ export async function searchQuestions({
   const pipeline = [
     { $match },
     {
-      $sort:
-        sort === undefined
-          ? { _id: -1 }
-          : sort == 'u'
-          ? { upvotes: -1 }
-          : sort == 'uvc'
-          ? { 'sorter.uvc': -1 }
-          : { 'sorter.uvac': -1 }
+      $sort: {
+        [sortByField]: -1,
+        // ? Ensure stable sorting when sortByField values are not unique
+        ...(sortByField != '_id' ? { _id: -1 } : {})
+      }
     },
+    // ? If we sorted by a non-unique field...
+    ...(afterId && sortByField != '_id'
+      ? [
+          {
+            $match: {
+              $or: [
+                // ? Since sort field isn't unique, we must manually exclude the
+                // ? previous result(s) using an actually-unique field (ie. _id)
+                { [sortByField]: afterCriterion, _id: { $lt: afterId } },
+                { [sortByField]: { $lt: afterCriterion } }
+              ]
+            }
+          }
+        ]
+      : []),
+    // ? This has to come after the second match instead of before it because
+    // ? there many be >PER_PAGE number of results with the same non-unique
+    // ? field value!
     { $limit: RESULTS_PER_PAGE },
     { $project: publicQuestionProjection }
   ];
 
   // ? Run the aggregation and return the result
-  return db.collection('questions').aggregate<PublicQuestion>(pipeline).toArray();
+  return questionDb.aggregate<PublicQuestion>(pipeline).toArray();
 }
 
 export async function getQuestion({

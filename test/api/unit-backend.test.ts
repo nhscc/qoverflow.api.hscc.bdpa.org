@@ -5,7 +5,7 @@ import randomCase from 'random-case';
 
 import * as Backend from 'universe/backend';
 import { getEnv } from 'universe/backend/env';
-import { ErrorMessage } from 'universe/error';
+import { ErrorMessage, GuruMeditationError } from 'universe/error';
 
 import {
   selectAnswerFromDb,
@@ -43,12 +43,40 @@ import { dummyAppData } from 'testverse/db';
 import { mockEnvFactory } from 'testverse/setup';
 
 import type { PublicUser, NewUser, PatchUser } from 'universe/backend/db';
+import { toss } from 'toss-expression';
 
 setupMemoryServerOverride();
 useMockDateNow();
 
 const withMockedEnv = mockEnvFactory({ NODE_ENV: 'test' });
 const sortedUsers = dummyAppData.users.slice().reverse();
+
+// ? A primitive attempt to replicate MongoDB's sort by { upvotes: -1, _id: -1 }
+const sortByFieldAndId = (
+  questions: InternalQuestion[],
+  field: 'upvotes' | 'uvc' | 'uvac'
+) => {
+  const getField = (question: InternalQuestion) => {
+    return field == 'upvotes'
+      ? question.upvotes
+      : field == 'uvc'
+      ? question.sorter.uvc
+      : field == 'uvac'
+      ? question.sorter.uvac
+      : toss(new GuruMeditationError('unknown sort field'));
+  };
+
+  const sortedQuestions = questions
+    .slice()
+    .sort(
+      (a, b) =>
+        getField(b) - getField(a) ||
+        parseInt(b._id.toString().slice(-5), 16) -
+          parseInt(a._id.toString().slice(-5), 16)
+    );
+
+  return sortedQuestions;
+};
 
 describe('::getAllUsers', () => {
   it('returns all users in order (latest first)', async () => {
@@ -1444,10 +1472,7 @@ describe('::searchQuestions', () => {
         sort: 'u'
       })
     ).resolves.toStrictEqual(
-      reversedInternalQuestions
-        .slice()
-        .sort((a, b) => b.upvotes - a.upvotes)
-        .map(toPublicQuestion)
+      sortByFieldAndId(reversedInternalQuestions, 'upvotes').map(toPublicQuestion)
     );
 
     await expect(
@@ -1458,10 +1483,7 @@ describe('::searchQuestions', () => {
         sort: 'uvc'
       })
     ).resolves.toStrictEqual(
-      reversedInternalQuestions
-        .slice()
-        .sort((a, b) => b.sorter.uvc - a.sorter.uvc)
-        .map(toPublicQuestion)
+      sortByFieldAndId(reversedInternalQuestions, 'uvc').map(toPublicQuestion)
     );
 
     await expect(
@@ -1472,10 +1494,7 @@ describe('::searchQuestions', () => {
         sort: 'uvac'
       })
     ).resolves.toStrictEqual(
-      reversedInternalQuestions
-        .slice()
-        .sort((a, b) => b.sorter.uvac - a.sorter.uvac)
-        .map(toPublicQuestion)
+      sortByFieldAndId(reversedInternalQuestions, 'uvac').map(toPublicQuestion)
     );
   });
 
@@ -1490,10 +1509,8 @@ describe('::searchQuestions', () => {
         sort: 'uvc'
       })
     ).resolves.toStrictEqual(
-      reversedInternalQuestions
-        .slice()
+      sortByFieldAndId(reversedInternalQuestions, 'uvc')
         .filter((q) => !q.answers)
-        .sort((a, b) => b.sorter.uvc - a.sorter.uvc)
         .map(toPublicQuestion)
     );
 
@@ -1505,11 +1522,83 @@ describe('::searchQuestions', () => {
         sort: 'uvac'
       })
     ).resolves.toStrictEqual(
-      reversedInternalQuestions
-        .slice()
+      sortByFieldAndId(reversedInternalQuestions, 'uvac')
         .filter((q) => !q.hasAcceptedAnswer)
-        .sort((a, b) => b.sorter.uvac - a.sorter.uvac)
         .map(toPublicQuestion)
+    );
+  });
+
+  it('supports pagination when sorting', async () => {
+    expect.hasAssertions();
+
+    await withMockedEnv(
+      async () => {
+        let prevQuestion: InternalQuestion | null = null;
+
+        for (const question of sortByFieldAndId(
+          reversedInternalQuestions,
+          'upvotes'
+        )) {
+          await expect(
+            Backend.searchQuestions({
+              after_id: prevQuestion ? prevQuestion._id.toString() : undefined,
+              match: {},
+              regexMatch: {},
+              sort: 'u'
+            })
+          ).resolves.toStrictEqual([toPublicQuestion(question)]);
+          prevQuestion = question;
+        }
+
+        await expect(
+          Backend.searchQuestions({
+            after_id: prevQuestion ? prevQuestion._id.toString() : undefined,
+            match: {},
+            regexMatch: {},
+            sort: 'u'
+          })
+        ).resolves.toStrictEqual([]);
+      },
+      { RESULTS_PER_PAGE: '1' }
+    );
+  });
+
+  it('supports paginated sorted results where matcher matches sorter', async () => {
+    expect.hasAssertions();
+
+    await withMockedEnv(
+      async () => {
+        const interestingQuestions = sortByFieldAndId(
+          reversedInternalQuestions,
+          'upvotes'
+        )
+          .filter((q) => q.upvotes < 2048 && q.upvotes > 0)
+          .map(toPublicQuestion);
+
+        let prevQuestion: PublicQuestion | null = null;
+
+        for (const question of interestingQuestions) {
+          await expect(
+            Backend.searchQuestions({
+              after_id: prevQuestion ? prevQuestion.question_id : undefined,
+              match: { upvotes: { $lt: 2048, $gt: 0 } },
+              regexMatch: {},
+              sort: 'u'
+            })
+          ).resolves.toStrictEqual([question]);
+          prevQuestion = question;
+        }
+
+        await expect(
+          Backend.searchQuestions({
+            after_id: prevQuestion ? prevQuestion.question_id : undefined,
+            match: { upvotes: { $lt: 2048, $gt: 0 } },
+            regexMatch: {},
+            sort: 'u'
+          })
+        ).resolves.toStrictEqual([]);
+      },
+      { RESULTS_PER_PAGE: '1' }
     );
   });
 
