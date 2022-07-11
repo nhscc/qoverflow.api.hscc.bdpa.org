@@ -43,41 +43,139 @@ const invoked = async () => {
 
     const requestLogPipeline = [
       {
-        $group: {
-          _id: {
-            ip: '$ip',
-            header: '$header'
-          },
-          requests: { $sum: 1 },
-          latestAt: { $max: '$createdAt' }
-        }
-      },
-      {
-        $group: {
-          _id: '$_id.header',
-          ips: {
-            $push: {
-              ip: '$_id.ip',
-              requests: '$requests'
+        $facet: {
+          // ? Select the latest timestamp per (header)
+          group_header_x_latest: [
+            {
+              $group: {
+                _id: '$header',
+                latestAt: { $max: '$createdAt' }
+              }
             }
-          },
-          requests: { $sum: '$requests' },
-          latestAt: { $max: '$latestAt' }
+          ],
+          // ? Count requests per (header)
+          group_header: [
+            {
+              $group: {
+                _id: '$header',
+                totalRequests: { $sum: 1 },
+                preflightRequests: {
+                  $sum: {
+                    $cond: { if: { $eq: ['$method', 'OPTIONS'] }, then: 1, else: 0 }
+                  }
+                },
+                normalRequests: {
+                  $sum: {
+                    $cond: { if: { $eq: ['$method', 'OPTIONS'] }, then: 0, else: 1 }
+                  }
+                }
+              }
+            }
+          ],
+          // ? Count requests per (header, ip)
+          group_header_x_ip: [
+            {
+              $group: {
+                _id: { header: '$header', ip: '$ip' },
+                requests: { $sum: 1 }
+              }
+            },
+            {
+              $group: {
+                _id: '$_id.header',
+                ips: {
+                  $push: {
+                    ip: '$_id.ip',
+                    requests: '$requests'
+                  }
+                }
+              }
+            }
+          ],
+          // ? Count requests per (header, method)
+          group_header_x_method: [
+            {
+              $group: {
+                _id: { header: '$header', method: '$method' },
+                requests: { $sum: 1 }
+              }
+            },
+            {
+              $group: {
+                _id: '$_id.header',
+                methods: {
+                  $push: {
+                    method: '$_id.method',
+                    requests: '$requests'
+                  }
+                }
+              }
+            }
+          ],
+          // ? Count requests per (header, status)
+          group_header_x_status: [
+            {
+              $group: {
+                _id: { header: '$header', status: '$resStatusCode' },
+                requests: { $sum: 1 }
+              }
+            },
+            {
+              $group: {
+                _id: '$_id.header',
+                statuses: {
+                  $push: {
+                    status: '$_id.status',
+                    requests: '$requests'
+                  }
+                }
+              }
+            }
+          ]
         }
       },
-      {
-        $sort: { requests: -1 }
-      },
+
+      // ? Merge stats into per-header documents
       {
         $project: {
-          _id: false,
-          header: '$_id',
-          token: { $arrayElemAt: [{ $split: ['$_id', ' '] }, 1] },
-          requests: true,
-          ips: true,
-          latestAt: true
+          headerStats: {
+            $concatArrays: [
+              '$group_header_x_latest',
+              '$group_header',
+              '$group_header_x_ip',
+              '$group_header_x_method',
+              '$group_header_x_status'
+            ]
+          }
         }
       },
+      {
+        $unwind: '$headerStats'
+      },
+      {
+        $group: {
+          _id: '$headerStats._id',
+          stats: { $mergeObjects: '$$ROOT.headerStats' }
+        }
+      },
+      {
+        $replaceRoot: { newRoot: '$stats' }
+      },
+
+      // ? Sort results by greatest number of requests
+      {
+        $sort: { normalRequests: -1 }
+      },
+
+      // ? Add relevant fields
+      {
+        $addFields: {
+          header: '$_id',
+          token: { $arrayElemAt: [{ $split: ['$_id', ' '] }, 1] }
+        }
+      },
+
+      // ? Cross-reference tokens with identity data
       {
         $lookup: {
           from: 'auth',
@@ -93,9 +191,10 @@ const invoked = async () => {
           }
         }
       },
+
+      // ? Beautify output
       {
-        $project: {
-          _id: false,
+        $addFields: {
           owner: { $ifNull: ['$attributes.owner', '<unauthenticated>'] },
           token: {
             $cond: {
@@ -103,11 +202,15 @@ const invoked = async () => {
               then: { $ifNull: ['$token', '<none>'] },
               else: '<unauthenticated>'
             }
-          },
-          header: true,
-          requests: true,
-          ips: true,
-          latestAt: true
+          }
+        }
+      },
+      {
+        $project: {
+          _id: false,
+          attributes: false,
+          auth: false,
+          scheme: false
         }
       }
     ];
@@ -167,12 +270,19 @@ const invoked = async () => {
     debug('request-log aggregation pipeline: %O', requestLogPipeline);
     debug('limited-log aggregation pipeline: %O', limitedLogPipeline);
 
+    const byRequests = (a: { requests: number }, b: { requests: number }) =>
+      b.requests - a.requests;
+
     const requestLogCursor = db.collection('request-log').aggregate<{
       owner: string;
       token: string;
       header: string | null;
-      requests: number;
+      normalRequests: number;
+      preflightRequests: number;
+      totalRequests: number;
       ips: { ip: string; requests: number }[];
+      statuses: { status: number; requests: number }[];
+      methods: { method: string; requests: number }[];
       latestAt: number;
     }>(requestLogPipeline);
 
@@ -220,20 +330,61 @@ const invoked = async () => {
     if (!requestLogStats.length) {
       outputStrings.push('  <request-log collection is empty>');
     } else {
-      requestLogStats.forEach(({ owner, token, header, requests, ips, latestAt }) => {
-        addAuthInfo(owner, token, header);
-        outputStrings.push(`  total requests: ${requests}`);
-        outputStrings.push(
-          `  most recent request: ${new Date(latestAt).toLocaleString()}`
-        );
-        outputStrings.push('  requests by ip:');
+      requestLogStats.forEach(
+        ({
+          owner,
+          token,
+          header,
+          normalRequests,
+          preflightRequests,
+          totalRequests,
+          ips,
+          methods,
+          statuses,
+          latestAt
+        }) => {
+          addAuthInfo(owner, token, header);
 
-        ips.forEach(({ ip, requests: requestsFromIp }) =>
-          outputStrings.push(`    ${ip} - ${requestsFromIp} requests`)
-        );
+          outputStrings.push(
+            `  total requests: ${
+              preflightRequests
+                ? `${normalRequests} (+${preflightRequests} preflight, ${totalRequests} total)`
+                : totalRequests
+            }`
+          );
 
-        outputStrings.push('');
-      });
+          outputStrings.push(
+            `  most recent request: ${new Date(latestAt).toLocaleString()}`
+          );
+
+          outputStrings.push('  requests by ip:');
+
+          ips.forEach(({ ip, requests: requestsFromIp }) =>
+            outputStrings.push(`    ${ip} - ${requestsFromIp} requests`)
+          );
+
+          outputStrings.push('  requests by HTTP status code:');
+
+          statuses
+            .sort(byRequests)
+            .forEach(({ status, requests: requestResponseStatus }) => {
+              const str = `    ${status} - ${requestResponseStatus} requests`;
+              outputStrings.push(status == 429 ? chalk.red(str) : str);
+              outputStrings.push();
+            });
+
+          outputStrings.push('  requests by HTTP method:');
+
+          methods
+            .sort(byRequests)
+            .forEach(({ method, requests: requestsOfMethod }) => {
+              const str = `    ${method} - ${requestsOfMethod} requests`;
+              outputStrings.push(method == 'OPTIONS' ? chalk.gray(str) : str);
+            });
+
+          outputStrings.push('');
+        }
+      );
     }
 
     outputStrings.push(`\n::LIMIT LOG::${limitedLogStats.length ? '\n' : ''}`);
