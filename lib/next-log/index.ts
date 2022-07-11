@@ -51,7 +51,7 @@ export async function addToRequestLog({
         req.headers.authorization
           ?.slice(0, getEnv().AUTH_HEADER_MAX_LENGTH)
           .toLowerCase() || null,
-      method: req.method || null,
+      method: req.method?.toUpperCase() || null,
       route: req.url || null,
       resStatusCode: res.statusCode as HttpStatusCode,
       createdAt: Date.now()
