@@ -1,3 +1,5 @@
+import jsonFile from 'jsonfile';
+
 import {
   AppError,
   GuruMeditationError,
@@ -11,6 +13,7 @@ import { getDb } from 'multiverse/mongo-schema';
 import { debugFactory } from 'multiverse/debug-extended';
 
 const debugNamespace = `${namespace}:log-stats`;
+const cachePath = `${__dirname}/log-stats-cache.json`;
 
 const log = debugFactory(debugNamespace);
 const debug = debugFactory(`${debugNamespace}:debug`);
@@ -38,6 +41,17 @@ const invoked = async () => {
     }
 
     log('compiling statistics...');
+
+    const previousResults: Record<string, number> = await (async () => {
+      try {
+        debug(`reading in results from cache at ${cachePath}`);
+        return await jsonFile.readFile(cachePath);
+      } catch {
+        return {};
+      }
+    })();
+
+    debug('previous results: %O', previousResults);
 
     const db = await getDb({ name: 'root' });
 
@@ -294,8 +308,12 @@ const invoked = async () => {
       until: number;
     }>(limitedLogPipeline);
 
-    const requestLogStats = await requestLogCursor.toArray();
-    const limitedLogStats = await limitedLogCursor.toArray();
+    const [requestLogStats, limitedLogStats] = await Promise.all([
+      requestLogCursor.toArray(),
+      limitedLogCursor.toArray()
+    ]);
+
+    await Promise.all([requestLogCursor.close(), limitedLogCursor.close()]);
 
     const chalk = (await import('chalk')).default;
     const outputStrings: string[] = [];
@@ -345,12 +363,22 @@ const invoked = async () => {
         }) => {
           addAuthInfo(owner, token, header);
 
+          let delta: number | null = null;
+
+          if (header) {
+            delta = previousResults[header]
+              ? normalRequests - previousResults[header]
+              : null;
+
+            previousResults[header] = normalRequests;
+          }
+
           outputStrings.push(
             `  total requests: ${
               preflightRequests
                 ? `${normalRequests} (+${preflightRequests} preflight, ${totalRequests} total)`
                 : totalRequests
-            }`
+            }${delta !== null ? chalk.yellow(` (Δ${delta})`) : ''}`
           );
 
           outputStrings.push(
@@ -420,7 +448,8 @@ const invoked = async () => {
 
     log(outputStrings.join('\n'));
 
-    await requestLogCursor.close();
+    debug(`writing out results to cache at ${cachePath}`);
+    await jsonFile.writeFile(cachePath, previousResults);
 
     log('execution complete');
     process.exit(0);

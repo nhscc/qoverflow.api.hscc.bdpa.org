@@ -12,6 +12,11 @@ jest.mock('multiverse/mongo-schema', () => {
   return jest.requireActual('multiverse/mongo-schema');
 });
 
+jest.mock('jsonfile', () => ({
+  readFile: jest.fn().mockReturnValue({}),
+  writeFile: jest.fn()
+}));
+
 const withMockedEnv = mockEnvFactory({
   NODE_ENV: 'test',
   MONGODB_URI: 'fake'
