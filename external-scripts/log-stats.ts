@@ -363,15 +363,12 @@ const invoked = async () => {
         }) => {
           addAuthInfo(owner, token, header);
 
-          let delta: number | null = null;
+          const headerString = String(header);
+          const delta = previousResults[headerString]
+            ? normalRequests - previousResults[headerString]
+            : null;
 
-          if (header) {
-            delta = previousResults[header]
-              ? normalRequests - previousResults[header]
-              : null;
-
-            previousResults[header] = normalRequests;
-          }
+          previousResults[headerString] = normalRequests;
 
           outputStrings.push(
             `  total requests: ${
