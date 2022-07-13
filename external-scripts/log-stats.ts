@@ -375,7 +375,11 @@ const invoked = async () => {
               preflightRequests
                 ? `${normalRequests} (+${preflightRequests} preflight, ${totalRequests} total)`
                 : totalRequests
-            }${delta !== null ? chalk.yellow(` (Δ${delta})`) : ''}`
+            }${
+              delta !== null
+                ? chalk.yellow(` (Δ${delta >= 0 ? `+${delta}` : delta})`)
+                : ''
+            }`
           );
 
           outputStrings.push(
