@@ -159,7 +159,9 @@ it('rate limits only those ips and auth headers that exceed limits', async () =>
     method: 'PUT',
     resStatusCode: 200,
     route: 'jest/test',
-    createdAt: now - 1000
+    endpoint: '/fake/:jest',
+    createdAt: now - 1000,
+    durationMs: 1234
   });
 
   await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }), {

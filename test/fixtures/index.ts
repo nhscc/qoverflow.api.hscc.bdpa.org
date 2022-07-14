@@ -29,85 +29,108 @@ import {
 } from 'universe/backend';
 
 import V1EndpointUsers, {
-  config as V1ConfigUsers
+  config as V1ConfigUsers,
+  metadata as V1MetadataUsers
 } from 'universe/pages/api/v1/users';
 
 import V1EndpointUsersUsername, {
-  config as V1ConfigUsersUsername
+  config as V1ConfigUsersUsername,
+  metadata as V1MetadataUsersUsername
 } from 'universe/pages/api/v1/users/[username]';
 
 import V1EndpointUsersUsernameAuth, {
-  config as V1ConfigUsersUsernameAuth
+  config as V1ConfigUsersUsernameAuth,
+  metadata as V1MetadataUsersUsernameAuth
 } from 'universe/pages/api/v1/users/[username]/auth';
 
 import V1EndpointUsersUsernameQuestions, {
-  config as V1ConfigUsersUsernameQuestions
+  config as V1ConfigUsersUsernameQuestions,
+  metadata as V1MetadataUsersUsernameQuestions
 } from 'universe/pages/api/v1/users/[username]/questions';
 
 import V1EndpointUsersUsernameAnswers, {
-  config as V1ConfigUsersUsernameAnswers
+  config as V1ConfigUsersUsernameAnswers,
+  metadata as V1MetadataUsersUsernameAnswers
 } from 'universe/pages/api/v1/users/[username]/answers';
 
 import V1EndpointUsersUsernamePoints, {
-  config as V1ConfigUsersUsernamePoints
+  config as V1ConfigUsersUsernamePoints,
+  metadata as V1MetadataUsersUsernamePoints
 } from 'universe/pages/api/v1/users/[username]/points';
 
-import V1EndpointMail, { config as V1ConfigMail } from 'universe/pages/api/v1/mail';
+import V1EndpointMail, {
+  config as V1ConfigMail,
+  metadata as V1MetadataMail
+} from 'universe/pages/api/v1/mail';
 
 import V1EndpointMailUsername, {
-  config as V1ConfigMailUsername
+  config as V1ConfigMailUsername,
+  metadata as V1MetadataMailUsername
 } from 'universe/pages/api/v1/mail/[username]';
 
 import V1EndpointQuestionsSearch, {
-  config as V1ConfigQuestionsSearch
+  config as V1ConfigQuestionsSearch,
+  metadata as V1MetadataQuestionsSearch
 } from 'universe/pages/api/v1/questions/search';
 
 import V1EndpointQuestions, {
-  config as V1ConfigQuestions
+  config as V1ConfigQuestions,
+  metadata as V1MetadataQuestions
 } from 'universe/pages/api/v1/questions';
 
 import V1EndpointQuestionsQuestionId, {
-  config as V1ConfigQuestionsQuestionId
+  config as V1ConfigQuestionsQuestionId,
+  metadata as V1MetadataQuestionsQuestionId
 } from 'universe/pages/api/v1/questions/[question_id]';
 
 import V1EndpointQuestionsQuestionIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdVoteUsername
+  config as V1ConfigQuestionsQuestionIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdVoteUsername
 } from 'universe/pages/api/v1/questions/[question_id]/vote/[username]';
 
 import V1EndpointQuestionsQuestionIdComments, {
-  config as V1ConfigQuestionsQuestionIdComments
+  config as V1ConfigQuestionsQuestionIdComments,
+  metadata as V1MetadataQuestionsQuestionIdComments
 } from 'universe/pages/api/v1/questions/[question_id]/comments';
 
 import V1EndpointQuestionsQuestionIdCommentsCommentId, {
-  config as V1ConfigQuestionsQuestionIdCommentsCommentId
+  config as V1ConfigQuestionsQuestionIdCommentsCommentId,
+  metadata as V1MetadataQuestionsQuestionIdCommentsCommentId
 } from 'universe/pages/api/v1/questions/[question_id]/comments/[comment_id]';
 
 import V1EndpointQuestionsQuestionIdCommentsCommentIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdCommentsCommentIdVoteUsername
+  config as V1ConfigQuestionsQuestionIdCommentsCommentIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdCommentsCommentIdVoteUsername
 } from 'universe/pages/api/v1/questions/[question_id]/comments/[comment_id]/vote/[username]';
 
 import V1EndpointQuestionsQuestionIdAnswers, {
-  config as V1ConfigQuestionsQuestionIdAnswers
+  config as V1ConfigQuestionsQuestionIdAnswers,
+  metadata as V1MetadataQuestionsQuestionIdAnswers
 } from 'universe/pages/api/v1/questions/[question_id]/answers';
 
 import V1EndpointQuestionsQuestionIdAnswersAnswerId, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerId
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerId,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerId
 } from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]';
 
 import V1EndpointQuestionsQuestionIdAnswersAnswerIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdVoteUsername
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdVoteUsername
 } from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/vote/[username]';
 
 import V1EndpointQuestionsQuestionIdAnswersAnswerIdComments, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdComments
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdComments,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdComments
 } from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/comments';
 
 import V1EndpointQuestionsQuestionIdAnswersAnswerIdCommentsCommentId, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentId
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentId,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdCommentsCommentId
 } from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/comments/[comment_id]';
 
 import V1EndpointQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername
 } from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/comments/[comment_id]/vote/[username]';
 
 import type { NextApiHandler, PageConfig } from 'next';
@@ -121,7 +144,7 @@ import {
 
 export type NextApiHandlerMixin = NextApiHandler & {
   config?: PageConfig;
-  uri?: string;
+  uri: string;
 };
 
 /**
@@ -193,34 +216,37 @@ api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentId.config =
 api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername.config =
   V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername;
 
-api.v1.users.uri = '/users';
-api.v1.usersUsername.uri = '/users/:username';
-api.v1.usersUsernameAuth.uri = '/users/:username/auth';
-api.v1.usersUsernameQuestions.uri = '/users/:username/questions';
-api.v1.usersUsernameAnswers.uri = '/users/:username/answers';
-api.v1.usersUsernamePoints.uri = '/users/:username/points';
-api.v1.mail.uri = '/mail';
-api.v1.mailUsername.uri = '/mail/:username';
-api.v1.questions.uri = '/questions';
-api.v1.questionsSearch.uri = '/questions/search';
-api.v1.questionsQuestionId.uri = '/questions/:question_id';
-api.v1.questionsQuestionIdVoteUsername.uri = '/questions/:question_id/vote/:username';
-api.v1.questionsQuestionIdComments.uri = '/questions/:question_id/comments';
+api.v1.users.uri = V1MetadataUsers.descriptor;
+api.v1.usersUsername.uri = V1MetadataUsersUsername.descriptor;
+api.v1.usersUsernameAuth.uri = V1MetadataUsersUsernameAuth.descriptor;
+api.v1.usersUsernameQuestions.uri = V1MetadataUsersUsernameQuestions.descriptor;
+api.v1.usersUsernameAnswers.uri = V1MetadataUsersUsernameAnswers.descriptor;
+api.v1.usersUsernamePoints.uri = V1MetadataUsersUsernamePoints.descriptor;
+api.v1.mail.uri = V1MetadataMail.descriptor;
+api.v1.mailUsername.uri = V1MetadataMailUsername.descriptor;
+api.v1.questions.uri = V1MetadataQuestions.descriptor;
+api.v1.questionsSearch.uri = V1MetadataQuestionsSearch.descriptor;
+api.v1.questionsQuestionId.uri = V1MetadataQuestionsQuestionId.descriptor;
+api.v1.questionsQuestionIdVoteUsername.uri =
+  V1MetadataQuestionsQuestionIdVoteUsername.descriptor;
+api.v1.questionsQuestionIdComments.uri =
+  V1MetadataQuestionsQuestionIdComments.descriptor;
 api.v1.questionsQuestionIdCommentsCommentId.uri =
-  '/questions/:question_id/comments/:comment_id';
+  V1MetadataQuestionsQuestionIdCommentsCommentId.descriptor;
 api.v1.questionsQuestionIdCommentsCommentIdVoteUsername.uri =
-  '/questions/:question_id/comments/:comment_id/vote/:username';
-api.v1.questionsQuestionIdAnswers.uri = '/questions/:question_id/answers';
+  V1MetadataQuestionsQuestionIdCommentsCommentIdVoteUsername.descriptor;
+api.v1.questionsQuestionIdAnswers.uri =
+  V1MetadataQuestionsQuestionIdAnswers.descriptor;
 api.v1.questionsQuestionIdAnswersAnswerId.uri =
-  '/questions/:question_id/answers/:answer_id';
+  V1MetadataQuestionsQuestionIdAnswersAnswerId.descriptor;
 api.v1.questionsQuestionIdAnswersAnswerIdVoteUsername.uri =
-  '/questions/:question_id/answers/:answer_id/vote/:username';
+  V1MetadataQuestionsQuestionIdAnswersAnswerIdVoteUsername.descriptor;
 api.v1.questionsQuestionIdAnswersAnswerIdComments.uri =
-  '/questions/:question_id/answers/:answer_id/comments';
+  V1MetadataQuestionsQuestionIdAnswersAnswerIdComments.descriptor;
 api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentId.uri =
-  '/questions/:question_id/answers/:answer_id/comments/:comment_id';
+  V1MetadataQuestionsQuestionIdAnswersAnswerIdCommentsCommentId.descriptor;
 api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername.uri =
-  '/questions/:question_id/answers/:answer_id/comments/:comment_id/vote/:username';
+  V1MetadataQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername.descriptor;
 
 /**
  * A convenience function that mocks the entire backend and returns the mock
