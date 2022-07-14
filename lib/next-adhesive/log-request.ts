@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { performance as perf } from 'node:perf_hooks';
+
 import { addToRequestLog } from 'multiverse/next-log';
 import { debugFactory } from 'multiverse/debug-extended';
 
@@ -20,6 +23,9 @@ export default async function (
 ) {
   debug('entered middleware runtime');
 
+  const perfUUID = randomUUID();
+  perf.mark(perfUUID);
+
   const send = res.end;
   res.end = ((...args: Parameters<typeof res.end>) => {
     const sent = res.writableEnded;
@@ -31,7 +37,8 @@ export default async function (
       void addToRequestLog({
         req,
         res,
-        endpoint: context.runtime.endpoint.descriptor
+        endpoint: context.runtime.endpoint.descriptor,
+        durationMs: Math.floor(perf.measure(randomUUID(), perfUUID).duration)
       });
     }
   }) as typeof res.end;
