@@ -54,6 +54,8 @@ const invoked = async () => {
     debug('previous results: %O', previousResults);
 
     const db = await getDb({ name: 'root' });
+    const requestLogDb = db.collection('request-log');
+    const limitedLogDb = db.collection('limited-log');
 
     const requestLogPipeline = [
       {
@@ -145,6 +147,35 @@ const invoked = async () => {
                 }
               }
             }
+          ],
+          // ? Count requests per (header, endpoint)
+          group_header_x_endpoints: [
+            {
+              $group: {
+                _id: {
+                  header: '$header',
+                  endpoint: {
+                    $cond: {
+                      if: { $not: ['$endpoint'] },
+                      then: '<unknown>',
+                      else: '$endpoint'
+                    }
+                  }
+                },
+                requests: { $sum: 1 }
+              }
+            },
+            {
+              $group: {
+                _id: '$_id.header',
+                endpoints: {
+                  $push: {
+                    endpoint: '$_id.endpoint',
+                    requests: '$requests'
+                  }
+                }
+              }
+            }
           ]
         }
       },
@@ -158,7 +189,8 @@ const invoked = async () => {
               '$group_header',
               '$group_header_x_ip',
               '$group_header_x_method',
-              '$group_header_x_status'
+              '$group_header_x_status',
+              '$group_header_x_endpoints'
             ]
           }
         }
@@ -229,6 +261,62 @@ const invoked = async () => {
       }
     ];
 
+    // ? Calculates duration percentiles: fastest, 50%, 90%, 95%, 99%, 99.9%,
+    // ? and slowest
+    const requestPercentilePipeline = [
+      { $match: { durationMs: { $exists: true } } },
+      { $sort: { durationMs: 1 } },
+      {
+        $group: {
+          _id: null,
+          durations: { $push: '$durationMs' }
+        }
+      },
+      {
+        $project: {
+          _id: false,
+          fastest: { $arrayElemAt: ['$durations', 0] },
+          percentile_50: {
+            $arrayElemAt: [
+              '$durations',
+              { $floor: { $multiply: [0.5, { $size: '$durations' }] } }
+            ]
+          },
+          percentile_90: {
+            $arrayElemAt: [
+              '$durations',
+              { $floor: { $multiply: [0.9, { $size: '$durations' }] } }
+            ]
+          },
+          percentile_95: {
+            $arrayElemAt: [
+              '$durations',
+              { $floor: { $multiply: [0.95, { $size: '$durations' }] } }
+            ]
+          },
+          percentile_99: {
+            $arrayElemAt: [
+              '$durations',
+              { $floor: { $multiply: [0.99, { $size: '$durations' }] } }
+            ]
+          },
+          percentile_999: {
+            $arrayElemAt: [
+              '$durations',
+              { $floor: { $multiply: [0.999, { $size: '$durations' }] } }
+            ]
+          },
+          percentile_9999: {
+            $arrayElemAt: [
+              '$durations',
+              { $floor: { $multiply: [0.9999, { $size: '$durations' }] } }
+            ]
+          },
+          slowest: { $arrayElemAt: ['$durations', -1] }
+        }
+      }
+    ];
+
     const limitedLogPipeline = [
       {
         $project: {
@@ -287,7 +375,7 @@ const invoked = async () => {
     const byRequests = (a: { requests: number }, b: { requests: number }) =>
       b.requests - a.requests;
 
-    const requestLogCursor = db.collection('request-log').aggregate<{
+    const requestLogCursor = requestLogDb.aggregate<{
       owner: string;
       token: string;
       header: string | null;
@@ -297,10 +385,22 @@ const invoked = async () => {
       ips: { ip: string; requests: number }[];
       statuses: { status: number; requests: number }[];
       methods: { method: string; requests: number }[];
+      endpoints: { endpoint: string; requests: number }[];
       latestAt: number;
     }>(requestLogPipeline);
 
-    const limitedLogCursor = db.collection('limited-log').aggregate<{
+    const percentileCursor = requestLogDb.aggregate<{
+      fastest: number;
+      percentile_50: number;
+      percentile_90: number;
+      percentile_95: number;
+      percentile_99: number;
+      percentile_999: number;
+      percentile_9999: number;
+      slowest: number;
+    }>(requestPercentilePipeline);
+
+    const limitedLogCursor = limitedLogDb.aggregate<{
       owner?: string;
       token?: string;
       header?: string | null;
@@ -308,12 +408,17 @@ const invoked = async () => {
       until: number;
     }>(limitedLogPipeline);
 
-    const [requestLogStats, limitedLogStats] = await Promise.all([
+    const [requestLogStats, requestPercentiles, limitedLogStats] = await Promise.all([
       requestLogCursor.toArray(),
+      percentileCursor.next(),
       limitedLogCursor.toArray()
     ]);
 
-    await Promise.all([requestLogCursor.close(), limitedLogCursor.close()]);
+    await Promise.all([
+      requestLogCursor.close(),
+      percentileCursor.close(),
+      limitedLogCursor.close()
+    ]);
 
     const chalk = (await import('chalk')).default;
     const outputStrings: string[] = [];
@@ -342,11 +447,15 @@ const invoked = async () => {
     debug('compiling output');
     debug(`requestLogStats.length=${requestLogStats.length}`);
     debug(`limitedLogStats.length=${limitedLogStats.length}`);
+    debug(`requestPercentiles=${requestPercentiles}`);
 
     outputStrings.push(`\n::REQUEST LOG::${requestLogStats.length ? '\n' : ''}`);
 
     if (!requestLogStats.length) {
       outputStrings.push('  <request-log collection is empty>');
+      Object.keys(previousResults).forEach((k) => {
+        delete previousResults[k];
+      });
     } else {
       requestLogStats.forEach(
         ({
@@ -358,6 +467,7 @@ const invoked = async () => {
           totalRequests,
           ips,
           methods,
+          endpoints,
           statuses,
           latestAt
         }) => {
@@ -411,8 +521,83 @@ const invoked = async () => {
               outputStrings.push(method == 'OPTIONS' ? chalk.gray(str) : str);
             });
 
+          outputStrings.push('  requests by endpoint:');
+
+          endpoints
+            .sort(byRequests)
+            .forEach(({ endpoint, requests: requestsToEndpoint }) => {
+              const str = `    ${endpoint} - ${requestsToEndpoint} requests`;
+              outputStrings.push(endpoint == '<unknown>' ? chalk.gray(str) : str);
+            });
+
           outputStrings.push('');
         }
+      );
+
+      outputStrings.push('  :PERCENTILES:');
+
+      outputStrings.push(
+        `   fastest: ${
+          requestPercentiles?.fastest
+            ? `${requestPercentiles.fastest}ms`
+            : '<unknown>'
+        }`
+      );
+
+      outputStrings.push(
+        `     50%<=: ${
+          requestPercentiles?.percentile_50
+            ? `${requestPercentiles.percentile_50}ms`
+            : '<unknown>'
+        }`
+      );
+
+      outputStrings.push(
+        `     90%<=: ${
+          requestPercentiles?.percentile_90
+            ? `${requestPercentiles.percentile_90}ms`
+            : '<unknown>'
+        }`
+      );
+
+      outputStrings.push(
+        `     95%<=: ${
+          requestPercentiles?.percentile_95
+            ? `${requestPercentiles.percentile_95}ms`
+            : '<unknown>'
+        }`
+      );
+
+      outputStrings.push(
+        `     99%<=: ${
+          requestPercentiles?.percentile_99
+            ? `${requestPercentiles.percentile_99}ms`
+            : '<unknown>'
+        }`
+      );
+
+      outputStrings.push(
+        `   99.9%<=: ${
+          requestPercentiles?.percentile_999
+            ? `${requestPercentiles.percentile_999}ms`
+            : '<unknown>'
+        }`
+      );
+
+      outputStrings.push(
+        `  99.99%<=: ${
+          requestPercentiles?.percentile_9999
+            ? `${requestPercentiles.percentile_9999}ms`
+            : '<unknown>'
+        }`
+      );
+
+      outputStrings.push(
+        `   slowest: ${
+          requestPercentiles?.slowest
+            ? `${requestPercentiles.slowest}ms`
+            : '<unknown>'
+        }`
       );
     }
 
