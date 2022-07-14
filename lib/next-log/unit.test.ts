@@ -15,8 +15,6 @@ useMockDateNow();
 
 const mockPerfNow = 1234;
 
-jest.mock('node:perf_hooks', () => ({ performance: { now: () => mockPerfNow } }));
-
 describe('::addToRequestLog', () => {
   it('adds request to mongo collection', async () => {
     expect.hasAssertions();
@@ -39,8 +37,19 @@ describe('::addToRequestLog', () => {
     const res1 = { statusCode: 1111 } as NextApiResponse;
     const res2 = { statusCode: 2222 } as NextApiResponse;
 
-    await addToRequestLog({ req: req1, res: res1, endpoint: '/fake' });
-    await addToRequestLog({ req: req2, res: res2, endpoint: '/fake' });
+    await addToRequestLog({
+      req: req1,
+      res: res1,
+      endpoint: '/fake',
+      durationMs: 1234
+    });
+
+    await addToRequestLog({
+      req: req2,
+      res: res2,
+      endpoint: '/fake',
+      durationMs: 1234
+    });
 
     const reqlog = (
       await getDb({ name: 'root' })
@@ -96,8 +105,19 @@ describe('::addToRequestLog', () => {
     const res1 = { statusCode: 1111 } as NextApiResponse;
     const res2 = { statusCode: 2222 } as NextApiResponse;
 
-    await addToRequestLog({ req: req1, res: res1, endpoint: '/fake' });
-    await addToRequestLog({ req: req2, res: res2, endpoint: '/fake' });
+    await addToRequestLog({
+      req: req1,
+      res: res1,
+      endpoint: '/fake',
+      durationMs: 1234
+    });
+
+    await addToRequestLog({
+      req: req2,
+      res: res2,
+      endpoint: '/fake',
+      durationMs: 1234
+    });
 
     const reqlog = (
       await getDb({ name: 'root' })
@@ -156,7 +176,12 @@ describe('::addToRequestLog', () => {
     ).collection<InternalRequestLogEntry>('request-log');
 
     await withMockedOutput(async ({ warnSpy }) => {
-      await addToRequestLog({ req: req1, res: res1, endpoint: null });
+      await addToRequestLog({
+        req: req1,
+        res: res1,
+        endpoint: null,
+        durationMs: 1234
+      });
 
       expect(warnSpy).toBeCalledWith(
         expect.stringContaining(`API endpoint at ${req1.url}`)
@@ -170,7 +195,12 @@ describe('::addToRequestLog', () => {
         })
       );
 
-      await addToRequestLog({ req: req2, res: res2, endpoint: undefined });
+      await addToRequestLog({
+        req: req2,
+        res: res2,
+        endpoint: undefined,
+        durationMs: 1234
+      });
 
       expect(warnSpy).toBeCalledWith(expect.stringContaining('an API endpoint'));
 
@@ -195,7 +225,12 @@ describe('::addToRequestLog', () => {
         })
       );
 
-      await addToRequestLog({ req: req2, res: res3, endpoint: '/fake' });
+      await addToRequestLog({
+        req: req2,
+        res: res3,
+        endpoint: '/fake',
+        durationMs: 1234
+      });
 
       expect(warnSpy).toBeCalledTimes(3);
     });

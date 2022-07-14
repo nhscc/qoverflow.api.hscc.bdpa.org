@@ -1,5 +1,4 @@
 import { getClientIp } from 'request-ip';
-import { performance } from 'node:perf_hooks';
 
 import { getEnv } from 'multiverse/next-env';
 import { getDb } from 'multiverse/mongo-schema';
@@ -43,11 +42,13 @@ export type NewRequestLogEntry = WithoutId<InternalRequestLogEntry>;
 export async function addToRequestLog({
   req,
   res,
-  endpoint
+  endpoint,
+  durationMs
 }: {
   req: NextApiRequest;
   res: NextApiResponse;
   endpoint: string | null | undefined;
+  durationMs: number;
 }): Promise<void> {
   if (!endpoint) {
     // eslint-disable-next-line no-console
@@ -71,6 +72,6 @@ export async function addToRequestLog({
       endpoint: endpoint || null,
       resStatusCode: res.statusCode as HttpStatusCode,
       createdAt: Date.now(),
-      durationMs: Math.ceil(performance.now())
+      durationMs
     });
 }
