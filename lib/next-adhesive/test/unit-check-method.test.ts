@@ -13,6 +13,7 @@ it('sends 200 for allowed methods', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkMethod],
         options: { allowedMethods: ['GET', 'DELETE', 'POST', 'PUT'] }
       })
@@ -31,7 +32,10 @@ it('is restrictive by default', async () => {
 
   await testApiHandler({
     handler: wrapHandler(
-      withMiddleware<Options>(noopHandler, { use: [checkMethod] })
+      withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [checkMethod]
+      })
     ),
     test: async ({ fetch }) => {
       expect((await fetch({ method: 'GET' })).status).toBe(405);
@@ -48,7 +52,10 @@ it('sends 405 when request.method is undefined', async () => {
   await testApiHandler({
     requestPatcher: (req) => (req.method = undefined),
     handler: wrapHandler(
-      withMiddleware<Options>(noopHandler, { use: [checkMethod] })
+      withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [checkMethod]
+      })
     ),
     test: async ({ fetch }) => {
       expect((await fetch()).status).toBe(405);
@@ -62,6 +69,7 @@ it('sends 405 when encountering unlisted methods', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkMethod],
         options: { allowedMethods: ['POST', 'PUT'] }
       })
@@ -83,6 +91,7 @@ it('sends 405 when encountering globally disallowed methods', async () => {
       await testApiHandler({
         handler: wrapHandler(
           withMiddleware<Options>(noopHandler, {
+            descriptor: '/fake',
             use: [checkMethod],
             options: { allowedMethods: ['GET', 'POST', 'PUT', 'DELETE'] }
           })
@@ -107,6 +116,7 @@ it('ignores spacing when parsing DISALLOWED_METHODS', async () => {
       await testApiHandler({
         handler: wrapHandler(
           withMiddleware<Options>(noopHandler, {
+            descriptor: '/fake',
             use: [checkMethod],
             options: { allowedMethods: ['GET', 'POST', 'PUT', 'DELETE'] }
           })
@@ -129,6 +139,7 @@ it('sends an Allow header in 405 responses', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkMethod],
         options: { allowedMethods: ['GET', 'POST', 'HEAD'] }
       })
@@ -147,6 +158,7 @@ it('works even if allowedMethods specified in lowercase', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkMethod],
         options: {
           allowedMethods: ['get'] as unknown as ValidHttpMethod[]

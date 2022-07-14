@@ -12,7 +12,10 @@ it('sends 415 by default for POST, PUT, and PATCH requests with or without a Con
 
   await testApiHandler({
     handler: wrapHandler(
-      withMiddleware<Options>(noopHandler, { use: [checkContentType] })
+      withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [checkContentType]
+      })
     ),
     test: async ({ fetch }) => {
       expect((await fetch({ method: 'POST' })).status).toBe(415);
@@ -39,7 +42,10 @@ it('sends 200 by default for requests not using POST, PUT, or PATCH methods if t
 
   await testApiHandler({
     handler: wrapHandler(
-      withMiddleware<Options>(noopHandler, { use: [checkContentType] })
+      withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [checkContentType]
+      })
     ),
     test: async ({ fetch }) => {
       expect((await fetch({ method: 'GET' })).status).toBe(200);
@@ -57,7 +63,10 @@ it('sends 415 by default for requests not using POST, PUT, or PATCH methods if t
 
   await testApiHandler({
     handler: wrapHandler(
-      withMiddleware<Options>(noopHandler, { use: [checkContentType] })
+      withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [checkContentType]
+      })
     ),
     test: async ({ fetch }) => {
       expect(
@@ -94,6 +103,7 @@ it('sends 200 for POST, PUT, and PATCH requests with allowed Content-Type header
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: ['a1', 'a2'] }
       })
@@ -132,6 +142,7 @@ it('sends 200 for POST, PUT, and PATCH requests with allowed Content-Type header
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: {
           allowedContentTypes: { POST: ['a1'], PUT: ['a2', 'a3'] }
@@ -176,6 +187,7 @@ it(`ignores requests without a Content-Type header that aren't POST, PUT, or PAT
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: ['a1', 'a2'] }
       })
@@ -197,6 +209,7 @@ it(`ignores requests without a Content-Type header that aren't POST, PUT, or PAT
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: {
           allowedContentTypes: { GET: ['a1'], POST: ['a1'], PUT: ['a2', 'a3'] }
@@ -248,6 +261,7 @@ it(`does not ignore requests that include a Content-Type header`, async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: ['a1', 'a2'] }
       })
@@ -285,6 +299,7 @@ it('respects explicit configuration for all request methods regardless of header
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: {
           allowedContentTypes: {
@@ -343,6 +358,7 @@ it('ignores Content-Type header case for all requests', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: ['application/json'] }
       })
@@ -373,6 +389,7 @@ it('allows all (even missing) Content-Type header if set to "any"', async () => 
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: 'any' }
       })
@@ -404,6 +421,7 @@ it('allows all (even missing) Content-Type header if set to "any"', async () => 
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: { GET: 'any', POST: 'any' } }
       })
@@ -439,6 +457,7 @@ it('requires all requests to be sent without a Content-Type header if set to "no
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: 'none' }
       })
@@ -470,6 +489,7 @@ it('requires all requests to be sent without a Content-Type header if set to "no
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: { POST: 'none' } }
       })
@@ -505,6 +525,7 @@ it('allows requests without a Content-Type header in addition to other constrain
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: ['none', 'application/json'] }
       })
@@ -536,6 +557,7 @@ it('allows requests without a Content-Type header in addition to other constrain
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: { POST: ['none', 'application/json'] } }
       })
@@ -571,6 +593,7 @@ it('sends 415 if Content-Type is literally the string "none"', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: ['none', 'application/json'] }
       })
@@ -592,6 +615,7 @@ it('sends 415 if Content-Type is literally the string "none"', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: { POST: ['none', 'application/json'] } }
       })
@@ -613,6 +637,7 @@ it('sends 400 is method is undefined', async () => {
     },
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: [randomizeCase('application/json')] }
       })
@@ -631,6 +656,7 @@ it('works even if allowedContentTypes mapped value is strange or undefined', asy
       rejectOnHandlerError: true,
       handler: wrapHandler(
         withMiddleware<Options>(noopHandler, {
+          descriptor: '/fake',
           use: [checkContentType],
           options: { allowedContentTypes: { GET: undefined } }
         })
@@ -645,6 +671,7 @@ it('works even if allowedContentTypes mapped value is strange or undefined', asy
         rejectOnHandlerError: true,
         handler: wrapHandler(
           withMiddleware<Options>(noopHandler, {
+            descriptor: '/fake',
             use: [checkContentType],
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             options: { allowedContentTypes: { GET: new BigInt64Array() as any } }
@@ -666,6 +693,7 @@ it('works even if allowedContentTypes not specified in lowercase', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkContentType],
         options: { allowedContentTypes: [randomizeCase('application/json')] }
       })

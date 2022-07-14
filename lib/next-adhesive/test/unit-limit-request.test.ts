@@ -20,7 +20,12 @@ it('rate limits requests according to backend determination', async () => {
   expect.hasAssertions();
 
   await testApiHandler({
-    handler: wrapHandler(withMiddleware(noopHandler, { use: [limitRequest] })),
+    handler: wrapHandler(
+      withMiddleware(noopHandler, {
+        descriptor: '/fake',
+        use: [limitRequest]
+      })
+    ),
     test: async ({ fetch }) => {
       await withMockedEnv(
         async () => {
@@ -55,7 +60,12 @@ it('does not rate limit requests when ignoring rate limits', async () => {
   expect.hasAssertions();
 
   await testApiHandler({
-    handler: wrapHandler(withMiddleware(noopHandler, { use: [limitRequest] })),
+    handler: wrapHandler(
+      withMiddleware(noopHandler, {
+        descriptor: '/fake',
+        use: [limitRequest]
+      })
+    ),
     test: async ({ fetch }) => {
       await withMockedEnv(
         async () => {
@@ -85,7 +95,12 @@ it('treats otherwise valid requests as unauthenticatable only when locking out a
   expect.hasAssertions();
 
   await testApiHandler({
-    handler: wrapHandler(withMiddleware(noopHandler, { use: [limitRequest] })),
+    handler: wrapHandler(
+      withMiddleware(noopHandler, {
+        descriptor: '/fake',
+        use: [limitRequest]
+      })
+    ),
     test: async ({ fetch }) => {
       await withMockedEnv(
         async () => {
@@ -108,7 +123,12 @@ it('includes retry-after value in header (s) and in response JSON (ms)', async (
   expect.hasAssertions();
 
   await testApiHandler({
-    handler: wrapHandler(withMiddleware(noopHandler, { use: [limitRequest] })),
+    handler: wrapHandler(
+      withMiddleware(noopHandler, {
+        descriptor: '/fake',
+        use: [limitRequest]
+      })
+    ),
     test: async ({ fetch }) => {
       await withMockedEnv(
         async () => {

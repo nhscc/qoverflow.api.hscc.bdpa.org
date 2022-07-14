@@ -22,6 +22,7 @@ it('throws if missing requiresAuth option', async () => {
     rejectOnHandlerError: true,
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         useOnError: [
           (_, res, ctx) => {
@@ -42,6 +43,7 @@ it('throws if missing requiresAuth option', async () => {
     rejectOnHandlerError: true,
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         useOnError: [
           (_, res, ctx) => {
@@ -69,6 +71,7 @@ it('passes allowedSchemes to authenticateHeader', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         options: { requiresAuth: { allowedSchemes: 'bearer' } }
       })
@@ -92,6 +95,7 @@ it('passes constraints to authorizeHeader', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         options: { requiresAuth: { constraints: ['isGlobalAdmin'] } }
       })
@@ -114,6 +118,7 @@ it('does not send 401 if requires auth and authenticateHeader returns ok', async
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         options: { requiresAuth: true }
       })
@@ -132,6 +137,7 @@ it('sends 401 if requires auth and authenticateHeader returns not-ok or error', 
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         options: { requiresAuth: true }
       })
@@ -142,6 +148,7 @@ it('sends 401 if requires auth and authenticateHeader returns not-ok or error', 
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         options: { requiresAuth: false }
       })
@@ -156,6 +163,7 @@ it('sends 401 if requires auth and authenticateHeader returns not-ok or error', 
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         options: { requiresAuth: true }
       })
@@ -173,6 +181,7 @@ it('does not send 403 if requires auth and authorizeHeader returns ok', async ()
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         options: { requiresAuth: { constraints: ['isGlobalAdmin'] } }
       })
@@ -194,6 +203,7 @@ it('sends 403 if requires auth and authorizeHeader returns ok or error', async (
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         options: { requiresAuth: { constraints: 'isGlobalAdmin' } }
       })
@@ -208,6 +218,7 @@ it('sends 403 if requires auth and authorizeHeader returns ok or error', async (
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [authRequest],
         options: { requiresAuth: { constraints: 'isGlobalAdmin' } }
       })

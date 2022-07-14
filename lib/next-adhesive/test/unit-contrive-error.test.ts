@@ -19,6 +19,7 @@ it('does not inject contrived errors by default', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [contriveError]
       })
     ),
@@ -35,6 +36,7 @@ it('injects contrived errors when due if enabled', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [contriveError],
         options: { enableContrivedErrors: true }
       })

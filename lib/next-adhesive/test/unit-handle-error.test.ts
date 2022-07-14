@@ -61,14 +61,15 @@ it('sends correct HTTP error codes when certain errors occur', async () => {
     ['strange error', 500] // ? This too
   ]);
 
-  await Promise.all(
-    factory.items.map(async (item) => {
-      const [expectedError, expectedStatus] = item;
+  await withMockedOutput(async () => {
+    await Promise.all(
+      factory.items.map(async (item) => {
+        const [expectedError, expectedStatus] = item;
 
-      await withMockedOutput(async () => {
         await testApiHandler({
           handler: wrapHandler(
             withMiddleware(async () => toss(expectedError), {
+              descriptor: '/fake',
               use: [],
               useOnError: [handleError]
             })
@@ -76,9 +77,9 @@ it('sends correct HTTP error codes when certain errors occur', async () => {
           test: async ({ fetch }) =>
             fetch().then((res) => expect(res.status).toStrictEqual(expectedStatus))
         });
-      });
-    })
-  );
+      })
+    );
+  });
 });
 
 it('throws without calling res.end if response is no longer writable', async () => {
@@ -88,6 +89,7 @@ it('throws without calling res.end if response is no longer writable', async () 
     handler: async (rq, rs) => {
       await expect(
         withMiddleware(noopHandler, {
+          descriptor: '/fake',
           use: [
             (_req, res) => {
               // eslint-disable-next-line jest/unbound-method
@@ -112,12 +114,12 @@ it('supports pluggable error handlers', async () => {
   expect.hasAssertions();
 
   const MyError = class extends DummyError {};
-
   const MyUnusedError = class extends Error {};
 
   await testApiHandler({
     rejectOnHandlerError: true,
     handler: withMiddleware<Options>(undefined, {
+      descriptor: '/fake',
       use: [
         () => {
           throw new MyError('bad bad not good');
@@ -152,6 +154,7 @@ it('supports pluggable error handlers', async () => {
   await testApiHandler({
     rejectOnHandlerError: true,
     handler: withMiddleware<Options>(undefined, {
+      descriptor: '/fake',
       use: [
         () => {
           throw new MyError('bad good not good');

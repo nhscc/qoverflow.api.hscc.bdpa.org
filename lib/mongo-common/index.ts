@@ -109,8 +109,10 @@ export const dummyRootData: DummyRootData = {
     header: ndx % 2 ? null : `bearer ${BANNED_BEARER_TOKEN}`,
     method: ndx % 3 ? 'GET' : 'POST',
     route: 'fake/route',
+    endpoint: '/fake/:route',
     createdAt: mockDateNowMs + 10 ** 6,
-    resStatusCode: 200
+    resStatusCode: 200,
+    durationMs: 1234
   })),
   'limited-log': [
     // ! Must maintain order or various unit tests will fail

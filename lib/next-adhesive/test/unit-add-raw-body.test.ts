@@ -16,7 +16,10 @@ describe('::<default export>', () => {
     expect.hasAssertions();
 
     const handler = wrapHandler(
-      withMiddleware<Options>(noopHandler, { use: [addRawBody] }),
+      withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [addRawBody]
+      }),
       {}
     );
 
@@ -44,7 +47,10 @@ describe('::<default export>', () => {
     expect.hasAssertions();
 
     const normalHandler = wrapHandler(
-      withMiddleware<Options>(noopHandler, { use: [addRawBody] })
+      withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [addRawBody]
+      })
     );
 
     normalHandler.config = { api: { bodyParser: false } };
@@ -56,7 +62,10 @@ describe('::<default export>', () => {
 
     const obsoleterHandler = wrapHandler(async (req, res) => {
       (req as WithRawBody<NextApiRequest>).rawBody = 'fake raw body';
-      return withMiddleware<Options>(noopHandler, { use: [addRawBody] })(req, res);
+      return withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [addRawBody]
+      })(req, res);
     });
 
     obsoleterHandler.config = { api: { bodyParser: false } };
@@ -78,7 +87,10 @@ describe('::<default export>', () => {
     expect.hasAssertions();
 
     const handler = wrapHandler(
-      withMiddleware<Options>(noopHandler, { use: [addRawBody] })
+      withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [addRawBody]
+      })
     );
 
     handler.config = { api: { bodyParser: false } };
@@ -105,7 +117,10 @@ describe('::<default export>', () => {
     expect.hasAssertions();
 
     const handler = wrapHandler(
-      withMiddleware<Options>(noopHandler, { use: [addRawBody] })
+      withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [addRawBody]
+      })
     );
 
     handler.config = { api: { bodyParser: false } };
@@ -136,7 +151,10 @@ describe('::<default export>', () => {
             res.status(200).send({ body: req.body, rawBody: req.rawBody });
           }
         },
-        { use: [addRawBody] }
+        {
+          descriptor: '/fake',
+          use: [addRawBody]
+        }
       )
     );
 
@@ -228,6 +246,7 @@ describe('::<default export>', () => {
 
     const handler = wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [addRawBody],
         options: { requestBodySizeLimit: 1 }
       })

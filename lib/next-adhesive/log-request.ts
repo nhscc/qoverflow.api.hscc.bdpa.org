@@ -22,7 +22,8 @@ export default async function (req: NextApiRequest, res: NextApiResponse) {
 
     if (!sent) {
       debug('logging request after initial call to res.end');
-      void addToRequestLog({ req, res });
+      // ! Note that this async function is NOT awaited!!!
+      void addToRequestLog({ req, res, endpoint: '/fake' });
     }
   }) as typeof res.end;
 }

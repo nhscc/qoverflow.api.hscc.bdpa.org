@@ -11,7 +11,12 @@ it('works', async () => {
   expect.hasAssertions();
 
   await testApiHandler({
-    handler: wrapHandler(withMiddleware(noopHandler, { use: [] })),
+    handler: wrapHandler(
+      withMiddleware(noopHandler, {
+        descriptor: '/fake',
+        use: []
+      })
+    ),
     test: async ({ fetch }) => {
       const res = await fetch({ method: 'OPTIONS' });
       expect(res.status).toBe(200);
@@ -23,6 +28,7 @@ it('works', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [useCors],
         options: { allowedMethods: ['GET', 'POST', 'HEAD'] }
       })
@@ -52,6 +58,7 @@ it('handles cors package errors gracefully', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware(noopHandler, {
+        descriptor: '/fake',
         use: [
           isolatedImport<typeof useCors>({
             path: 'multiverse/next-adhesive/use-cors'

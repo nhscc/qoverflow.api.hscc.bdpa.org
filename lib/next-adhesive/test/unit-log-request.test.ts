@@ -21,6 +21,7 @@ it('logs requests on call to res.send', async () => {
     handler: wrapHandler(
       wrapHandler(
         withMiddleware(async (_req, res) => res.status(404).send({}), {
+          descriptor: '/fake',
           use: [logRequest]
         })
       )
@@ -39,6 +40,7 @@ it('logs requests on call to res.end', async () => {
     handler: wrapHandler(
       wrapHandler(
         withMiddleware(async (_req, res) => void res.status(404).end(), {
+          descriptor: '/fake',
           use: [logRequest]
         })
       )
@@ -62,6 +64,7 @@ it('logs requests once on multiple calls to res.end', async () => {
             res.end();
           },
           {
+            descriptor: '/fake',
             use: [logRequest]
           }
         )
@@ -83,6 +86,7 @@ it('handles request log errors after res.end as gracefully as possible', async (
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware(noopHandler, {
+        descriptor: '/fake',
         use: [logRequest],
         useOnError: [
           (_req, _res, ctx) => {

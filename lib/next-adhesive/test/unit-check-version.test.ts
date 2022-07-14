@@ -10,7 +10,10 @@ it('is a noop by default', async () => {
 
   await testApiHandler({
     handler: wrapHandler(
-      withMiddleware<Options>(noopHandler, { use: [checkVersion] })
+      withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
+        use: [checkVersion]
+      })
     ),
     test: async ({ fetch }) => expect((await fetch()).status).toBe(200)
   });
@@ -18,6 +21,7 @@ it('is a noop by default', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkVersion],
         options: { apiVersion: 'one' }
       })
@@ -32,6 +36,7 @@ it('sends 404 if its corresponding version is disabled', async () => {
   await testApiHandler({
     handler: wrapHandler(
       withMiddleware<Options>(noopHandler, {
+        descriptor: '/fake',
         use: [checkVersion],
         options: { apiVersion: '1' }
       })
@@ -72,6 +77,7 @@ it('sends 404 if its corresponding version is disabled', async () => {
       await testApiHandler({
         handler: wrapHandler(
           withMiddleware<Options>(noopHandler, {
+            descriptor: '/fake',
             use: [checkVersion],
             options: { apiVersion: '1' }
           })
@@ -82,6 +88,7 @@ it('sends 404 if its corresponding version is disabled', async () => {
       await testApiHandler({
         handler: wrapHandler(
           withMiddleware<Options>(noopHandler, {
+            descriptor: '/fake',
             use: [checkVersion],
             options: { apiVersion: '2' }
           })
@@ -92,6 +99,7 @@ it('sends 404 if its corresponding version is disabled', async () => {
       await testApiHandler({
         handler: wrapHandler(
           withMiddleware<Options>(noopHandler, {
+            descriptor: '/fake',
             use: [checkVersion],
             options: { apiVersion: 'three' }
           })
@@ -102,6 +110,7 @@ it('sends 404 if its corresponding version is disabled', async () => {
       await testApiHandler({
         handler: wrapHandler(
           withMiddleware<Options>(noopHandler, {
+            descriptor: '/fake',
             use: [checkVersion],
             options: { apiVersion: '4' }
           })
@@ -112,6 +121,7 @@ it('sends 404 if its corresponding version is disabled', async () => {
       await testApiHandler({
         handler: wrapHandler(
           withMiddleware<Options>(async () => undefined, {
+            descriptor: '/fake',
             use: [checkVersion],
             options: { apiVersion: '4' }
           })
@@ -122,6 +132,7 @@ it('sends 404 if its corresponding version is disabled', async () => {
       await testApiHandler({
         handler: wrapHandler(
           withMiddleware<Options>(noopHandler, {
+            descriptor: '/fake',
             use: [checkVersion]
           })
         ),
@@ -140,6 +151,7 @@ it('is a noop if DISABLED_API_VERSIONS is an empty string', async () => {
       await testApiHandler({
         handler: wrapHandler(
           withMiddleware<Options>(noopHandler, {
+            descriptor: '/fake',
             use: [checkVersion],
             options: { apiVersion: '4' }
           })
@@ -150,6 +162,7 @@ it('is a noop if DISABLED_API_VERSIONS is an empty string', async () => {
       await testApiHandler({
         handler: wrapHandler(
           withMiddleware<Options>(noopHandler, {
+            descriptor: '/fake',
             use: [checkVersion]
           })
         ),
