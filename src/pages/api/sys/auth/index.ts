@@ -43,5 +43,8 @@ export default withSysMiddleware(
       sendHttpOk(res);
     }
   },
-  { options: { allowedMethods: ['GET', 'POST', 'PATCH', 'DELETE'] } }
+  {
+    descriptor: '/sys/auth',
+    options: { allowedMethods: ['GET', 'POST', 'PATCH', 'DELETE'] }
+  }
 );

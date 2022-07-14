@@ -15,6 +15,7 @@ export default withSysMiddleware(
     });
   },
   {
+    descriptor: '/sys/ping',
     options: {
       allowedMethods: ['GET'],
       allowedContentTypes: 'any',

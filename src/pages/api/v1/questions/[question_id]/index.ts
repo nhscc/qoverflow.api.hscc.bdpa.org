@@ -5,6 +5,10 @@ import { getQuestion, updateQuestion } from 'universe/backend';
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
+export const metadata = {
+  descriptor: '/questions/:question_id'
+};
+
 export default withMiddleware(
   async (req, res) => {
     if (req.method == 'GET') {
@@ -23,5 +27,8 @@ export default withMiddleware(
       sendHttpOk(res);
     }
   },
-  { options: { allowedMethods: ['GET', 'PATCH'], apiVersion: '1' } }
+  {
+    descriptor: metadata.descriptor,
+    options: { allowedMethods: ['GET', 'PATCH'], apiVersion: '1' }
+  }
 );

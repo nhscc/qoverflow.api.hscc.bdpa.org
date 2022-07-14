@@ -5,6 +5,10 @@ import { sendHttpOk } from 'multiverse/next-api-respond';
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
+export const metadata = {
+  descriptor: '/users/:username'
+};
+
 export default withMiddleware(
   async (req, res) => {
     const username = req.query.username?.toString();
@@ -20,5 +24,8 @@ export default withMiddleware(
       sendHttpOk(res);
     }
   },
-  { options: { allowedMethods: ['GET', 'DELETE', 'PATCH'], apiVersion: '1' } }
+  {
+    descriptor: metadata.descriptor,
+    options: { allowedMethods: ['GET', 'DELETE', 'PATCH'], apiVersion: '1' }
+  }
 );

@@ -6,6 +6,10 @@ import { ErrorMessage, ValidationError } from 'universe/error';
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
+export const metadata = {
+  descriptor: '/questions/search'
+};
+
 export default withMiddleware(
   async (req, res) => {
     const match = (() => {
@@ -34,5 +38,8 @@ export default withMiddleware(
       })
     });
   },
-  { options: { allowedMethods: ['GET'], apiVersion: '1' } }
+  {
+    descriptor: metadata.descriptor,
+    options: { allowedMethods: ['GET'], apiVersion: '1' }
+  }
 );

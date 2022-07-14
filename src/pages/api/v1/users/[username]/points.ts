@@ -5,6 +5,10 @@ import { updateUser } from 'universe/backend';
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
+export const metadata = {
+  descriptor: '/users/:username/points'
+};
+
 export default withMiddleware(
   async (req, res) => {
     // * PATCH
@@ -20,5 +24,8 @@ export default withMiddleware(
 
     sendHttpOk(res);
   },
-  { options: { allowedMethods: ['PATCH'], apiVersion: '1' } }
+  {
+    descriptor: metadata.descriptor,
+    options: { allowedMethods: ['PATCH'], apiVersion: '1' }
+  }
 );

@@ -20,5 +20,8 @@ export default withSysMiddleware(
       });
     }
   },
-  { options: { allowedMethods: ['DELETE', 'GET'] } }
+  {
+    descriptor: '/sys/auth/unban',
+    options: { allowedMethods: ['DELETE', 'GET'] }
+  }
 );

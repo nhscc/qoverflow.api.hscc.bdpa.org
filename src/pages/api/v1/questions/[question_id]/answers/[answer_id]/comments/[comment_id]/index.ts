@@ -5,6 +5,10 @@ import { deleteComment } from 'universe/backend';
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
+export const metadata = {
+  descriptor: '/questions/:question_id/answers/:answer_id/comments/:comment_id'
+};
+
 export default withMiddleware(
   async (req, res) => {
     // * DELETE
@@ -16,5 +20,8 @@ export default withMiddleware(
 
     sendHttpOk(res);
   },
-  { options: { allowedMethods: ['DELETE'], apiVersion: '1' } }
+  {
+    descriptor: metadata.descriptor,
+    options: { allowedMethods: ['DELETE'], apiVersion: '1' }
+  }
 );

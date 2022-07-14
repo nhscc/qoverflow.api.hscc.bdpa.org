@@ -5,6 +5,10 @@ import { sendHttpOk } from 'multiverse/next-api-respond';
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
+export const metadata = {
+  descriptor: '/users'
+};
+
 export default withMiddleware(
   async (req, res) => {
     if (req.method == 'GET') {
@@ -14,5 +18,8 @@ export default withMiddleware(
       // * POST
     } else sendHttpOk(res, { user: await createUser({ data: req.body }) });
   },
-  { options: { allowedMethods: ['GET', 'POST'], apiVersion: '1' } }
+  {
+    descriptor: metadata.descriptor,
+    options: { allowedMethods: ['GET', 'POST'], apiVersion: '1' }
+  }
 );

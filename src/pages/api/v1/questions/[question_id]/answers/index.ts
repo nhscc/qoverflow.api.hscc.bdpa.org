@@ -5,6 +5,10 @@ import { createAnswer, getAnswers } from 'universe/backend';
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
+export const metadata = {
+  descriptor: '/questions/:question_id/answers'
+};
+
 export default withMiddleware(
   async (req, res) => {
     if (req.method == 'GET') {
@@ -24,5 +28,8 @@ export default withMiddleware(
       });
     }
   },
-  { options: { allowedMethods: ['GET', 'POST'], apiVersion: '1' } }
+  {
+    descriptor: metadata.descriptor,
+    options: { allowedMethods: ['GET', 'POST'], apiVersion: '1' }
+  }
 );

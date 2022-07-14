@@ -5,6 +5,10 @@ import { createQuestion } from 'universe/backend';
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
+export const metadata = {
+  descriptor: '/questions'
+};
+
 export default withMiddleware(
   async (req, res) => {
     // * POST
@@ -14,5 +18,8 @@ export default withMiddleware(
       })
     });
   },
-  { options: { allowedMethods: ['POST'], apiVersion: '1' } }
+  {
+    descriptor: metadata.descriptor,
+    options: { allowedMethods: ['POST'], apiVersion: '1' }
+  }
 );

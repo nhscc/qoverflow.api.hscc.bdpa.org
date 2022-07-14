@@ -5,6 +5,10 @@ import { getUserQuestions } from 'universe/backend';
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
+export const metadata = {
+  descriptor: '/users/:username/questions'
+};
+
 export default withMiddleware(
   async (req, res) => {
     // * GET
@@ -15,5 +19,8 @@ export default withMiddleware(
       })
     });
   },
-  { options: { allowedMethods: ['GET'], apiVersion: '1' } }
+  {
+    descriptor: metadata.descriptor,
+    options: { allowedMethods: ['GET'], apiVersion: '1' }
+  }
 );

@@ -5,6 +5,10 @@ import { sendHttpOk, sendHttpUnauthorized } from 'multiverse/next-api-respond';
 // ? This is a NextJS special "config" export
 export { defaultConfig as config } from 'universe/backend/api';
 
+export const metadata = {
+  descriptor: '/users/:username/auth'
+};
+
 // * The next version of this should use GET and POST as follows:
 // TODO: 1. GET to get the permanent user salt and a one-time fresh salt
 // TODO:    Fresh salts are stored per-ip and expire after 15 seconds
@@ -27,5 +31,8 @@ export default withMiddleware(
       ? sendHttpOk(res)
       : sendHttpUnauthorized(res);
   },
-  { options: { allowedMethods: ['POST'], apiVersion: '1' } }
+  {
+    descriptor: metadata.descriptor,
+    options: { allowedMethods: ['POST'], apiVersion: '1' }
+  }
 );
