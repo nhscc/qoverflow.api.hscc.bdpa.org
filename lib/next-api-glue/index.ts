@@ -35,9 +35,19 @@ export type MiddlewareContext<
   Options extends Record<string, unknown> = Record<string, unknown>
 > = {
   /**
-   * Contains middleware use chain control functions and metadata.
+   * Contains middleware use chain control functions and various metadata.
    */
   runtime: {
+    /**
+     * Metadata describing the current endpoint.
+     */
+    endpoint: {
+      /**
+       * A parameterized path string in the form of a URI path corresponding to
+       * the current endpoint. For example: `/my-endpoint/:some_id`.
+       */
+      descriptor?: string;
+    };
     /**
      * Call the next middleware function in the use chain. If not called
      * explicitly before a middleware function resolves, and `done()` was also
@@ -87,10 +97,12 @@ export function withMiddleware<
 >(
   handler: NextApiHandler | undefined,
   {
+    descriptor,
     use,
     useOnError,
     options
   }: {
+    descriptor: MiddlewareContext['runtime']['endpoint']['descriptor'];
     use: Middleware<NoInfer<Options>>[];
     useOnError?: Middleware<NoInfer<Options>>[];
     options?: Partial<MiddlewareContext<NoInfer<Options>>['options']> &
@@ -109,6 +121,9 @@ export function withMiddleware<
     /* istanbul ignore next */
     const middlewareContext: MiddlewareContext<NoInfer<Options>> = {
       runtime: {
+        endpoint: {
+          descriptor
+        },
         next: () => toss(new Error('runtime.next was called unexpectedly')),
         done: () => toss(new Error('runtime.done was called unexpectedly')),
         error: undefined
@@ -333,7 +348,8 @@ export function middlewareFactory<
 }) {
   return <PassedOptions extends Record<string, unknown> = Record<string, unknown>>(
     handler: NextApiHandler | undefined,
-    params?: {
+    params: {
+      descriptor: MiddlewareContext['runtime']['endpoint']['descriptor'];
       prependUse?: Middleware<NoInfer<Options>>[];
       appendUse?: Middleware<NoInfer<Options>>[];
       prependUseOnError?: Middleware<NoInfer<Options>>[];
@@ -343,6 +359,7 @@ export function middlewareFactory<
     }
   ) => {
     const {
+      descriptor,
       prependUse,
       appendUse,
       prependUseOnError,
@@ -351,6 +368,7 @@ export function middlewareFactory<
     } = { ...params };
 
     return withMiddleware<NoInfer<Options> & NoInfer<PassedOptions>>(handler, {
+      descriptor,
       use: [...(prependUse || []), ...defaultUse, ...(appendUse || [])],
       useOnError: [
         ...(prependUseOnError || []),

@@ -29,6 +29,7 @@ describe('::withMiddleware', () => {
 
     expect(() =>
       withMiddleware(async () => undefined, {
+        descriptor: '/fake',
         use: [],
         // @ts-expect-error: testing bad param
         useOnError: true
@@ -39,9 +40,10 @@ describe('::withMiddleware', () => {
   it('rejects requests that are too big when exporting config (next.js)', async () => {
     expect.hasAssertions();
 
-    const handler = withMiddleware(noopHandler, { use: [] }) as ReturnType<
-      typeof withMiddleware
-    > & { config: NextConfig };
+    const handler = withMiddleware(noopHandler, {
+      descriptor: '/fake',
+      use: []
+    }) as ReturnType<typeof withMiddleware> & { config: NextConfig };
 
     handler.config = {
       api: {
@@ -76,7 +78,7 @@ describe('::withMiddleware', () => {
         async (req, res) => {
           res.status(req.headers.key == '1234' ? 200 : 555).send({});
         },
-        { use: [] }
+        { descriptor: '/fake', use: [] }
       ),
       test: async ({ fetch }) =>
         expect((await fetch({ headers: { KEY: '1234' } })).status).toBe(200)
@@ -96,7 +98,7 @@ describe('::withMiddleware', () => {
           expect(req.query).toStrictEqual({ some: 'url', yes: '' });
           res.status(200).send({});
         },
-        { use: [] }
+        { descriptor: '/fake', use: [] }
       ),
       test: async ({ fetch }) => {
         expect((await fetch()).status).toBe(200);
@@ -111,7 +113,10 @@ describe('::withMiddleware', () => {
 
     await testApiHandler({
       rejectOnHandlerError: true,
-      handler: withMiddleware(noopHandler, { use: [middleware] }),
+      handler: withMiddleware(noopHandler, {
+        descriptor: '/fake',
+        use: [middleware]
+      }),
       test: async ({ fetch }) => {
         expect((await fetch()).status).toBe(200);
         expect(middleware).toBeCalledTimes(1);
@@ -126,7 +131,7 @@ describe('::withMiddleware', () => {
 
     await testApiHandler({
       rejectOnHandlerError: true,
-      handler: withMiddleware(noopHandler, { use: middleware }),
+      handler: withMiddleware(noopHandler, { descriptor: '/fake', use: middleware }),
       test: async ({ fetch }) => {
         expect((await fetch()).status).toBe(200);
         middleware.forEach((m) => expect(m).toBeCalledTimes(1));
@@ -144,7 +149,7 @@ describe('::withMiddleware', () => {
 
     await testApiHandler({
       rejectOnHandlerError: true,
-      handler: withMiddleware(handler, { use: [middleware] }),
+      handler: withMiddleware(handler, { descriptor: '/fake', use: [middleware] }),
       test: async ({ fetch }) => {
         await fetch();
         expect(middleware).toBeCalledTimes(1);
@@ -160,7 +165,7 @@ describe('::withMiddleware', () => {
 
     await testApiHandler({
       rejectOnHandlerError: true,
-      handler: withMiddleware(handler, { use: [] }),
+      handler: withMiddleware(handler, { descriptor: '/fake', use: [] }),
       test: async ({ fetch }) => {
         await fetch();
         expect(handler).toBeCalledTimes(1);
@@ -174,10 +179,33 @@ describe('::withMiddleware', () => {
     await testApiHandler({
       rejectOnHandlerError: true,
       // @ts-expect-error: bad handler
-      handler: withMiddleware(true, { use: [(_, res) => res.status(200).end()] }),
+      handler: withMiddleware(true, {
+        descriptor: '/fake',
+        use: [(_, res) => res.status(200).end()]
+      }),
       test: async ({ fetch }) => {
-        await fetch();
         expect((await fetch()).status).toBe(200);
+      }
+    });
+  });
+
+  it('populates runtime.endpoint with endpoint metadata if available', async () => {
+    expect.hasAssertions();
+
+    await testApiHandler({
+      rejectOnHandlerError: true,
+      handler: withMiddleware(undefined, {
+        descriptor: '/fake/:path',
+        use: [
+          (_, res, ctx) => res.status(200).send({ endpoint: ctx.runtime.endpoint })
+        ]
+      }),
+      test: async ({ fetch }) => {
+        await expect((await fetch()).json()).resolves.toStrictEqual({
+          endpoint: {
+            descriptor: '/fake/:path'
+          }
+        });
       }
     });
   });
@@ -189,7 +217,10 @@ describe('::withMiddleware', () => {
 
     await testApiHandler({
       rejectOnHandlerError: true,
-      handler: withMiddleware(handler, { use: [(_, __, ctx) => ctx.runtime.done()] }),
+      handler: withMiddleware(handler, {
+        descriptor: '/fake',
+        use: [(_, __, ctx) => ctx.runtime.done()]
+      }),
       test: async ({ fetch }) => {
         await fetch();
         expect(handler).toBeCalledTimes(0);
@@ -200,10 +231,11 @@ describe('::withMiddleware', () => {
       await expect(
         testApiHandler({
           rejectOnHandlerError: true,
-          handler: withMiddleware(handler, { use: [() => toss(new Error('bad'))] }),
-          test: async ({ fetch }) => {
-            await fetch();
-          }
+          handler: withMiddleware(handler, {
+            descriptor: '/fake',
+            use: [() => toss(new Error('bad'))]
+          }),
+          test: async ({ fetch }) => void (await fetch())
         })
       ).rejects.toMatchObject({ message: 'bad' });
 
@@ -216,7 +248,7 @@ describe('::withMiddleware', () => {
 
     await testApiHandler({
       rejectOnHandlerError: true,
-      handler: withMiddleware(undefined, { use: [] }),
+      handler: withMiddleware(undefined, { descriptor: '/fake', use: [] }),
       test: async ({ fetch }) => expect((await fetch()).status).toBe(501)
     });
   });
@@ -226,7 +258,10 @@ describe('::withMiddleware', () => {
 
     await testApiHandler({
       rejectOnHandlerError: true,
-      handler: withMiddleware(async () => undefined, { use: [] }),
+      handler: withMiddleware(async () => undefined, {
+        descriptor: '/fake',
+        use: []
+      }),
       test: async ({ fetch }) => expect((await fetch()).status).toBe(501)
     });
   });
@@ -241,6 +276,7 @@ describe('::withMiddleware', () => {
         testApiHandler({
           rejectOnHandlerError: true,
           handler: withMiddleware(noopHandler, {
+            descriptor: '/fake',
             use: [
               (_, __, ctx) => expect(ctx.runtime.error).toBeUndefined(),
               (_, __, ctx) => expect(ctx.runtime.error).toBeUndefined(),
@@ -266,6 +302,7 @@ describe('::withMiddleware', () => {
       await testApiHandler({
         rejectOnHandlerError: true,
         handler: withMiddleware(noopHandler, {
+          descriptor: '/fake',
           use: [() => toss(new Error('error'))],
           useOnError: [middleware, (_, res) => res.end()]
         }),
@@ -286,6 +323,7 @@ describe('::withMiddleware', () => {
       await testApiHandler({
         rejectOnHandlerError: true,
         handler: withMiddleware(noopHandler, {
+          descriptor: '/fake',
           use: [() => toss(new Error('error'))],
           useOnError: middleware
         }),
@@ -306,6 +344,7 @@ describe('::withMiddleware', () => {
       await testApiHandler({
         rejectOnHandlerError: true,
         handler: withMiddleware(() => toss(new Error('error')), {
+          descriptor: '/fake',
           use: [],
           useOnError: [middleware, (_, res) => res.end()]
         }),
@@ -326,6 +365,7 @@ describe('::withMiddleware', () => {
       await testApiHandler({
         rejectOnHandlerError: true,
         handler: withMiddleware(() => toss(new Error('error')), {
+          descriptor: '/fake',
           use: [],
           useOnError: middleware
         }),
@@ -346,6 +386,7 @@ describe('::withMiddleware', () => {
       await testApiHandler({
         rejectOnHandlerError: true,
         handler: withMiddleware(noopHandler, {
+          descriptor: '/fake',
           use: [(_, __, ctx) => ctx.runtime.done(), middleware, middleware],
           useOnError: [(_, __, ctx) => ctx.runtime.done(), middleware, middleware]
         }),
@@ -359,12 +400,11 @@ describe('::withMiddleware', () => {
         testApiHandler({
           rejectOnHandlerError: true,
           handler: withMiddleware(noopHandler, {
+            descriptor: '/fake',
             use: [() => toss(new Error('bad')), middleware, middleware],
             useOnError: [() => toss(new Error('bad')), middleware, middleware]
           }),
-          test: async ({ fetch }) => {
-            await fetch();
-          }
+          test: async ({ fetch }) => void (await fetch())
         })
       ).toReject();
 
@@ -380,12 +420,11 @@ describe('::withMiddleware', () => {
         testApiHandler({
           rejectOnHandlerError: true,
           handler: withMiddleware(undefined, {
+            descriptor: '/fake',
             use: [() => toss(new Error('bad'))],
             useOnError: [() => toss(new Error('worse'))]
           }),
-          test: async ({ fetch }) => {
-            await fetch();
-          }
+          test: async ({ fetch }) => void (await fetch())
         })
       ).rejects.toMatchObject({ message: 'worse' });
     });
@@ -399,12 +438,11 @@ describe('::withMiddleware', () => {
         testApiHandler({
           rejectOnHandlerError: true,
           handler: withMiddleware(undefined, {
+            descriptor: '/fake',
             use: [() => toss(new Error('bad'))],
             useOnError: []
           }),
-          test: async ({ fetch }) => {
-            await fetch();
-          }
+          test: async ({ fetch }) => void (await fetch())
         })
       ).rejects.toMatchObject({ message: 'bad' });
     });
@@ -418,12 +456,11 @@ describe('::withMiddleware', () => {
         testApiHandler({
           rejectOnHandlerError: true,
           handler: withMiddleware(undefined, {
+            descriptor: '/fake',
             use: [() => toss(new Error('bad'))],
             useOnError: [() => undefined]
           }),
-          test: async ({ fetch }) => {
-            await fetch();
-          }
+          test: async ({ fetch }) => void (await fetch())
         })
       ).rejects.toMatchObject({ message: 'bad' });
     });
@@ -461,6 +498,7 @@ describe('::withMiddleware', () => {
             },
             {
               options: { callDoneOnEnd: false },
+              descriptor: '/fake',
               use: [
                 (_req, _res, { runtime }) => {
                   next = runtime.next;
@@ -513,6 +551,7 @@ describe('::withMiddleware', () => {
           testApiHandler({
             rejectOnHandlerError: true,
             handler: withMiddleware(undefined, {
+              descriptor: '/fake',
               use: [
                 (_req, _res, { runtime }) => {
                   next = runtime.next;
@@ -538,9 +577,7 @@ describe('::withMiddleware', () => {
                 }
               ]
             }),
-            test: async ({ fetch }) => {
-              await fetch();
-            }
+            test: async ({ fetch }) => void (await fetch())
           })
         ).rejects.toMatchObject({ message: 'aborted again' });
 
@@ -567,6 +604,7 @@ describe('::withMiddleware', () => {
         await testApiHandler({
           rejectOnHandlerError: true,
           handler: withMiddleware(undefined, {
+            descriptor: '/fake',
             use: [
               async (_req, res, { runtime: { next } }) => {
                 await next();
@@ -605,6 +643,7 @@ describe('::withMiddleware', () => {
         await testApiHandler({
           rejectOnHandlerError: true,
           handler: withMiddleware(undefined, {
+            descriptor: '/fake',
             use: [
               async (_req, _res, { runtime: { next } }) => {
                 await next();
@@ -662,6 +701,7 @@ describe('::withMiddleware', () => {
         await testApiHandler({
           rejectOnHandlerError: true,
           handler: withMiddleware(undefined, {
+            descriptor: '/fake',
             use: [
               // @ts-expect-error: bad middleware value
               'bad',
@@ -693,6 +733,7 @@ describe('::withMiddleware', () => {
     await testApiHandler({
       rejectOnHandlerError: true,
       handler: withMiddleware(undefined, {
+        descriptor: '/fake',
         use: [(_, res) => res.status(404).end(), middleware],
         options: { callDoneOnEnd: false }
       }),
@@ -705,6 +746,7 @@ describe('::withMiddleware', () => {
     await testApiHandler({
       rejectOnHandlerError: true,
       handler: withMiddleware(undefined, {
+        descriptor: '/fake',
         use: [(_, res) => res.status(403).end(), middleware],
         options: { callDoneOnEnd: true }
       }),
@@ -725,6 +767,7 @@ describe('::withMiddleware', () => {
         await testApiHandler({
           rejectOnHandlerError: true,
           handler: withMiddleware(undefined, {
+            descriptor: '/fake',
             use: [
               async (_, res, { runtime: { done } }) => {
                 done();
@@ -742,6 +785,7 @@ describe('::withMiddleware', () => {
         await testApiHandler({
           rejectOnHandlerError: true,
           handler: withMiddleware(undefined, {
+            descriptor: '/fake',
             use: [
               async () => {
                 throw new Error('contrived');
@@ -784,6 +828,7 @@ describe('::withMiddleware', () => {
               expect(stdErrSpy).toBeCalledWith(skippedMessage);
             },
             {
+              descriptor: '/fake',
               use: []
             }
           ),
@@ -815,6 +860,7 @@ describe('::withMiddleware', () => {
               expect(stdErrSpy).not.toBeCalledWith(skippedMessage);
             },
             {
+              descriptor: '/fake',
               use: []
             }
           ),
@@ -853,6 +899,7 @@ describe('::withMiddleware', () => {
     });
 
     withMiddleware<myMiddlewareOptions>(undefined, {
+      descriptor: '/fake',
       use: [myMiddleware]
       // TODO: improve TypeScript skills to enforce required options here
     });
@@ -881,10 +928,12 @@ describe('::withMiddleware', () => {
     });
 
     withMiddleware(undefined, {
+      descriptor: '/fake',
       use: [myPartialMiddleware]
     });
 
     withMiddleware<Partial<myMiddlewareOptions>>(undefined, {
+      descriptor: '/fake',
       use: [myPartialMiddleware],
       options: {}
     });
@@ -910,7 +959,9 @@ describe('::middlewareFactory', () => {
     const handler = middlewareFactory<myMiddlewareOptions>({
       use: [myMiddleware],
       options: { customOption }
-    })(undefined);
+    })(undefined, {
+      descriptor: '/fake'
+    });
 
     await testApiHandler({
       handler,
@@ -939,7 +990,10 @@ describe('::middlewareFactory', () => {
       handler: middlewareFactory<myMiddlewareOptions>({
         use: [myMiddleware],
         options: { customOption }
-      })(undefined, { prependUse: [(_, res) => res.status(201).send({ a: 1 })] }),
+      })(undefined, {
+        descriptor: '/fake',
+        prependUse: [(_, res) => res.status(201).send({ a: 1 })]
+      }),
       test: async ({ fetch }) => {
         const res = await fetch();
         expect(res.status).toBe(201);
@@ -950,7 +1004,10 @@ describe('::middlewareFactory', () => {
     await testApiHandler({
       handler: middlewareFactory({
         use: [(_, res) => void res.status(202)]
-      })(undefined, { appendUse: [(_, res) => res.send({ b: 1 })] }),
+      })(undefined, {
+        descriptor: '/fake',
+        appendUse: [(_, res) => res.send({ b: 1 })]
+      }),
       test: async ({ fetch }) => {
         const res = await fetch();
         expect(res.status).toBe(202);
@@ -963,6 +1020,7 @@ describe('::middlewareFactory', () => {
         use: [myMiddleware],
         options: { customOption }
       })(undefined, {
+        descriptor: '/fake',
         prependUse: [() => toss(new DummyError('bad bad not good'))],
         prependUseOnError: [(_, res) => void res.status(203)],
         appendUseOnError: [(_, res) => res.send({ c: 1 })]
@@ -996,22 +1054,34 @@ describe('::middlewareFactory', () => {
       res.status(200).send(customOption);
     };
 
-    // @ts-expect-error: MiddlewareContext != MiddlewareContext<myMiddlewareOptions>
-    middlewareFactory({ use: [myMiddleware] })(undefined);
+    middlewareFactory({
+      // @ts-expect-error: MiddlewareContext != MiddlewareContext<myMiddlewareOptions>
+      use: [myMiddleware]
+    })(undefined, {
+      descriptor: '/fake'
+    });
 
-    middlewareFactory<myMiddlewareOptions>({ use: [myMiddleware] })(undefined);
+    middlewareFactory<myMiddlewareOptions>({
+      use: [myMiddleware]
+    })(undefined, {
+      descriptor: '/fake'
+    });
 
     middlewareFactory<myMiddlewareOptions>({
       use: [myMiddleware],
       // @ts-expect-error: missing required property: customOption
       options: {}
-    })(undefined);
+    })(undefined, {
+      descriptor: '/fake'
+    });
 
     middlewareFactory<myMiddlewareOptions>({
       use: [myMiddleware],
       // @ts-expect-error: bad type for required property: customOption
       options: { customOption: 5 }
-    })(undefined);
+    })(undefined, {
+      descriptor: '/fake'
+    });
 
     middlewareFactory<myMiddlewareOptions & { anotherOpt: boolean }>({
       use: [
@@ -1022,20 +1092,27 @@ describe('::middlewareFactory', () => {
       ],
       // @ts-expect-error: missing required property: anotherOpt
       options: { customOption: true }
-    })(undefined);
-
-    middlewareFactory({
-      use: [myPartialMiddleware]
-    })(undefined);
-
-    middlewareFactory<Partial<myMiddlewareOptions>>({
-      use: [myPartialMiddleware],
-      options: {}
-    })(undefined);
+    })(undefined, {
+      descriptor: '/fake'
+    });
 
     middlewareFactory({
       use: [myPartialMiddleware]
     })(undefined, {
+      descriptor: '/fake'
+    });
+
+    middlewareFactory<Partial<myMiddlewareOptions>>({
+      use: [myPartialMiddleware],
+      options: {}
+    })(undefined, {
+      descriptor: '/fake'
+    });
+
+    middlewareFactory({
+      use: [myPartialMiddleware]
+    })(undefined, {
+      descriptor: '/fake',
       // @ts-expect-error: MiddlewareContext != MiddlewareContext<myMiddlewareOptions>
       appendUse: [myMiddleware]
     });
@@ -1043,6 +1120,7 @@ describe('::middlewareFactory', () => {
     middlewareFactory({
       use: [myPartialMiddleware]
     })(undefined, {
+      descriptor: '/fake',
       appendUse: [myPartialMiddleware],
       appendUseOnError: [myPartialMiddleware]
     });
@@ -1050,6 +1128,7 @@ describe('::middlewareFactory', () => {
     middlewareFactory<myMiddlewareOptions>({
       use: [myPartialMiddleware]
     })(undefined, {
+      descriptor: '/fake',
       prependUse: [myMiddleware],
       prependUseOnError: [myMiddleware]
     });
@@ -1057,6 +1136,7 @@ describe('::middlewareFactory', () => {
     middlewareFactory<myMiddlewareOptions>({
       use: [myPartialMiddleware]
     })(undefined, {
+      descriptor: '/fake',
       // @ts-expect-error: bad type for required property: customOption
       options: { customOption: 5 }
     });
