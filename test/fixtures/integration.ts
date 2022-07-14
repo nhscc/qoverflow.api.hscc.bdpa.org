@@ -6,33 +6,13 @@ import debugFactory from 'debug';
 import { GuruMeditationError } from 'universe/error';
 import { getEnv } from 'universe/backend/env';
 
-import {
-  toPublicUser,
-  toPublicAnswer,
-  toPublicComment,
-  toPublicMail,
-  toPublicQuestion
-} from 'universe/backend/db';
+import { toPublicUser } from 'universe/backend/db';
 
 import { dummyAppData } from 'testverse/db';
 
 import type { Promisable } from 'type-fest';
 
-import type {
-  NewUser,
-  PatchUser,
-  PublicUser,
-  NewAnswer,
-  PatchAnswer,
-  PublicAnswer,
-  NewComment,
-  PublicComment,
-  NewMail,
-  PublicMail,
-  NewQuestion,
-  PatchQuestion,
-  PublicQuestion
-} from 'universe/backend/db';
+import type { NewUser, PatchUser, PublicUser } from 'universe/backend/db';
 
 import type { NextApiHandlerMixin } from 'testverse/fixtures';
 
@@ -481,7 +461,7 @@ export function getFixtures(
       handler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'baracko' },
-      body: {},
+      body: { key: undefined },
       response: { status: 403 }
     },
     {
@@ -1062,6 +1042,13 @@ export function getFixtures(
     {
       subject:
         'search for questions that regex-match, match, and complex match simultaneously'
+      // TODO: search for questions that regex-match a text and a title
+      // TODO: fragment, match a specific creator, and were created between two
+      // TODO: specific points in time
+    },
+    {
+      subject:
+        'verify "after" parameter returns expected questions given previous result'
       // TODO: search for questions that regex-match a text and a title
       // TODO: fragment, match a specific creator, and were created between two
       // TODO: specific points in time
