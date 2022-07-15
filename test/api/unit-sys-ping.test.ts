@@ -7,7 +7,7 @@ import { testApiHandler } from 'next-test-api-route-handler';
 
 import Endpoint, { config as Config } from 'universe/pages/api/sys/ping';
 
-import type { InternalAuthBearerEntry, TokenAttributes } from 'multiverse/next-auth';
+import type { InternalAuthBearerEntry } from 'multiverse/next-auth';
 
 const handler = Endpoint as typeof Endpoint & { config?: typeof Config };
 handler.config = Config;
@@ -53,7 +53,7 @@ describe('middleware correctness tests', () => {
       .collection<InternalAuthBearerEntry>('auth')
       .updateOne(
         { token: { bearer: BANNED_BEARER_TOKEN } },
-        { $set: { attributes: { isGlobalAdmin: true } as TokenAttributes } }
+        { $set: { 'attributes.isGlobalAdmin': true } }
       );
 
     await testApiHandler({
