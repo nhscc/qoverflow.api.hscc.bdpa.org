@@ -538,7 +538,7 @@ const invoked = async () => {
 
       outputStrings.push(
         `   fastest: ${
-          requestPercentiles?.fastest
+          requestPercentiles?.fastest !== undefined
             ? `${requestPercentiles.fastest}ms`
             : '<unknown>'
         }`
@@ -546,7 +546,7 @@ const invoked = async () => {
 
       outputStrings.push(
         `     50%<=: ${
-          requestPercentiles?.percentile_50
+          requestPercentiles?.percentile_50 !== undefined
             ? `${requestPercentiles.percentile_50}ms`
             : '<unknown>'
         }`
@@ -554,7 +554,7 @@ const invoked = async () => {
 
       outputStrings.push(
         `     90%<=: ${
-          requestPercentiles?.percentile_90
+          requestPercentiles?.percentile_90 !== undefined
             ? `${requestPercentiles.percentile_90}ms`
             : '<unknown>'
         }`
@@ -562,7 +562,7 @@ const invoked = async () => {
 
       outputStrings.push(
         `     95%<=: ${
-          requestPercentiles?.percentile_95
+          requestPercentiles?.percentile_95 !== undefined
             ? `${requestPercentiles.percentile_95}ms`
             : '<unknown>'
         }`
@@ -570,7 +570,7 @@ const invoked = async () => {
 
       outputStrings.push(
         `     99%<=: ${
-          requestPercentiles?.percentile_99
+          requestPercentiles?.percentile_99 !== undefined
             ? `${requestPercentiles.percentile_99}ms`
             : '<unknown>'
         }`
@@ -578,7 +578,7 @@ const invoked = async () => {
 
       outputStrings.push(
         `   99.9%<=: ${
-          requestPercentiles?.percentile_999
+          requestPercentiles?.percentile_999 !== undefined
             ? `${requestPercentiles.percentile_999}ms`
             : '<unknown>'
         }`
@@ -586,7 +586,7 @@ const invoked = async () => {
 
       outputStrings.push(
         `  99.99%<=: ${
-          requestPercentiles?.percentile_9999
+          requestPercentiles?.percentile_9999 !== undefined
             ? `${requestPercentiles.percentile_9999}ms`
             : '<unknown>'
         }`
@@ -594,7 +594,7 @@ const invoked = async () => {
 
       outputStrings.push(
         `   slowest: ${
-          requestPercentiles?.slowest
+          requestPercentiles?.slowest !== undefined
             ? `${requestPercentiles.slowest}ms`
             : '<unknown>'
         }`
