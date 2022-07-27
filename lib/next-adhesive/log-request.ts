@@ -38,6 +38,7 @@ export default async function (
         req,
         res,
         endpoint: context.runtime.endpoint.descriptor,
+        // @ts-expect-error: @types/node is broken... *sigh*
         durationMs: Math.floor(perf.measure(randomUUID(), perfUUID).duration)
       });
     }
