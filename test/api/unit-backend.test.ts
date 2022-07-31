@@ -812,11 +812,11 @@ describe('::updateUser', () => {
       ],
       [
         { points: {} as PointsUpdateOperation },
-        ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
+        ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
       ],
       [
         { points: { amount: 5 } as PointsUpdateOperation },
-        ErrorMessage.InvalidFieldValue('points.operation', 'decrement', [
+        ErrorMessage.InvalidFieldValue('operation', undefined, [
           'increment',
           'decrement'
         ])
@@ -828,21 +828,21 @@ describe('::updateUser', () => {
             op: 'decrement'
           } as unknown as PointsUpdateOperation
         },
-        ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
+        ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
       ],
       [
         { points: { op: 'decrement' } as PointsUpdateOperation },
-        ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
+        ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
       ],
       [
         { points: { amount: -1, op: 'decrement' } as PointsUpdateOperation },
-        ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
+        ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
       ],
       [
         {
           points: { amount: 5, op: 'nope' } as unknown as PointsUpdateOperation
         },
-        ErrorMessage.InvalidFieldValue('points.operation', 'decrement', [
+        ErrorMessage.InvalidFieldValue('operation', 'nope', [
           'increment',
           'decrement'
         ])
@@ -854,7 +854,7 @@ describe('::updateUser', () => {
             op: 'nope'
           } as unknown as PointsUpdateOperation
         },
-        ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
+        ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
       ],
       [
         {

@@ -539,11 +539,11 @@ export async function updateUser({
     if (isPlainObject(points)) {
       if (typeof points.amount != 'number' || points.amount < 0) {
         throw new ValidationError(
-          ErrorMessage.InvalidNumberValue('points.amount', 0, null, 'integer')
+          ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
         );
       } else if (!['increment', 'decrement'].includes(points.op as string)) {
         throw new ValidationError(
-          ErrorMessage.InvalidFieldValue('points.operation', 'decrement', [
+          ErrorMessage.InvalidFieldValue('operation', points.op, [
             'increment',
             'decrement'
           ])
