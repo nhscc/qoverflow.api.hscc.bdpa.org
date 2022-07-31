@@ -12,9 +12,9 @@ module.exports = {
     '@types/node-fetch',
     // ? Pin the CJS version of find-up
     'find-up',
-    // ? Pin the CJS version of find-up
+    // ? Pin the CJS version of chalk
     'chalk',
-    // ? Pin this until it gets unbroken... or maybe we'll just fork it
-    'request-ip'
+    // ? Pin the CJS version of auto-bind
+    'auto-bind'
   ]
 };
