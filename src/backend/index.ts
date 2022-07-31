@@ -435,11 +435,11 @@ export async function getUserAnswers({
 
   return (
     await Promise.all(
-      targetIdTuples.map(async ([question_id, answer_id]) => {
+      targetIdTuples.map(async ([questionId, answerId]) => {
         return selectAnswerFromDb<PublicAnswer>({
-          question_id,
-          answer_id,
-          projection: publicAnswerProjection
+          questionId,
+          answerId,
+          projection: publicAnswerProjection(questionId)
         });
       })
     )
@@ -1266,8 +1266,8 @@ export async function getAnswers({
   if (afterId) {
     try {
       void (await selectAnswerFromDb({
-        question_id: questionId,
-        answer_id: afterId,
+        questionId: questionId,
+        answerId: afterId,
         projection: vacuousProjection
       }));
     } catch (e) {
@@ -1304,7 +1304,7 @@ export async function getAnswers({
               ]
             },
             as: 'answer',
-            in: publicAnswerMap('answer')
+            in: publicAnswerMap('answer', questionId)
           }
         }
       }
@@ -1353,7 +1353,7 @@ export async function createAnswer({
   try {
     if (
       await selectAnswerFromDb({
-        question_id: questionId,
+        questionId: questionId,
         answer_creator: creator,
         projection: vacuousProjection
       })
@@ -1382,7 +1382,7 @@ export async function createAnswer({
   // * At this point, we can finally trust this data is not malicious, but not
   // * necessarily valid...
 
-  const result = await addAnswerToDb({ question_id: questionId, answer: newAnswer });
+  const result = await addAnswerToDb({ questionId: questionId, answer: newAnswer });
 
   if (!result.matchedCount) {
     throw new ItemNotFoundError(question_id, 'question');
@@ -1393,7 +1393,7 @@ export async function createAnswer({
     { $push: { answerIds: [questionId, newAnswer._id] } }
   );
 
-  return toPublicAnswer(newAnswer);
+  return toPublicAnswer(newAnswer, questionId);
 }
 
 export async function updateAnswer({
@@ -1462,8 +1462,8 @@ export async function updateAnswer({
 
   try {
     void (await selectAnswerFromDb({
-      question_id: questionId,
-      answer_id: answerId,
+      questionId: questionId,
+      answerId: answerId,
       projection: vacuousProjection
     }));
   } catch (e) {
@@ -1476,8 +1476,8 @@ export async function updateAnswer({
   }
 
   const result = await patchAnswerInDb({
-    question_id: questionId,
-    answer_id: answerId,
+    questionId: questionId,
+    answerId: answerId,
     updateOps: {
       $set: {
         ...(text ? { text } : {}),
@@ -1523,8 +1523,8 @@ export async function deleteAnswer({
   const { creator } = await (async () => {
     try {
       const result = await selectAnswerFromDb<{ creator: Username } | null>({
-        question_id: questionId,
-        answer_id: answerId,
+        questionId: questionId,
+        answerId: answerId,
         projection: { creator: true }
       });
 
@@ -1544,8 +1544,8 @@ export async function deleteAnswer({
   }
 
   await removeAnswerFromDb({
-    question_id: questionId,
-    answer_id: answerId
+    questionId: questionId,
+    answerId: answerId
   });
 
   await userDb.updateOne(
@@ -1576,8 +1576,8 @@ export async function getComments({
   if (answerId) {
     try {
       void (await selectAnswerFromDb({
-        question_id: questionId,
-        answer_id: answerId,
+        questionId: questionId,
+        answerId: answerId,
         projection: vacuousProjection
       }));
     } catch (e) {
@@ -1594,9 +1594,9 @@ export async function getComments({
   if (afterId) {
     try {
       await selectCommentFromDb({
-        question_id: questionId,
-        answer_id: answerId,
-        comment_id: afterId,
+        questionId: questionId,
+        answerId: answerId,
+        commentId: afterId,
         projection: vacuousProjection
       });
     } catch (e) {
@@ -1712,8 +1712,8 @@ export async function createComment({
   if (answerId) {
     try {
       await selectAnswerFromDb({
-        question_id: questionId,
-        answer_id: answerId,
+        questionId: questionId,
+        answerId: answerId,
         projection: vacuousProjection
       });
     } catch (e) {
@@ -1741,8 +1741,8 @@ export async function createComment({
   // * necessarily valid...
 
   const result = await addCommentToDb({
-    question_id: questionId,
-    ...(answerId ? { answer_id: answerId } : {}),
+    questionId: questionId,
+    ...(answerId ? { answerId: answerId } : {}),
     comment: newComment
   });
 
@@ -1777,8 +1777,8 @@ export async function deleteComment({
   if (answerId) {
     try {
       void (await selectAnswerFromDb({
-        question_id: questionId,
-        answer_id: answerId,
+        questionId: questionId,
+        answerId: answerId,
         projection: vacuousProjection
       }));
     } catch (e) {
@@ -1793,9 +1793,9 @@ export async function deleteComment({
 
   try {
     void (await selectCommentFromDb({
-      question_id: questionId,
-      answer_id: answerId,
-      comment_id: commentId,
+      questionId: questionId,
+      answerId: answerId,
+      commentId: commentId,
       projection: vacuousProjection
     }));
   } catch (e) {
@@ -1808,9 +1808,9 @@ export async function deleteComment({
   }
 
   const result = await removeCommentFromDb({
-    question_id: questionId,
-    answer_id: answerId,
-    comment_id: commentId
+    questionId: questionId,
+    answerId: answerId,
+    commentId: commentId
   });
 
   if (!result.matchedCount) {
@@ -1852,8 +1852,8 @@ export async function getHowUserVoted({
   if (answerId) {
     try {
       const result = await selectAnswerFromDb<VoterStatusResult>({
-        question_id: questionId,
-        answer_id: answerId,
+        questionId: questionId,
+        answerId: answerId,
         // ? If we're interested in a comment, only do an existence check
         projection: commentId ? vacuousProjection : voterStatusProjection(username)
       });
@@ -1877,9 +1877,9 @@ export async function getHowUserVoted({
   if (commentId) {
     try {
       const result = await selectCommentFromDb<VoterStatusResult>({
-        question_id: questionId,
-        answer_id: answerId,
-        comment_id: commentId,
+        questionId: questionId,
+        answerId: answerId,
+        commentId: commentId,
         projection: voterStatusProjection(username)
       });
 
@@ -2014,8 +2014,8 @@ export async function applyVotesUpdateOperation({
   if (answerId) {
     try {
       const result = await selectAnswerFromDb<SelectResult>({
-        question_id: questionId,
-        answer_id: answerId,
+        questionId: questionId,
+        answerId: answerId,
         projection: selectResultProjection(username)
       });
 
@@ -2026,8 +2026,8 @@ export async function applyVotesUpdateOperation({
 
       if (!commentId) {
         return void (await patchAnswerInDb({
-          question_id: questionId,
-          answer_id: answerId,
+          questionId: questionId,
+          answerId: answerId,
           updateOps: calculateUpdateOps({ includeSorter: false })
         }));
       }
@@ -2044,18 +2044,18 @@ export async function applyVotesUpdateOperation({
   if (commentId) {
     try {
       const result = await selectCommentFromDb<SelectResult>({
-        question_id: questionId,
-        answer_id: answerId,
-        comment_id: commentId,
+        questionId: questionId,
+        answerId: answerId,
+        commentId: commentId,
         projection: selectResultProjection(username)
       });
 
       validateOperationAuthorization(result, { skip: false });
 
       return void (await patchCommentInDb({
-        question_id: questionId,
-        answer_id: answerId,
-        comment_id: commentId,
+        questionId: questionId,
+        answerId: answerId,
+        commentId: commentId,
         updateOps: calculateUpdateOps({ includeSorter: false })
       }));
     } catch (e) {

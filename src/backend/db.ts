@@ -119,7 +119,7 @@ export type InternalUser = WithId<{
   key: string;
   points: number;
   questionIds: QuestionId[];
-  answerIds: [question_id: QuestionId, answer_id: AnswerId][];
+  answerIds: [questionId: QuestionId, answerId: AnswerId][];
 }>;
 
 /**
@@ -294,6 +294,7 @@ export type PublicAnswer = Omit<
   'upvoterUsernames' | 'downvoterUsernames' | 'commentItems'
 > & {
   answer_id: string;
+  question_id: string;
   comments: number;
 };
 
@@ -408,9 +409,13 @@ export function toPublicQuestion(internalQuestion: InternalQuestion): PublicQues
 /**
  * Transforms an internal answer into a public answer.
  */
-export function toPublicAnswer(internalAnswer: InternalAnswer): PublicAnswer {
+export function toPublicAnswer(
+  internalAnswer: InternalAnswer,
+  questionId: QuestionId
+): PublicAnswer {
   return {
     answer_id: internalAnswer._id.toString(),
+    question_id: questionId.toString(),
     creator: internalAnswer.creator,
     createdAt: internalAnswer.createdAt,
     accepted: internalAnswer.accepted,
@@ -487,25 +492,28 @@ export const publicQuestionProjection = {
  * A MongoDB cursor projection that transforms an internal answer into a public
  * answer.
  */
-export const publicAnswerProjection = {
-  _id: false,
-  answer_id: { $toString: '$_id' },
-  creator: true,
-  createdAt: true,
-  accepted: true,
-  text: true,
-  upvotes: true,
-  downvotes: true,
-  comments: { $size: '$commentItems' }
-} as const;
+export const publicAnswerProjection = (questionId: QuestionId) =>
+  ({
+    _id: false,
+    answer_id: { $toString: '$_id' },
+    question_id: questionId.toString(),
+    creator: true,
+    createdAt: true,
+    accepted: true,
+    text: true,
+    upvotes: true,
+    downvotes: true,
+    comments: { $size: '$commentItems' }
+  } as const);
 
 /**
  * A MongoDB aggregation expression that maps an internal answer into a public
  * answer.
  */
-export const publicAnswerMap = (variable: string) =>
+export const publicAnswerMap = (variable: string, questionId: QuestionId) =>
   ({
     answer_id: { $toString: `$$${variable}._id` },
+    question_id: questionId.toString(),
     creator: `$$${variable}.creator`,
     createdAt: `$$${variable}.createdAt`,
     accepted: `$$${variable}.accepted`,
@@ -608,31 +616,28 @@ export function selectResultProjection(username: Username) {
 }
 
 async function genericSelectAggregation<T>({
-  question_id,
-  answer_id,
+  questionId,
+  answerId,
   answer_creator,
-  comment_id,
+  commentId,
   projection
 }: {
-  question_id: QuestionId | undefined;
-  answer_id: AnswerId | undefined;
+  questionId: QuestionId | undefined;
+  answerId: AnswerId | undefined;
   answer_creator?: Username | undefined;
-  comment_id: CommentId | undefined;
+  commentId: CommentId | undefined;
   projection: Projection | undefined;
 }): Promise<T> {
   /* istanbul ignore next */
-  if (
-    (!answer_id && !answer_creator && !comment_id) ||
-    (answer_id && answer_creator)
-  ) {
+  if ((!answerId && !answer_creator && !commentId) || (answerId && answer_creator)) {
     throw new GuruMeditationError('illegal parameter combination');
   }
 
   return (await getDb({ name: 'hscc-api-qoverflow' }))
     .collection<InternalQuestion>('questions')
     .aggregate([
-      { $match: { _id: question_id } },
-      ...(answer_id || answer_creator
+      { $match: { _id: questionId } },
+      ...(answerId || answer_creator
         ? [
             {
               $project: {
@@ -643,7 +648,7 @@ async function genericSelectAggregation<T>({
                       as: 'answer',
                       cond: answer_creator
                         ? { $eq: ['$$answer.creator', answer_creator] }
-                        : { $eq: ['$$answer._id', answer_id] }
+                        : { $eq: ['$$answer._id', answerId] }
                     }
                   }
                 }
@@ -654,7 +659,7 @@ async function genericSelectAggregation<T>({
             }
           ]
         : []),
-      ...(comment_id
+      ...(commentId
         ? [
             {
               $project: {
@@ -663,7 +668,7 @@ async function genericSelectAggregation<T>({
                     $filter: {
                       input: '$commentItems',
                       as: 'comment',
-                      cond: { $eq: ['$$comment._id', comment_id] }
+                      cond: { $eq: ['$$comment._id', commentId] }
                     }
                   }
                 }
@@ -684,21 +689,21 @@ async function genericSelectAggregation<T>({
  * a projection to the result.
  */
 export async function selectAnswerFromDb<T = InternalAnswer | null>({
-  question_id,
-  answer_id,
+  questionId,
+  answerId,
   answer_creator,
   projection
 }: {
-  question_id: QuestionId;
-  answer_id?: AnswerId;
+  questionId: QuestionId;
+  answerId?: AnswerId;
   answer_creator?: Username;
   projection?: Projection;
 }): Promise<T> {
   return genericSelectAggregation<T>({
-    question_id,
-    answer_id,
+    questionId: questionId,
+    answerId: answerId,
     answer_creator,
-    comment_id: undefined,
+    commentId: undefined,
     projection
   });
 }
@@ -708,20 +713,20 @@ export async function selectAnswerFromDb<T = InternalAnswer | null>({
  * a projection to the result.
  */
 export async function selectCommentFromDb<T = InternalComment | null>({
-  question_id,
-  answer_id,
-  comment_id,
+  questionId,
+  answerId,
+  commentId,
   projection
 }: {
-  question_id: QuestionId;
-  answer_id?: AnswerId;
-  comment_id: CommentId;
+  questionId: QuestionId;
+  answerId?: AnswerId;
+  commentId: CommentId;
   projection?: Projection;
 }): Promise<T> {
   return genericSelectAggregation<T>({
-    question_id,
-    answer_id,
-    comment_id,
+    questionId: questionId,
+    answerId: answerId,
+    commentId: commentId,
     projection
   });
 }
@@ -730,16 +735,16 @@ export async function selectCommentFromDb<T = InternalComment | null>({
  * Adds a nested answer object to a question document.
  */
 export async function addAnswerToDb({
-  question_id,
+  questionId,
   answer
 }: {
-  question_id: QuestionId;
+  questionId: QuestionId;
   answer: InternalAnswer;
 }) {
   return (await getDb({ name: 'hscc-api-qoverflow' }))
     .collection<InternalQuestion>('questions')
     .updateOne(
-      { _id: question_id },
+      { _id: questionId },
       {
         $inc: { answers: 1, 'sorter.uvac': 1 },
         $push: { answerItems: answer }
@@ -751,27 +756,27 @@ export async function addAnswerToDb({
  * Adds a nested comment object to a question document.
  */
 export async function addCommentToDb({
-  question_id,
-  answer_id,
+  questionId,
+  answerId,
   comment
 }: {
-  question_id: QuestionId;
-  answer_id?: AnswerId;
+  questionId: QuestionId;
+  answerId?: AnswerId;
   comment: InternalComment;
 }) {
   const db = (
     await getDb({ name: 'hscc-api-qoverflow' })
   ).collection<InternalQuestion>('questions');
 
-  if (answer_id) {
+  if (answerId) {
     return db.updateOne(
-      { _id: question_id },
+      { _id: questionId },
       { $push: { 'answerItems.$[answer].commentItems': comment } },
-      { arrayFilters: [{ 'answer._id': answer_id }] }
+      { arrayFilters: [{ 'answer._id': answerId }] }
     );
   } else {
     return db.updateOne(
-      { _id: question_id },
+      { _id: questionId },
       {
         $inc: { comments: 1, 'sorter.uvc': 1, 'sorter.uvac': 1 },
         $push: { commentItems: comment }
@@ -802,20 +807,20 @@ function translateToFlatUpdateOps(updateOps: Document, predicate: string) {
  * Patches a nested answer object in a question document.
  */
 export async function patchAnswerInDb({
-  question_id,
-  answer_id,
+  questionId,
+  answerId,
   updateOps
 }: {
-  question_id: QuestionId;
-  answer_id: AnswerId;
+  questionId: QuestionId;
+  answerId: AnswerId;
   updateOps: Document;
 }) {
   return (await getDb({ name: 'hscc-api-qoverflow' }))
     .collection<InternalQuestion>('questions')
     .updateOne(
-      { _id: question_id },
+      { _id: questionId },
       translateToFlatUpdateOps(updateOps, 'answerItems.$[answer]'),
-      { arrayFilters: [{ 'answer._id': answer_id }] }
+      { arrayFilters: [{ 'answer._id': answerId }] }
     );
 }
 
@@ -823,34 +828,34 @@ export async function patchAnswerInDb({
  * Patches a nested comment object in a question document.
  */
 export async function patchCommentInDb({
-  question_id,
-  answer_id,
-  comment_id,
+  questionId,
+  answerId,
+  commentId,
   updateOps
 }: {
-  question_id: QuestionId;
-  answer_id?: AnswerId;
-  comment_id: CommentId;
+  questionId: QuestionId;
+  answerId?: AnswerId;
+  commentId: CommentId;
   updateOps: Document;
 }) {
   const db = (
     await getDb({ name: 'hscc-api-qoverflow' })
   ).collection<InternalQuestion>('questions');
 
-  if (answer_id) {
+  if (answerId) {
     return db.updateOne(
-      { _id: question_id },
+      { _id: questionId },
       translateToFlatUpdateOps(
         updateOps,
         'answerItems.$[answer].commentItems.$[comment]'
       ),
-      { arrayFilters: [{ 'answer._id': answer_id }, { 'comment._id': comment_id }] }
+      { arrayFilters: [{ 'answer._id': answerId }, { 'comment._id': commentId }] }
     );
   } else {
     return db.updateOne(
-      { _id: question_id },
+      { _id: questionId },
       translateToFlatUpdateOps(updateOps, 'commentItems.$[comment]'),
-      { arrayFilters: [{ 'comment._id': comment_id }] }
+      { arrayFilters: [{ 'comment._id': commentId }] }
     );
   }
 }
@@ -859,19 +864,19 @@ export async function patchCommentInDb({
  * Deletes a nested answer object from a question document.
  */
 export async function removeAnswerFromDb({
-  question_id,
-  answer_id
+  questionId,
+  answerId
 }: {
-  question_id: QuestionId;
-  answer_id: AnswerId;
+  questionId: QuestionId;
+  answerId: AnswerId;
 }) {
   return (await getDb({ name: 'hscc-api-qoverflow' }))
     .collection<InternalQuestion>('questions')
     .updateOne(
-      { _id: question_id },
+      { _id: questionId },
       {
         $inc: { answers: -1, 'sorter.uvac': -1 },
-        $pull: { answerItems: { _id: answer_id } }
+        $pull: { answerItems: { _id: answerId } }
       }
     );
 }
@@ -880,30 +885,30 @@ export async function removeAnswerFromDb({
  * Deletes a nested comment object from a question document.
  */
 export async function removeCommentFromDb({
-  question_id,
-  answer_id,
-  comment_id
+  questionId,
+  answerId,
+  commentId
 }: {
-  question_id: QuestionId;
-  answer_id?: AnswerId;
-  comment_id: CommentId;
+  questionId: QuestionId;
+  answerId?: AnswerId;
+  commentId: CommentId;
 }) {
   const db = (
     await getDb({ name: 'hscc-api-qoverflow' })
   ).collection<InternalQuestion>('questions');
 
-  if (answer_id) {
+  if (answerId) {
     return db.updateOne(
-      { _id: question_id },
-      { $pull: { 'answerItems.$[answer].commentItems': { _id: comment_id } } },
-      { arrayFilters: [{ 'answer._id': answer_id }] }
+      { _id: questionId },
+      { $pull: { 'answerItems.$[answer].commentItems': { _id: commentId } } },
+      { arrayFilters: [{ 'answer._id': answerId }] }
     );
   } else {
     return db.updateOne(
-      { _id: question_id },
+      { _id: questionId },
       {
         $inc: { comments: -1, 'sorter.uvc': -1, 'sorter.uvac': -1 },
-        $pull: { commentItems: { _id: comment_id } }
+        $pull: { commentItems: { _id: commentId } }
       }
     );
   }
