@@ -10,6 +10,7 @@ import type { Environment } from 'multiverse/next-env';
 // eslint-disable-next-line @typescript-eslint/ban-types
 export function getEnv<T extends Environment = Environment>() {
   const env = getDefaultEnv({
+    STACKAPPS_AUTH_KEY: process.env.STACKAPPS_AUTH_KEY || null,
     MAX_PARAMS_PER_REQUEST: Number(process.env.MAX_PARAMS_PER_REQUEST) || 100,
     MIN_USER_NAME_LENGTH: Number(process.env.MIN_USER_NAME_LENGTH) || 4,
     MAX_USER_NAME_LENGTH: Number(process.env.MAX_USER_NAME_LENGTH) || 16,
