@@ -241,7 +241,7 @@ const commitApiDataToDb = async (data: Data | null) => {
                 };
               }),
               title: decodeEntities(question.title),
-              'title-lowercase': decodedTitle
+              'title-lowercase': decodedTitle.toLowerCase()
             };
           })
         )
