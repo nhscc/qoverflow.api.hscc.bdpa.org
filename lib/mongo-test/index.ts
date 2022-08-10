@@ -13,7 +13,8 @@ import {
   initializeDb,
   destroyDb,
   closeClient,
-  getInitialInternalMemoryState
+  getInitialInternalMemoryState,
+  getAliasFromName
 } from 'multiverse/mongo-schema';
 
 import type { Document } from 'mongodb';
@@ -30,6 +31,7 @@ const debug = debugFactory('mongo-test:test-db');
 export type DummyData = {
   /**
    * The data inserted into each collection in the named database.
+   * `databaseName` can also be an alias.
    */
   [databaseName: string]: {
     /**
@@ -86,8 +88,37 @@ export async function hydrateDb({
 }) {
   const db = await getDb({ name });
   const nameActual = await getNameFromAlias(name);
+  const aliases = await getAliasFromName(nameActual);
+
   debug(`hydrating database ${nameActual}`);
-  const dummyData = (await getDummyData())[nameActual];
+
+  const rawDummyData = await getDummyData();
+  let dummyData = rawDummyData[nameActual];
+
+  if (aliases[0] != nameActual) {
+    const foundAliases = aliases.filter((alias) => !!rawDummyData[alias]);
+
+    if (foundAliases.length > 1) {
+      throw new InvalidAppConfigurationError(
+        `the following aliases have duplicate dummy data specifications (only one may exist): ${foundAliases.join(
+          ', '
+        )}`
+      );
+    }
+
+    const alias = foundAliases[0];
+
+    if (alias) {
+      if (dummyData) {
+        throw new InvalidAppConfigurationError(
+          `duplicate dummy data specifications for database "${nameActual}" and alias "${alias}"`
+        );
+      }
+
+      debug(`(using alias "${alias}")`);
+      dummyData = rawDummyData[alias];
+    }
+  }
 
   if (!dummyData) {
     throw new InvalidAppConfigurationError(

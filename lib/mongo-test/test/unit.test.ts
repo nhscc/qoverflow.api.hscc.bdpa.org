@@ -1,4 +1,3 @@
-/* eslint-disable jest/no-conditional-expect */
 import { asMockedFunction, asMockedClass } from '@xunnamius/jest-types';
 import { isolatedImportFactory, mockEnvFactory } from 'testverse/setup';
 import { MongoClient } from 'mongodb';
@@ -73,7 +72,8 @@ beforeEach(() => {
       },
       aliases: {
         'fake-alias-1': 'fake-db-1',
-        'fake-alias-2': 'fake-db-2'
+        'fake-alias-2': 'fake-db-2',
+        'fake-alias-3': 'fake-db-2'
       }
     };
   };
@@ -178,7 +178,7 @@ describe('::hydrateDb', () => {
     );
   });
 
-  it('handles collections made up of a single item', async () => {
+  it('handles non-aliased databases with single-item collections', async () => {
     expect.hasAssertions();
 
     mockedMongoCustomizations.getSchemaConfig = async () => {
@@ -213,6 +213,129 @@ describe('::hydrateDb', () => {
     expect(db.createIndex).toBeCalledWith([
       (await testLib.getDummyData())['fake-db-1'].col
     ]);
+  });
+
+  it('accepts an alias as a name', async () => {
+    expect.hasAssertions();
+
+    const lib = importDbLib();
+    mockedMongoSchema = lib;
+    const testLib = importTestDbLib();
+    const db = await lib.getDb({ name: 'fake-alias-1' });
+
+    await expect(
+      testLib.hydrateDb({ name: 'fake-alias-1' })
+    ).resolves.toBeUndefined();
+
+    Object.entries((await testLib.getDummyData())['fake-db-1']).forEach(
+      ([colName, colData]) => {
+        if (colName != '_generatedAt') {
+          expect(db.collection).toBeCalledWith(colName);
+          // ? The createIndex method is reused for easy access to the insertMany mock
+          expect(db.createIndex).toBeCalledWith(colData);
+        }
+      }
+    );
+  });
+
+  it('reverse-maps database name to alias when necessary', async () => {
+    expect.hasAssertions();
+
+    mockedMongoCustomizations.getDummyData = async () => {
+      return {
+        'fake-db-1': {
+          _generatedAt: now,
+          col: [{ item: 1 }, { item: 2 }, { item: 3 }]
+        },
+        'fake-alias-3': {
+          _generatedAt: now,
+          'col-1': [{ item: 'a' }, { item: 'b' }]
+        }
+      };
+    };
+
+    const lib = importDbLib();
+    mockedMongoSchema = lib;
+    const testLib = importTestDbLib();
+    const db = await lib.getDb({ name: 'fake-db-2' });
+
+    await expect(testLib.hydrateDb({ name: 'fake-db-2' })).resolves.toBeUndefined();
+
+    Object.entries((await testLib.getDummyData())['fake-alias-3']).forEach(
+      ([colName, colData]) => {
+        if (colName != '_generatedAt') {
+          expect(db.collection).toBeCalledWith(colName);
+          // ? The createIndex method is reused for easy access to the insertMany mock
+          expect(db.createIndex).toBeCalledWith(colData);
+        }
+      }
+    );
+  });
+
+  it('throws if both actual database name and alias represent the same dummy data', async () => {
+    expect.hasAssertions();
+
+    mockedMongoCustomizations.getDummyData = async () => {
+      return {
+        'fake-db-1': {
+          _generatedAt: now,
+          col: [{ item: 1 }, { item: 2 }, { item: 3 }]
+        },
+        'fake-db-2': {
+          _generatedAt: now,
+          'col-1': [{ item: 'a' }, { item: 'b' }]
+        },
+        'fake-alias-3': {
+          _generatedAt: now,
+          'col-1': [{ item: 'a' }, { item: 'b' }]
+        }
+      };
+    };
+
+    const lib = importDbLib();
+    mockedMongoSchema = lib;
+    const testLib = importTestDbLib();
+
+    await expect(testLib.hydrateDb({ name: 'fake-alias-3' })).rejects.toThrow(
+      /duplicate dummy data specifications for database "fake-db-2" and alias "fake-alias-3"/
+    );
+
+    await expect(testLib.hydrateDb({ name: 'fake-db-2' })).rejects.toThrow(
+      /duplicate dummy data specifications for database "fake-db-2" and alias "fake-alias-3"/
+    );
+  });
+
+  it('throws if two aliases represent the same dummy data', async () => {
+    expect.hasAssertions();
+
+    mockedMongoCustomizations.getDummyData = async () => {
+      return {
+        'fake-db-1': {
+          _generatedAt: now,
+          col: [{ item: 1 }, { item: 2 }, { item: 3 }]
+        },
+        'fake-alias-2': {
+          _generatedAt: now,
+          'col-1': [{ item: 'a' }, { item: 'b' }]
+        },
+        'fake-alias-3': {
+          _generatedAt: now,
+          'col-1': [{ item: 'a' }, { item: 'b' }]
+        }
+      };
+    };
+
+    const lib = importDbLib();
+    mockedMongoSchema = lib;
+    const testLib = importTestDbLib();
+
+    await expect(testLib.hydrateDb({ name: 'fake-alias-2' })).rejects.toThrow(
+      /the following aliases have duplicate dummy data specifications \(only one may exist\): fake-alias-2, fake-alias-3/
+    );
+
+    await expect(testLib.hydrateDb({ name: 'fake-alias-3' })).rejects.toThrow(
+      /the following aliases have duplicate dummy data specifications \(only one may exist\): fake-alias-2, fake-alias-3/
+    );
   });
 
   it('throws if database in schema has no corresponding dummy data', async () => {

@@ -1,5 +1,7 @@
 import cloneDeep from 'clone-deep';
 import { ObjectId } from 'mongodb';
+import { InvalidAppConfigurationError } from 'named-app-errors';
+
 import { mockDateNowMs } from 'multiverse/jest-mock-date';
 
 import {
@@ -24,7 +26,7 @@ export * from 'multiverse/jest-mock-date';
  *   - `root` (collections: `auth`, `request-log`, `limited-log`)
  */
 export function getCommonSchemaConfig(additionalSchemaConfig?: DbSchema): DbSchema {
-  return {
+  const schema = {
     databases: {
       root: {
         collections: [
@@ -53,6 +55,26 @@ export function getCommonSchemaConfig(additionalSchemaConfig?: DbSchema): DbSche
     },
     aliases: { ...additionalSchemaConfig?.aliases }
   };
+
+  const actualDatabaseNames = Object.keys(schema.databases);
+
+  Object.entries(schema.aliases).every(([alias, actual]) => {
+    if (!actualDatabaseNames.includes(actual)) {
+      throw new InvalidAppConfigurationError(
+        `aliased database "${actual}" (referred to by alias "${alias}") does not exist in database schema or is not aliasable. Existing aliasable databases: ${actualDatabaseNames.join(
+          ', '
+        )}`
+      );
+    }
+
+    if (actualDatabaseNames.includes(alias)) {
+      throw new InvalidAppConfigurationError(
+        `database alias "${alias}" (referring to actual database "${actual}") is invalid: an actual database with that name already exists in the database schema. You must choose a different alias`
+      );
+    }
+  });
+
+  return schema;
 }
 
 /**
@@ -83,7 +105,7 @@ export type DummyRootData = {
 export const dummyRootData: DummyRootData = {
   _generatedAt: mockDateNowMs,
   auth: [
-    // ! Must maintain order or various unit tests will fail
+    // ! Must maintain order or various unit tests across projects will fail !
     {
       _id: new ObjectId(),
       attributes: { owner: 'local developer', isGlobalAdmin: true },
