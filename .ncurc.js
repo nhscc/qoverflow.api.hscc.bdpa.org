@@ -15,6 +15,8 @@ module.exports = {
     // ? Pin the CJS version of chalk
     'chalk',
     // ? Pin the CJS version of auto-bind
-    'auto-bind'
+    'auto-bind',
+    // ? Pin the CJS version of inquirer
+    'inquirer'
   ]
 };
