@@ -59,6 +59,9 @@ export type CollectionSchema = {
  * aliases.
  */
 export type DbSchema = {
+  /**
+   * All databases known to this system. These can be accessed via `getDb`.
+   */
   databases: Record<
     string,
     {
@@ -69,6 +72,11 @@ export type DbSchema = {
     }
   >;
 
+  /**
+   * These are alternative names to use with `getDb` that map to the names of
+   * databases known to this system. Aliases are specified as `alias:
+   * real-name`.
+   */
   aliases: Record<string, string>;
 };
 
@@ -166,6 +174,38 @@ export async function getNameFromAlias(alias: string) {
   }
 
   return nameActual;
+}
+
+/**
+ * Accepts a database name (or an alias) and returns one or more aliases. If the
+ * named database has no aliases listed in the schema, said database name is
+ * returned as a single-element array. If said database name is not listed in
+ * the schema, an error is thrown.
+ */
+export async function getAliasFromName(nameActual: string) {
+  const schema = await getSchemaConfig();
+
+  if (!schema.databases[nameActual]?.collections) {
+    throw new InvalidAppConfigurationError(
+      `database "${nameActual}" is not defined in schema`
+    );
+  }
+
+  const aliases = Object.entries(schema.aliases)
+    .filter(([, name]) => name == nameActual)
+    .map(([alias]) => alias);
+
+  if (aliases.length) {
+    debug(
+      `reverse-mapped database name "${nameActual}" to alias${
+        aliases.length == 1 ? ` "${aliases.toString()}"` : `es: ${aliases.join(', ')}`
+      }`
+    );
+
+    return aliases;
+  } else {
+    return [nameActual];
+  }
 }
 
 /**

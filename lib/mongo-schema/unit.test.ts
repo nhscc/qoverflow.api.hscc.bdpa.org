@@ -1,4 +1,3 @@
-/* eslint-disable jest/no-conditional-expect */
 import { isolatedImportFactory, mockEnvFactory } from 'testverse/setup';
 import { Db, MongoClient } from 'mongodb';
 import { asMockedClass } from '@xunnamius/jest-types';
@@ -38,11 +37,16 @@ beforeEach(() => {
               indices: [{ spec: ['some-key', -1], options: { comment: '' } }]
             }
           ]
+        },
+
+        'fake-db-3': {
+          collections: ['col']
         }
       },
       aliases: {
         'fake-alias-1': 'fake-db-1',
-        'fake-alias-2': 'fake-db-2'
+        'fake-alias-2': 'fake-db-2',
+        'fake-alias-3': 'fake-db-2'
       }
     };
   };
@@ -250,9 +254,47 @@ describe('::getNameFromAlias', () => {
     );
   });
 
+  it('passes through actual database name if given', async () => {
+    expect.hasAssertions();
+
+    await expect(importDbLib().getNameFromAlias('fake-db-3')).resolves.toBe(
+      'fake-db-3'
+    );
+  });
+
   it('throws if database is not in schema', async () => {
     expect.hasAssertions();
-    await expect(importDbLib().getNameFromAlias('fake-alias-3')).rejects.toThrow(
+    await expect(importDbLib().getNameFromAlias('fake-alias-x')).rejects.toThrow(
+      'database "fake-alias-x" is not defined'
+    );
+  });
+});
+
+describe('::getAliasFromName', () => {
+  it('returns one or more aliases', async () => {
+    expect.hasAssertions();
+
+    await expect(importDbLib().getAliasFromName('fake-db-1')).resolves.toStrictEqual([
+      'fake-alias-1'
+    ]);
+
+    await expect(importDbLib().getAliasFromName('fake-db-2')).resolves.toStrictEqual([
+      'fake-alias-2',
+      'fake-alias-3'
+    ]);
+  });
+
+  it('passes through actual database name if given', async () => {
+    expect.hasAssertions();
+
+    await expect(importDbLib().getAliasFromName('fake-db-3')).resolves.toStrictEqual([
+      'fake-db-3'
+    ]);
+  });
+
+  it('throws if database is not in schema', async () => {
+    expect.hasAssertions();
+    await expect(importDbLib().getAliasFromName('fake-alias-3')).rejects.toThrow(
       'database "fake-alias-3" is not defined'
     );
   });
