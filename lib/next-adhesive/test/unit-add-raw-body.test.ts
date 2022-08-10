@@ -1,4 +1,3 @@
-/* eslint-disable jest/no-conditional-expect */
 import { testApiHandler } from 'next-test-api-route-handler';
 import { withMockedOutput, noopHandler, wrapHandler } from 'testverse/setup';
 import { withMiddleware } from 'multiverse/next-api-glue';
