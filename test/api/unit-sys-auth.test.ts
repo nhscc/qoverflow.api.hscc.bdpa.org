@@ -160,10 +160,10 @@ describe('api/sys/auth', () => {
 
           expect(json).toStrictEqual({
             success: true,
-            entries: [
+            entries: expect.arrayContaining([
               toPublicAuthEntry(dummyRootData.auth[0]),
               toPublicAuthEntry(newEntry)
-            ]
+            ])
           });
 
           expect(res.status).toBe(200);
@@ -206,12 +206,12 @@ describe('api/sys/auth', () => {
 
           expect(json).toStrictEqual({
             success: true,
-            entries: [
+            entries: expect.arrayContaining([
               toPublicAuthEntry(dummyRootData.auth[0]),
               toPublicAuthEntry(dummyRootData.auth[1]),
               toPublicAuthEntry(newEntry1),
               toPublicAuthEntry(newEntry2)
-            ]
+            ])
           });
 
           expect(res.status).toBe(200);
@@ -235,12 +235,12 @@ describe('api/sys/auth', () => {
 
           expect(json).toStrictEqual({
             success: true,
-            entries: [
+            entries: expect.arrayContaining([
               toPublicAuthEntry(dummyRootData.auth[0]),
               toPublicAuthEntry(dummyRootData.auth[1]),
               toPublicAuthEntry(newEntry1),
               toPublicAuthEntry(newEntry2)
-            ]
+            ])
           });
 
           expect(res.status).toBe(200);
@@ -262,7 +262,7 @@ describe('api/sys/auth', () => {
 
           expect(json).toStrictEqual({
             success: true,
-            entries: dummyRootData.auth.map(toPublicAuthEntry)
+            entries: expect.arrayContaining(dummyRootData.auth.map(toPublicAuthEntry))
           });
 
           expect(res.status).toBe(200);

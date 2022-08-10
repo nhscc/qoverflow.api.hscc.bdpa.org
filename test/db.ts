@@ -13,7 +13,7 @@ import type {
  * Returns data used to hydrate databases and their collections.
  */
 export function getDummyData(): DummyData {
-  return getCommonDummyData({ 'hscc-api-qoverflow': dummyAppData });
+  return getCommonDummyData({ app: dummyAppData });
 }
 
 /**

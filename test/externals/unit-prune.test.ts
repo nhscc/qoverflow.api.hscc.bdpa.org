@@ -22,17 +22,17 @@ jest.mock('multiverse/mongo-schema', () => {
 // const testCollectionsMap = {
 //   'root.request-log': dummyRootData['request-log'].length,
 //   'root.limited-log': dummyRootData['limited-log'].length,
-//   'hscc-api-qoverflow.mail': dummyAppData['mail'].length,
-//   'hscc-api-qoverflow.questions': dummyAppData['questions'].length,
-//   'hscc-api-qoverflow.users': dummyAppData['users'].length
+//   'app.mail': dummyAppData['mail'].length,
+//   'app.questions': dummyAppData['questions'].length,
+//   'app.users': dummyAppData['users'].length
 // };
 
 const testCollections = [
   'root.request-log',
   'root.limited-log',
-  'hscc-api-qoverflow.mail',
-  'hscc-api-qoverflow.questions',
-  'hscc-api-qoverflow.users'
+  'app.mail',
+  'app.questions',
+  'app.users'
 ] as const;
 
 // TODO: replace with byte versions
@@ -121,7 +121,7 @@ async function getCollectionSize(
   return resultLength == 1 ? result[collections.toString()] : result;
 }
 
-it('verbose when no DEBUG environment variable set and compiled NODE_ENV is not test', async () => {
+it('is verbose when no DEBUG environment variable set and compiled NODE_ENV is not test', async () => {
   expect.hasAssertions();
 
   await withMockedOutput(async ({ infoSpy }) => {
@@ -188,19 +188,17 @@ it('respects the limits imposed by PRUNE_DATA_MAX_X environment variables', asyn
   const expectedSizes = {
     'root.request-log': initialSizes['root.request-log'] / 2,
     'root.limited-log': initialSizes['root.limited-log'] / 2,
-    'hscc-api-qoverflow.mail': initialSizes['hscc-api-qoverflow.mail'] / 2,
-    'hscc-api-qoverflow.questions': initialSizes['hscc-api-qoverflow.questions'] / 2,
-    'hscc-api-qoverflow.users': initialSizes['hscc-api-qoverflow.users'] / 2
+    'app.mail': initialSizes['app.mail'] / 2,
+    'app.questions': initialSizes['app.questions'] / 2,
+    'app.users': initialSizes['app.users'] / 2
   };
 
   await withMockedEnv(() => importPruneData({ expectedExitCode: 0 }), {
     PRUNE_DATA_MAX_LOGS_BYTES: String(expectedSizes['root.request-log']),
     PRUNE_DATA_MAX_BANNED_BYTES: String(expectedSizes['root.limited-log']),
-    PRUNE_DATA_MAX_MAIL_BYTES: String(expectedSizes['hscc-api-qoverflow.mail']),
-    PRUNE_DATA_MAX_QUESTIONS_BYTES: String(
-      expectedSizes['hscc-api-qoverflow.questions']
-    ),
-    PRUNE_DATA_MAX_USERS_BYTES: String(expectedSizes['hscc-api-qoverflow.users'])
+    PRUNE_DATA_MAX_MAIL_BYTES: String(expectedSizes['app.mail']),
+    PRUNE_DATA_MAX_QUESTIONS_BYTES: String(expectedSizes['app.questions']),
+    PRUNE_DATA_MAX_USERS_BYTES: String(expectedSizes['app.users'])
   });
 
   const newSizes = await getCollectionSize(testCollections, { metric: 'bytes' });
@@ -213,17 +211,13 @@ it('respects the limits imposed by PRUNE_DATA_MAX_X environment variables', asyn
     expectedSizes['root.limited-log']
   );
 
-  expect(newSizes['hscc-api-qoverflow.mail']).toBeLessThanOrEqual(
-    expectedSizes['hscc-api-qoverflow.mail']
+  expect(newSizes['app.mail']).toBeLessThanOrEqual(expectedSizes['app.mail']);
+
+  expect(newSizes['app.questions']).toBeLessThanOrEqual(
+    expectedSizes['app.questions']
   );
 
-  expect(newSizes['hscc-api-qoverflow.questions']).toBeLessThanOrEqual(
-    expectedSizes['hscc-api-qoverflow.questions']
-  );
-
-  expect(newSizes['hscc-api-qoverflow.users']).toBeLessThanOrEqual(
-    expectedSizes['hscc-api-qoverflow.users']
-  );
+  expect(newSizes['app.users']).toBeLessThanOrEqual(expectedSizes['app.users']);
 
   await withMockedEnv(() => importPruneData({ expectedExitCode: 0 }), {
     PRUNE_DATA_MAX_LOGS_BYTES: '1',
@@ -237,9 +231,9 @@ it('respects the limits imposed by PRUNE_DATA_MAX_X environment variables', asyn
 
   expect(latestSizes['root.request-log']).toBe(0);
   expect(latestSizes['root.limited-log']).toBe(0);
-  expect(latestSizes['hscc-api-qoverflow.mail']).toBe(0);
-  expect(latestSizes['hscc-api-qoverflow.questions']).toBe(0);
-  expect(latestSizes['hscc-api-qoverflow.users']).toBe(0);
+  expect(latestSizes['app.mail']).toBe(0);
+  expect(latestSizes['app.questions']).toBe(0);
+  expect(latestSizes['app.users']).toBe(0);
 });
 
 // ? This is a bytes-based test. Look elsewhere for the old count-based tests!
@@ -262,15 +256,9 @@ it('only deletes entries if necessary', async () => {
   expect(newSizes['root.request-log']).toBe(initialSizes['root.request-log']);
   expect(newSizes['root.limited-log']).toBe(initialSizes['root.limited-log']);
 
-  expect(newSizes['hscc-api-qoverflow.mail']).toBe(
-    initialSizes['hscc-api-qoverflow.mail']
-  );
+  expect(newSizes['app.mail']).toBe(initialSizes['app.mail']);
 
-  expect(newSizes['hscc-api-qoverflow.questions']).toBe(
-    initialSizes['hscc-api-qoverflow.questions']
-  );
+  expect(newSizes['app.questions']).toBe(initialSizes['app.questions']);
 
-  expect(newSizes['hscc-api-qoverflow.users']).toBe(
-    initialSizes['hscc-api-qoverflow.users']
-  );
+  expect(newSizes['app.users']).toBe(initialSizes['app.users']);
 });

@@ -306,7 +306,7 @@ export async function getAllUsers({
 }: {
   after_id: string | undefined;
 }): Promise<PublicUser[]> {
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const afterId = after_id ? itemToObjectId<UserId>(after_id) : undefined;
 
@@ -332,7 +332,7 @@ export async function getUser({
     throw new InvalidItemError('username', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
 
   return (
@@ -353,7 +353,7 @@ export async function getUserQuestions({
     throw new InvalidItemError('username', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const afterId = after_id ? itemToObjectId<QuestionId>(after_id) : undefined;
   const questionDb = db.collection<InternalQuestion>('questions');
@@ -404,7 +404,7 @@ export async function getUserAnswers({
     throw new InvalidItemError('username', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const afterId = after_id ? itemToObjectId<AnswerId>(after_id) : undefined;
 
@@ -473,7 +473,7 @@ export async function createUser({
     throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
 
   const newUser = {
@@ -565,7 +565,7 @@ export async function updateUser({
     }
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
 
   // * At this point, we can finally trust this data is not malicious, but not
@@ -617,7 +617,7 @@ export async function deleteUser({
     throw new InvalidItemError('username', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const result = await userDb.deleteOne({ username });
 
@@ -635,7 +635,7 @@ export async function authAppUser({
 }): Promise<boolean> {
   if (!key || !username) return false;
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
 
   return !!(await userDb.countDocuments({ username, key }));
@@ -652,7 +652,7 @@ export async function getUserMessages({
     throw new InvalidItemError('username', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const mailDb = db.collection<InternalMail>('mail');
   const afterId = after_id ? itemToObjectId<MailId>(after_id) : undefined;
@@ -721,7 +721,7 @@ export async function createMessage({
     );
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const mailDb = db.collection<InternalMail>('mail');
   const userDb = db.collection<InternalUser>('users');
 
@@ -757,7 +757,7 @@ export async function deleteMessage({
     throw new InvalidItemError('mail_id', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const mailDb = db.collection<InternalMail>('mail');
   const result = await mailDb.deleteOne({ _id: itemToObjectId(mail_id) });
 
@@ -814,7 +814,7 @@ export async function searchQuestions({
 
   // ? Validate username and after_id
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const questionDb = db.collection<InternalQuestion>('questions');
 
   const sortByField =
@@ -1020,7 +1020,7 @@ export async function getQuestion({
     throw new InvalidItemError('question_id', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const questionDb = db.collection<InternalQuestion>('questions');
 
   return (
@@ -1051,7 +1051,7 @@ export async function createQuestion({
     throw new ValidationError(ErrorMessage.InvalidFieldValue('creator'));
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const questionDb = db.collection<InternalQuestion>('questions');
 
@@ -1145,7 +1145,7 @@ export async function updateQuestion({
     );
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const questionDb = db.collection<InternalQuestion>('questions');
 
   // * At this point, we can finally trust this data is not malicious, but not
@@ -1222,7 +1222,7 @@ export async function deleteQuestion({
     throw new InvalidItemError('question_id', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const questionDb = db.collection<InternalQuestion>('questions');
   const questionId = itemToObjectId<QuestionId>(question_id);
@@ -1280,7 +1280,7 @@ export async function getAnswers({
     }
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const questionDb = db.collection<InternalQuestion>('questions');
 
   const pipeline = [
@@ -1342,7 +1342,7 @@ export async function createAnswer({
     throw new ValidationError(ErrorMessage.InvalidFieldValue('creator'));
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const questionId = itemToObjectId<QuestionId>(question_id);
 
@@ -1447,7 +1447,7 @@ export async function updateAnswer({
   // * At this point, we can finally trust this data is not malicious, but not
   // * necessarily valid...
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const questionDb = db.collection<InternalQuestion>('questions');
   const questionId = itemToObjectId<QuestionId>(question_id);
   const answerId = itemToObjectId<AnswerId>(answer_id);
@@ -1515,7 +1515,7 @@ export async function deleteAnswer({
     throw new InvalidItemError('answer_id', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const questionId = itemToObjectId<QuestionId>(question_id);
   const answerId = itemToObjectId<AnswerId>(answer_id);
@@ -1567,7 +1567,7 @@ export async function getComments({
     throw new InvalidItemError('question_id', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const questionDb = db.collection<InternalQuestion>('questions');
   const questionId = itemToObjectId<QuestionId>(question_id);
   const answerId = answer_id ? itemToObjectId<AnswerId>(answer_id) : undefined;
@@ -1700,7 +1700,7 @@ export async function createComment({
     );
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const questionId = itemToObjectId<QuestionId>(question_id);
   const answerId = answer_id ? itemToObjectId<AnswerId>(answer_id) : undefined;
@@ -1837,7 +1837,7 @@ export async function getHowUserVoted({
     throw new InvalidItemError('question_id', 'parameter');
   }
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const questionDb = db.collection<InternalQuestion>('questions');
 
@@ -1938,7 +1938,7 @@ export async function applyVotesUpdateOperation({
 
   validateVotesUpdateOperation(operation);
 
-  const db = await getDb({ name: 'hscc-api-qoverflow' });
+  const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
   const questionDb = db.collection<InternalQuestion>('questions');
 

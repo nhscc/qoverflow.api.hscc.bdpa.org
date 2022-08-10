@@ -94,9 +94,7 @@ describe('::getAllUsers', () => {
       Backend.getAllUsers({ after_id: undefined })
     ).resolves.not.toStrictEqual([]);
 
-    await (await getDb({ name: 'hscc-api-qoverflow' }))
-      .collection('users')
-      .deleteMany({});
+    await (await getDb({ name: 'app' })).collection('users').deleteMany({});
     await expect(Backend.getAllUsers({ after_id: undefined })).resolves.toStrictEqual(
       []
     );
@@ -395,7 +393,7 @@ describe('::createUser', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('users')
         .countDocuments({ username: 'new-user' })
     ).resolves.toBe(1);
@@ -589,7 +587,7 @@ describe('::updateUser', () => {
   it('updates an existing user', async () => {
     expect.hasAssertions();
 
-    const usersDb = (await getDb({ name: 'hscc-api-qoverflow' })).collection('users');
+    const usersDb = (await getDb({ name: 'app' })).collection('users');
 
     const patchUser: PatchUser = {
       email: 'fake@email.com',
@@ -623,7 +621,7 @@ describe('::updateUser', () => {
   it('supports PointsUpdateOperation updates alongside normal points updates', async () => {
     expect.hasAssertions();
 
-    const usersDb = (await getDb({ name: 'hscc-api-qoverflow' })).collection('users');
+    const usersDb = (await getDb({ name: 'app' })).collection('users');
 
     await expect(
       usersDb.countDocuments({
@@ -894,7 +892,7 @@ describe('::deleteUser', () => {
   it('deletes a user', async () => {
     expect.hasAssertions();
 
-    const usersDb = (await getDb({ name: 'hscc-api-qoverflow' })).collection('users');
+    const usersDb = (await getDb({ name: 'app' })).collection('users');
 
     await expect(
       usersDb.countDocuments({ _id: itemToObjectId(dummyAppData.users[0]) })
@@ -1052,7 +1050,7 @@ describe('::createMessage', () => {
     };
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('mail')
         .countDocuments({ subject: 'You have got mail!' })
     ).resolves.toBe(0);
@@ -1069,7 +1067,7 @@ describe('::createMessage', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('mail')
         .countDocuments({ subject: 'You have got mail!' })
     ).resolves.toBe(1);
@@ -1240,7 +1238,7 @@ describe('::deleteMessage', () => {
 
     const mailDb = (
       await getDb({
-        name: 'hscc-api-qoverflow'
+        name: 'app'
       })
     ).collection<InternalMail>('mail');
 
@@ -1331,7 +1329,7 @@ describe('::searchQuestions', () => {
   it('does not crash when database is empty', async () => {
     expect.hasAssertions();
 
-    const db = await getDb({ name: 'hscc-api-qoverflow' });
+    const db = await getDb({ name: 'app' });
     const questionsDb = db.collection('questions');
 
     await questionsDb.deleteMany({});
@@ -1945,7 +1943,7 @@ describe('::createQuestion', () => {
     };
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .countDocuments({ text: 'Text' })
     ).resolves.toBe(0);
@@ -1968,7 +1966,7 @@ describe('::createQuestion', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .countDocuments({ text: 'Text' })
     ).resolves.toBe(1);
@@ -1986,7 +1984,7 @@ describe('::createQuestion', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
           { username: dummyAppData.users[0].username },
@@ -2114,13 +2112,11 @@ describe('::updateQuestion', () => {
     };
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
-        .collection('questions')
-        .countDocuments({
-          _id: itemToObjectId(dummyAppData.questions[0]),
-          ...patchQuestion,
-          'title-lowercase': patchQuestion.title!.toLowerCase()
-        })
+      (await getDb({ name: 'app' })).collection('questions').countDocuments({
+        _id: itemToObjectId(dummyAppData.questions[0]),
+        ...patchQuestion,
+        'title-lowercase': patchQuestion.title!.toLowerCase()
+      })
     ).resolves.toBe(0);
 
     await expect(
@@ -2131,7 +2127,7 @@ describe('::updateQuestion', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne({
+      (await getDb({ name: 'app' })).collection('questions').findOne({
         _id: itemToObjectId(dummyAppData.questions[0])
       })
     ).resolves.toMatchObject({
@@ -2143,9 +2139,9 @@ describe('::updateQuestion', () => {
   it('supports ViewsUpdateOperation updates alongside normal views count updates', async () => {
     expect.hasAssertions();
 
-    const questionsDb = (
-      await getDb({ name: 'hscc-api-qoverflow' })
-    ).collection<InternalQuestion>('questions');
+    const questionsDb = (await getDb({ name: 'app' })).collection<InternalQuestion>(
+      'questions'
+    );
 
     await expect(
       questionsDb.countDocuments({
@@ -2187,7 +2183,7 @@ describe('::updateQuestion', () => {
   it('updates sorter uvc/uvac counters when updating views or upvotes counts', async () => {
     expect.hasAssertions();
 
-    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+    const db = (await getDb({ name: 'app' })).collection('questions');
 
     const {
       sorter: { uvc, uvac },
@@ -2433,7 +2429,7 @@ describe('::deleteQuestion', () => {
     expect.hasAssertions();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .countDocuments({ _id: itemToObjectId(dummyAppData.questions[0]) })
     ).resolves.toBe(1);
@@ -2445,7 +2441,7 @@ describe('::deleteQuestion', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .countDocuments({ _id: itemToObjectId(dummyAppData.questions[0]) })
     ).resolves.toBe(0);
@@ -2455,7 +2451,7 @@ describe('::deleteQuestion', () => {
     expect.hasAssertions();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
           { username: dummyAppData.users[0].username },
@@ -2470,7 +2466,7 @@ describe('::deleteQuestion', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
           { username: dummyAppData.users[0].username },
@@ -2488,7 +2484,7 @@ describe('::deleteQuestion', () => {
 
     await expect(
       (
-        await getDb({ name: 'hscc-api-qoverflow' })
+        await getDb({ name: 'app' })
       )
         .collection<InternalUser>('users')
         .find(
@@ -2508,7 +2504,7 @@ describe('::deleteQuestion', () => {
 
     await expect(
       (
-        await getDb({ name: 'hscc-api-qoverflow' })
+        await getDb({ name: 'app' })
       )
         .collection<InternalUser>('users')
         .find(
@@ -2717,7 +2713,7 @@ describe('::createAnswer', () => {
     const question_id = itemToStringId(dummyAppData.questions[2]);
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[2]) },
@@ -2743,7 +2739,7 @@ describe('::createAnswer', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[2]) },
@@ -2761,7 +2757,7 @@ describe('::createAnswer', () => {
     };
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[1]) },
@@ -2775,7 +2771,7 @@ describe('::createAnswer', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      (await getDb({ name: 'app' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: { _id: false, answers: true }
@@ -2796,7 +2792,7 @@ describe('::createAnswer', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
           { username: dummyAppData.users[0].username },
@@ -2821,7 +2817,7 @@ describe('::createAnswer', () => {
       text: 'Text!'
     };
 
-    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+    const db = (await getDb({ name: 'app' })).collection('questions');
 
     const {
       sorter: { uvc, uvac }
@@ -3029,7 +3025,7 @@ describe('::updateAnswer', () => {
     const patchAnswer: PatchAnswer = { accepted: true };
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection<InternalQuestion>('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[0]) },
@@ -3044,7 +3040,7 @@ describe('::updateAnswer', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection<InternalQuestion>('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[0]) },
@@ -3058,7 +3054,7 @@ describe('::updateAnswer', () => {
 
     const patchAnswer: PatchAnswer = { accepted: true };
 
-    await (await getDb({ name: 'hscc-api-qoverflow' }))
+    await (await getDb({ name: 'app' }))
       .collection<InternalQuestion>('questions')
       .updateOne(
         { _id: itemToObjectId(dummyAppData.questions[0]) },
@@ -3253,7 +3249,7 @@ describe('::deleteAnswer', () => {
     expect.hasAssertions();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[0]) },
@@ -3269,7 +3265,7 @@ describe('::deleteAnswer', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[0]) },
@@ -3282,7 +3278,7 @@ describe('::deleteAnswer', () => {
     expect.hasAssertions();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[0]) },
@@ -3296,7 +3292,7 @@ describe('::deleteAnswer', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      (await getDb({ name: 'app' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[0]) },
         {
           projection: { _id: false, answers: true }
@@ -3312,7 +3308,7 @@ describe('::deleteAnswer', () => {
     const answer_id = itemToStringId(dummyAppData.questions[0].answerItems[0]);
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
           { username: dummyAppData.users[1].username },
@@ -3333,7 +3329,7 @@ describe('::deleteAnswer', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
           { username: dummyAppData.users[1].username },
@@ -3352,7 +3348,7 @@ describe('::deleteAnswer', () => {
   it('updates sorter uvac (and NOT uvc) counters when deleting an answer', async () => {
     expect.hasAssertions();
 
-    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+    const db = (await getDb({ name: 'app' })).collection('questions');
 
     const {
       sorter: { uvc, uvac }
@@ -3719,7 +3715,7 @@ describe('::createComment', () => {
     };
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[1]) },
@@ -3743,7 +3739,7 @@ describe('::createComment', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[1]) },
@@ -3761,7 +3757,7 @@ describe('::createComment', () => {
     };
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      (await getDb({ name: 'app' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: {
@@ -3788,7 +3784,7 @@ describe('::createComment', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      (await getDb({ name: 'app' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: {
@@ -3809,7 +3805,7 @@ describe('::createComment', () => {
     };
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      (await getDb({ name: 'app' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: { _id: false, comments: true }
@@ -3824,7 +3820,7 @@ describe('::createComment', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      (await getDb({ name: 'app' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: { _id: false, comments: true }
@@ -3836,7 +3832,7 @@ describe('::createComment', () => {
   it('updates sorter uvc/uvac counters when creating a new comment to a question', async () => {
     expect.hasAssertions();
 
-    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+    const db = (await getDb({ name: 'app' })).collection('questions');
 
     const {
       sorter: { uvc, uvac }
@@ -4056,7 +4052,7 @@ describe('::deleteComment', () => {
     expect.hasAssertions();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[1]) },
@@ -4073,7 +4069,7 @@ describe('::deleteComment', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' }))
+      (await getDb({ name: 'app' }))
         .collection('questions')
         .findOne(
           { _id: itemToObjectId(dummyAppData.questions[1]) },
@@ -4086,7 +4082,7 @@ describe('::deleteComment', () => {
     expect.hasAssertions();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      (await getDb({ name: 'app' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[0]) },
         {
           projection: {
@@ -4108,7 +4104,7 @@ describe('::deleteComment', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      (await getDb({ name: 'app' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[0]) },
         {
           projection: {
@@ -4124,7 +4120,7 @@ describe('::deleteComment', () => {
     expect.hasAssertions();
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      (await getDb({ name: 'app' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: { _id: false, comments: true }
@@ -4139,7 +4135,7 @@ describe('::deleteComment', () => {
     });
 
     await expect(
-      (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions').findOne(
+      (await getDb({ name: 'app' })).collection('questions').findOne(
         { _id: itemToObjectId(dummyAppData.questions[1]) },
         {
           projection: { _id: false, comments: true }
@@ -4151,7 +4147,7 @@ describe('::deleteComment', () => {
   it('updates sorter uvc/uvac counters when deleting a comment from a question', async () => {
     expect.hasAssertions();
 
-    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+    const db = (await getDb({ name: 'app' })).collection('questions');
 
     const {
       sorter: { uvc, uvac }
@@ -4677,9 +4673,7 @@ describe('::applyVotesUpdateOperation', () => {
   it('applies increment/decrement operation to question and updates usernames', async () => {
     expect.hasAssertions();
 
-    const questionsDb = (await getDb({ name: 'hscc-api-qoverflow' })).collection(
-      'questions'
-    );
+    const questionsDb = (await getDb({ name: 'app' })).collection('questions');
 
     const { upvotes, downvotes, upvoterUsernames, downvoterUsernames } =
       dummyAppData.questions[2];
@@ -5165,7 +5159,7 @@ describe('::applyVotesUpdateOperation', () => {
   it('updates sorter uvc/uvac counters ONLY when updating question upvotes', async () => {
     expect.hasAssertions();
 
-    const db = (await getDb({ name: 'hscc-api-qoverflow' })).collection('questions');
+    const db = (await getDb({ name: 'app' })).collection('questions');
 
     const {
       sorter: { uvc, uvac }

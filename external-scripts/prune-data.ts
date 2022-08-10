@@ -67,7 +67,7 @@ const getDbCollectionLimits = (env: ReturnType<typeof getEnv>) => {
         }
       }
     },
-    'hscc-api-qoverflow': {
+    app: {
       mail: {
         limit: {
           maxBytes:
@@ -105,9 +105,9 @@ const getDbCollectionLimits = (env: ReturnType<typeof getEnv>) => {
                 )
         },
         async deleteFn(thresholdEntry) {
-          const users = (
-            await getDb({ name: 'hscc-api-qoverflow' })
-          ).collection<InternalUser>('users');
+          const users = (await getDb({ name: 'app' })).collection<InternalUser>(
+            'users'
+          );
 
           const usernames = (
             await users.find({ _id: { $lte: thresholdEntry._id } }).toArray()

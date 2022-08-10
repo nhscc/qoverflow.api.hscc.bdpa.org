@@ -71,7 +71,9 @@ export function getSchemaConfig(): DbSchema {
         ]
       }
     },
-    aliases: {}
+    aliases: {
+      app: 'hscc-api-qoverflow'
+    }
   });
 }
 
@@ -633,7 +635,7 @@ async function genericSelectAggregation<T>({
     throw new GuruMeditationError('illegal parameter combination');
   }
 
-  return (await getDb({ name: 'hscc-api-qoverflow' }))
+  return (await getDb({ name: 'app' }))
     .collection<InternalQuestion>('questions')
     .aggregate([
       { $match: { _id: questionId } },
@@ -741,7 +743,7 @@ export async function addAnswerToDb({
   questionId: QuestionId;
   answer: InternalAnswer;
 }) {
-  return (await getDb({ name: 'hscc-api-qoverflow' }))
+  return (await getDb({ name: 'app' }))
     .collection<InternalQuestion>('questions')
     .updateOne(
       { _id: questionId },
@@ -764,9 +766,7 @@ export async function addCommentToDb({
   answerId?: AnswerId;
   comment: InternalComment;
 }) {
-  const db = (
-    await getDb({ name: 'hscc-api-qoverflow' })
-  ).collection<InternalQuestion>('questions');
+  const db = (await getDb({ name: 'app' })).collection<InternalQuestion>('questions');
 
   if (answerId) {
     return db.updateOne(
@@ -815,7 +815,7 @@ export async function patchAnswerInDb({
   answerId: AnswerId;
   updateOps: Document;
 }) {
-  return (await getDb({ name: 'hscc-api-qoverflow' }))
+  return (await getDb({ name: 'app' }))
     .collection<InternalQuestion>('questions')
     .updateOne(
       { _id: questionId },
@@ -838,9 +838,7 @@ export async function patchCommentInDb({
   commentId: CommentId;
   updateOps: Document;
 }) {
-  const db = (
-    await getDb({ name: 'hscc-api-qoverflow' })
-  ).collection<InternalQuestion>('questions');
+  const db = (await getDb({ name: 'app' })).collection<InternalQuestion>('questions');
 
   if (answerId) {
     return db.updateOne(
@@ -870,7 +868,7 @@ export async function removeAnswerFromDb({
   questionId: QuestionId;
   answerId: AnswerId;
 }) {
-  return (await getDb({ name: 'hscc-api-qoverflow' }))
+  return (await getDb({ name: 'app' }))
     .collection<InternalQuestion>('questions')
     .updateOne(
       { _id: questionId },
@@ -893,9 +891,7 @@ export async function removeCommentFromDb({
   answerId?: AnswerId;
   commentId: CommentId;
 }) {
-  const db = (
-    await getDb({ name: 'hscc-api-qoverflow' })
-  ).collection<InternalQuestion>('questions');
+  const db = (await getDb({ name: 'app' })).collection<InternalQuestion>('questions');
 
   if (answerId) {
     return db.updateOne(
