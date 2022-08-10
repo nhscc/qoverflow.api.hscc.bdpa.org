@@ -1,7 +1,7 @@
 import { debugNamespace } from 'universe/constants';
 import { name as pkgName, version as pkgVersion } from 'package';
 import { verifyEnvironment } from '../expect-env';
-import { TrialError, GuruMeditationError } from 'universe/error';
+import { TrialError, GuruMeditationError, makeNamedError } from 'universe/error';
 import { tmpdir } from 'os';
 import { promises as fs } from 'fs';
 import { resolve } from 'path';
@@ -436,7 +436,14 @@ export async function protectedImport<T = unknown>({
   let pkg: unknown = undefined;
 
   await withMockedExit(async ({ exitSpy }) => {
-    pkg = await isolatedImport({ path: path, useDefault: useDefault });
+    try {
+      pkg = await isolatedImport({ path: path, useDefault: useDefault });
+    } catch (e) {
+      if (!(e instanceof MockedProcessExit)) {
+        throw e;
+      }
+    }
+
     if (expect) {
       expectedExitCode == 'non-zero'
         ? expect(exitSpy).not.toBeCalledWith(0)
@@ -492,15 +499,42 @@ export function protectedImportFactory<T = unknown>({
 }
 
 // TODO: XXX: make this into a separate (mock-exit) package
+/**
+ * Represents a call to process.exit that has been mocked by `withMockedExit`.
+ */
+export class MockedProcessExit extends Error {
+  /**
+   * Represents a call to process.exit that has been mocked by `withMockedExit`.
+   */
+  constructor(public readonly code?: number) {
+    super(`process.exit was called with code ${code}`);
+  }
+}
+
+makeNamedError(MockedProcessExit, 'MockedProcessExit');
+
+// TODO: XXX: make this into a separate (mock-exit) package
 export async function withMockedExit(
   fn: (spies: { exitSpy: jest.SpyInstance }) => unknown
 ) {
-  const exitSpy = jest
-    .spyOn(process, 'exit')
-    .mockImplementation(() => undefined as never);
+  const exitSpy = jest.spyOn(process, 'exit').mockImplementation((code) => {
+    // ? Give a helping hand when debugging, just in case
+    if (process.env.VSCODE_INSPECTOR_OPTIONS) {
+      process.emitWarning(
+        '`process.exit` was called, but the function is mocked. A MockedProcessExit error will be thrown instead.',
+        'MockedProcessExitWarning'
+      );
+    }
+
+    throw new MockedProcessExit(code);
+  });
 
   try {
     await fn({ exitSpy });
+  } catch (e) {
+    if (!(e instanceof MockedProcessExit)) {
+      throw e;
+    }
   } finally {
     exitSpy.mockRestore();
   }
