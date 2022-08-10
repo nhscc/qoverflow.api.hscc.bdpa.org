@@ -253,7 +253,7 @@ const commitApiDataToDb = async (data: Data | null) => {
               updateOne: {
                 filter: { username: user.username },
                 update: {
-                  $push: {
+                  $addToSet: {
                     questionIds: { $each: user.questionIds },
                     answerIds: { $each: user.answerIds }
                   },
