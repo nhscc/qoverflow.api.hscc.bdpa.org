@@ -12,6 +12,7 @@ import { AnyBulkWriteOperation, ObjectId } from 'mongodb';
 import { toss } from 'toss-expression';
 import { setTimeout as wait } from 'node:timers/promises';
 import inquirer, { PromptModule } from 'inquirer';
+import { decode as decodeEntities } from 'html-entities';
 
 import { debugNamespace as namespace } from 'universe/constants';
 import { getEnv } from 'universe/backend/env';
@@ -216,7 +217,34 @@ const commitApiDataToDb = async (data: Data | null) => {
         )
       : { insertedCount: '0 (empty)' },
     data.questions.length
-      ? appDb.collection<InternalQuestion>('questions').insertMany(data.questions)
+      ? appDb.collection<InternalQuestion>('questions').insertMany(
+          data.questions.map((question) => {
+            const decodedTitle = decodeEntities(question.title);
+
+            return {
+              ...question,
+              commentItems: question.commentItems.map((comment) => {
+                return {
+                  ...comment,
+                  text: decodeEntities(comment.text)
+                };
+              }),
+              answerItems: question.answerItems.map((answer) => {
+                return {
+                  ...answer,
+                  commentItems: answer.commentItems.map((comment) => {
+                    return {
+                      ...comment,
+                      text: decodeEntities(comment.text)
+                    };
+                  })
+                };
+              }),
+              title: decodeEntities(question.title),
+              'title-lowercase': decodedTitle
+            };
+          })
+        )
       : { insertedCount: '0 (empty)' },
     data.users.length
       ? appDb.collection<InternalUser>('users').bulkWrite(

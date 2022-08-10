@@ -1,7 +1,5 @@
 import { getCommonSchemaConfig, getCommonDummyData } from 'multiverse/mongo-common';
 
-import type { DbSchema } from 'multiverse/mongo-schema';
-
 describe('::getCommonSchemaConfig', () => {
   it('returns an object with dummy root schema and additional dummy schema', async () => {
     expect.hasAssertions();
@@ -11,7 +9,7 @@ describe('::getCommonSchemaConfig', () => {
         databases: { someDb: { collections: [] } },
         aliases: {}
       })
-    ).toStrictEqual<DbSchema>({
+    ).toStrictEqual({
       databases: {
         root: expect.toBeObject(),
         someDb: expect.toBeObject()
