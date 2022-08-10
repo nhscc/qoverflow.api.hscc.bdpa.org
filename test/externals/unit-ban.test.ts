@@ -67,7 +67,7 @@ const getRateLimitUntils = async () => {
     .toArray();
 };
 
-it('verbose when no DEBUG environment variable set and compiled NODE_ENV is not test', async () => {
+it('is verbose when no DEBUG environment variable set and compiled NODE_ENV is not test', async () => {
   expect.hasAssertions();
 
   await withMockedOutput(async ({ infoSpy }) => {
