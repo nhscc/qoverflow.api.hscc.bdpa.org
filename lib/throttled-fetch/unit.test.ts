@@ -8,6 +8,7 @@ import { asMockedFunction } from '@xunnamius/jest-types';
 import { setTimeout } from 'node:timers/promises';
 
 import {
+  defaultRequestInspector,
   defaultResponseInspector,
   RequestQueue,
   RequestQueueClearedError,
@@ -98,19 +99,21 @@ const promiseSettledSentinel = () => {
  */
 const assertRequestQueueProcessingStopped = (queue: RequestQueue) => {
   const mockSetTimeoutCalls = mockSetTimeout.mock.calls.length;
-  const previousRequestDelayMs = queue.requestDelayMs;
+  const previousRequestDelayMs = queue.requestProcessingDelayMs;
 
   // ? First, ensure graceful stop happens
   jest.advanceTimersByTime(queue.intervalPeriodMs);
 
   // ? Now, if we didn't stop, then this request delay will trip mockSetTimeout
-  queue.requestDelayMs = 1000;
+  queue.delayRequestProcessingByMs(1000);
   void queue.addRequestToQueue('https://fake-url');
   jest.advanceTimersByTime(queue.intervalPeriodMs);
+
   expect(mockSetTimeout).toBeCalledTimes(mockSetTimeoutCalls);
+  expect(queue.isProcessingRequestQueue).toBeFalse();
 
   // ? Reset things back to the way they were
-  queue.requestDelayMs = previousRequestDelayMs;
+  queue.delayRequestProcessingByMs(previousRequestDelayMs);
 };
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -129,7 +132,7 @@ afterEach(() => {
 afterAll(() => server.close());
 
 describe('RequestQueue::constructor', () => {
-  it('can be initialized without a responseInspector', async () => {
+  it('can be initialized without inspectors', async () => {
     expect.hasAssertions();
 
     const queue = new RequestQueue({
@@ -139,22 +142,26 @@ describe('RequestQueue::constructor', () => {
 
     expect(queue.intervalPeriodMs).toBe(1000);
     expect(queue.maxRequestsPerInterval).toBe(30);
+    expect(queue.requestInspector).toBe(defaultRequestInspector);
     expect(queue.responseInspector).toBe(defaultResponseInspector);
   });
 
-  it('can be initialized with a responseInspector', async () => {
+  it('can be initialized with inspectors', async () => {
     expect.hasAssertions();
 
+    const requestInspector = () => undefined;
     const responseInspector = () => undefined;
 
     const queue = new RequestQueue({
       intervalPeriodMs: 1000,
       maxRequestsPerInterval: 30,
+      requestInspector,
       responseInspector
     });
 
     expect(queue.intervalPeriodMs).toBe(1000);
     expect(queue.maxRequestsPerInterval).toBe(30);
+    expect(queue.requestInspector).toBe(requestInspector);
     expect(queue.responseInspector).toBe(responseInspector);
   });
 
@@ -206,6 +213,189 @@ describe('RequestQueue::addRequestToQueue', () => {
     void res.a;
     // @ts-expect-error: if an error occurs, then the type check was successful!
     void res.json;
+  });
+});
+
+describe('RequestQueue::prependRequestToQueue', () => {
+  it('prepends new requests to the queue', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true
+    });
+
+    const [setThreshold, sentinel] = promiseSettledSentinel();
+
+    const pRes1 = queue
+      .prependRequestToQueue('https://fake-url-2')
+      .then(sentinel.resolve(2), sentinel.reject());
+
+    const pRes2 = queue
+      .addRequestToQueue('https://fake-url-1')
+      .then(sentinel.resolve(3), sentinel.reject());
+
+    const pRes3 = queue
+      .prependRequestToQueue('https://fake-url-3')
+      .then(sentinel.resolve(1), sentinel.reject());
+
+    setThreshold(1);
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    await expect(pRes3).resolves.toBeInstanceOf(Response);
+
+    setThreshold(2);
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    await expect(pRes1).resolves.toBeInstanceOf(Response);
+
+    setThreshold(3);
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    await expect(pRes2).resolves.toBeInstanceOf(Response);
+  });
+
+  it('is auto-bound at instantiation', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    const { prependRequestToQueue } = queue;
+    const pRes = prependRequestToQueue('https://fake-url');
+
+    queue.beginProcessingRequestQueue();
+    jest.advanceTimersToNextTimer();
+    await expect(pRes).resolves.toBeInstanceOf(Response);
+  });
+
+  it('can override return type information provided at instantiation', async () => {
+    expect.assertions(0);
+
+    const { prependRequestToQueue } = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    const pRes = prependRequestToQueue<{ a: 1 }>('https://fake-url');
+    const res = pRes as unknown as Awaited<typeof pRes>;
+
+    void res.a;
+    // @ts-expect-error: if an error occurs, then the type check was successful!
+    void res.json;
+  });
+});
+
+describe('RequestQueue::delayRequestProcessingByMs', () => {
+  it('causes delaying of entire request processing routine when set', async () => {
+    expect.hasAssertions();
+
+    let delayPromiseResolver: ((value?: unknown) => void) | undefined;
+
+    mockSetTimeout.mockImplementation((_, __) => {
+      return new Promise((resolve) => {
+        delayPromiseResolver = resolve;
+      });
+    });
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    queue.delayRequestProcessingByMs(1000);
+    queue.beginProcessingRequestQueue();
+
+    const [setThreshold, sentinel] = promiseSettledSentinel();
+
+    const pRes1 = queue
+      .addRequestToQueue('https://fake-url')
+      .then(sentinel.resolve(1), sentinel.reject());
+
+    queue
+      .addRequestToQueue('https://fake-url')
+      .then(sentinel.resolve(), sentinel.reject());
+
+    jest.advanceTimersByTime(10 * queue.intervalPeriodMs);
+
+    expect(delayPromiseResolver).toBeDefined();
+
+    setThreshold(1);
+    delayPromiseResolver?.();
+
+    await expect(pRes1).resolves.toBeInstanceOf(Response);
+  });
+
+  it('is reset before a delay transpires', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    queue.delayRequestProcessingByMs(1000);
+    queue.beginProcessingRequestQueue();
+
+    void queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    expect(queue.requestProcessingDelayMs).toBe(0);
+  });
+
+  it('is reset after a delay transpires, preventing unnecessary slowdowns', async () => {
+    expect.hasAssertions();
+
+    let delayPromiseResolver: ((value?: unknown) => void) | undefined;
+
+    mockSetTimeout.mockImplementation((_, __) => {
+      return new Promise((resolve) => {
+        delayPromiseResolver = resolve;
+      });
+    });
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    queue.delayRequestProcessingByMs(1000);
+    queue.beginProcessingRequestQueue();
+
+    const pRes1 = queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+
+    expect(delayPromiseResolver).toBeDefined();
+
+    queue.delayRequestProcessingByMs(10000);
+    delayPromiseResolver?.();
+
+    await expect(pRes1).resolves.toBeInstanceOf(Response);
+    expect(queue.requestProcessingDelayMs).toBe(0);
+  });
+
+  it('throws when attempting to set negative delay', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    expect(() => queue.delayRequestProcessingByMs(-1)).toThrow(RequestQueueError);
+  });
+
+  it('is auto-bound at instantiation', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    const { delayRequestProcessingByMs } = queue;
+    expect(() => delayRequestProcessingByMs(-1)).toThrow(RequestQueueError);
   });
 });
 
@@ -332,6 +522,47 @@ describe('RequestQueue::beginProcessingRequestQueue', () => {
     await expect((await pReq2).json()).resolves.toHaveProperty('method', 'POST');
   });
 
+  it('passes state from addRequestToQueue all the way through the inspectors', async () => {
+    expect.hasAssertions();
+
+    const globalState = { state: 'stateful' };
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 2,
+      autoStart: true,
+      requestInspector: ({ state }) => {
+        state.stateless = false;
+        return 'custom-value';
+      },
+      responseInspector: ({ response: val, state }) => {
+        state.val = val;
+        return state;
+      }
+    });
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url', undefined, globalState);
+    const pReq2 = queue.addRequestToQueue('https://fake-url', undefined, {
+      localState: true
+    });
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+
+    await expect(pReq1).resolves.toBe(globalState);
+    await expect(pReq1).resolves.toStrictEqual({
+      state: 'stateful',
+      stateless: false,
+      val: 'custom-value'
+    });
+
+    await expect(pReq2).resolves.not.toBe(globalState);
+    await expect(pReq2).resolves.toStrictEqual({
+      localState: true,
+      stateless: false,
+      val: 'custom-value'
+    });
+  });
+
   it('throws if called while already processing queue', async () => {
     expect.hasAssertions();
 
@@ -347,16 +578,20 @@ describe('RequestQueue::beginProcessingRequestQueue', () => {
   it('causes addRequestToQueue promise to reject when fetch function rejects', async () => {
     expect.hasAssertions();
 
+    const responseInspector = jest.fn();
     const queue = new RequestQueue<Response>({
       intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1
+      maxRequestsPerInterval: 1,
+      responseInspector
     });
 
     queue.beginProcessingRequestQueue();
 
     const pReq = queue.addRequestToQueue('bad-url');
     jest.advanceTimersByTime(queue.intervalPeriodMs);
+
     await expect(pReq).rejects.toBeInstanceOf(Error);
+    expect(responseInspector).not.toBeCalled();
   });
 
   it('is auto-bound at instantiation', async () => {
@@ -373,48 +608,6 @@ describe('RequestQueue::beginProcessingRequestQueue', () => {
     beginProcessingRequestQueue();
     jest.advanceTimersByTime(queue.intervalPeriodMs);
     await expect(pRes).resolves.toBeInstanceOf(Response);
-  });
-});
-
-describe('RequestQueue::clearRequestQueue', () => {
-  it('clears only pending/unprocessed requests from the queue and rejects them', async () => {
-    expect.hasAssertions();
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1
-    });
-
-    queue.beginProcessingRequestQueue();
-
-    const pReq1 = queue.addRequestToQueue('https://fake-url');
-    const pReq2 = queue.addRequestToQueue('https://fake-url');
-    const pReq3 = queue.addRequestToQueue('https://fake-url');
-    const pReq4 = queue.addRequestToQueue('https://fake-url');
-
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
-    queue.clearRequestQueue();
-
-    await expect(pReq1).resolves.toBeInstanceOf(Response);
-    await expect(pReq2).rejects.toBeInstanceOf(RequestQueueClearedError);
-    await expect(pReq3).rejects.toBeInstanceOf(RequestQueueClearedError);
-    await expect(pReq4).rejects.toBeInstanceOf(RequestQueueClearedError);
-  });
-
-  it('is auto-bound at instantiation', async () => {
-    expect.hasAssertions();
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1
-    });
-
-    const { clearRequestQueue } = queue;
-    const pReq = queue.addRequestToQueue('https://fake-url');
-
-    clearRequestQueue();
-
-    await expect(pReq).rejects.toBeInstanceOf(RequestQueueClearedError);
   });
 });
 
@@ -524,7 +717,7 @@ describe('RequestQueue::immediatelyStopProcessingRequestQueue', () => {
       maxRequestsPerInterval: 2
     });
 
-    queue.requestDelayMs = 1000;
+    queue.delayRequestProcessingByMs(1000);
     queue.beginProcessingRequestQueue();
 
     expect(mockSetTimeout).toBeCalledTimes(0);
@@ -637,6 +830,48 @@ describe('RequestQueue::immediatelyStopProcessingRequestQueue', () => {
   });
 });
 
+describe('RequestQueue::clearRequestQueue', () => {
+  it('clears only pending/unprocessed requests from the queue and rejects them', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    queue.beginProcessingRequestQueue();
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url');
+    const pReq2 = queue.addRequestToQueue('https://fake-url');
+    const pReq3 = queue.addRequestToQueue('https://fake-url');
+    const pReq4 = queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    queue.clearRequestQueue();
+
+    await expect(pReq1).resolves.toBeInstanceOf(Response);
+    await expect(pReq2).rejects.toBeInstanceOf(RequestQueueClearedError);
+    await expect(pReq3).rejects.toBeInstanceOf(RequestQueueClearedError);
+    await expect(pReq4).rejects.toBeInstanceOf(RequestQueueClearedError);
+  });
+
+  it('is auto-bound at instantiation', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    const { clearRequestQueue } = queue;
+    const pReq = queue.addRequestToQueue('https://fake-url');
+
+    clearRequestQueue();
+
+    await expect(pReq).rejects.toBeInstanceOf(RequestQueueClearedError);
+  });
+});
+
 describe('RequestQueue::waitForQueueProcessingToStop', () => {
   it('resolves only after queue processing is stopped', async () => {
     expect.hasAssertions();
@@ -680,6 +915,359 @@ describe('RequestQueue::waitForQueueProcessingToStop', () => {
     await expect(waitForQueueProcessingToStop()).resolves.toBeUndefined();
 
     assertRequestQueueProcessingStopped(queue);
+  });
+});
+
+describe('RequestQueue::getStats', () => {
+  it('returns accurate statistics about the queue runtime', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    queue.beginProcessingRequestQueue();
+    queue.gracefullyStopProcessingRequestQueue();
+
+    void queue.addRequestToQueue('https://fake-url');
+    void queue.addRequestToQueue('https://fake-url');
+    void queue.addRequestToQueue('https://fake-url');
+    void queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(10 * queue.intervalPeriodMs);
+
+    await queue.waitForQueueProcessingToStop();
+    void queue.addRequestToQueue('https://fake-url');
+
+    expect(queue.getStats()).toStrictEqual({
+      intervals: 5,
+      requestsEnqueued: 5,
+      internalRequestsSent: 4
+    });
+  });
+});
+
+describe('RequestQueue::isProcessingRequestQueue', () => {
+  it('returns true when request queue is being processed and false otherwise', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1
+    });
+
+    queue.beginProcessingRequestQueue();
+    expect(queue.isProcessingRequestQueue).toBeTrue();
+
+    queue.gracefullyStopProcessingRequestQueue();
+    expect(queue.isProcessingRequestQueue).toBeTrue();
+
+    queue.immediatelyStopProcessingRequestQueue();
+    expect(queue.isProcessingRequestQueue).toBeFalse();
+  });
+});
+
+describe('RequestQueue::requestInspector', () => {
+  it('causes addRequestToQueue promise to resolve with return value', async () => {
+    expect.hasAssertions();
+
+    const globalState = {};
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true,
+      requestInspector: ({ queue: q, requestInfo, requestInit, state }) => {
+        expect(q).toBe(queue);
+        expect(requestInfo).toBe('https://fake-url');
+        expect(requestInit.method).toBe('POST');
+        expect(state).toStrictEqual(globalState);
+
+        return { hello: 'world' };
+      }
+    });
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url', { method: 'POST' });
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    await expect(pReq1).resolves.toStrictEqual({ hello: 'world' });
+  });
+
+  it('causes addRequestToQueue promise to reject when rejected or when Error is thrown', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true
+    });
+
+    queue.requestInspector = async () => {
+      throw new DummyError('bad');
+    };
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    await expect(pReq1).rejects.toThrow(/bad/);
+
+    queue.requestInspector = () => {
+      throw new DummyError('worse');
+    };
+
+    const pReq2 = queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    await expect(pReq2).rejects.toThrow(/worse/);
+  });
+
+  it('causes addRequestToQueue promise to reject with HttpError if non-Error is thrown/rejected', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true,
+      requestInspector: async () => {
+        throw 'goodbye, world!';
+      }
+    });
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+
+    await expect(pReq1).rejects.toMatchObject({
+      name: 'HttpError',
+      message: expect.stringContaining('goodbye, world!')
+    });
+
+    queue.requestInspector = () => {
+      throw 'goodbye, cruel world!';
+    };
+
+    const pReq2 = queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+
+    await expect(pReq2).rejects.toMatchObject({
+      name: 'HttpError',
+      message: expect.stringContaining('goodbye, cruel world!')
+    });
+  });
+
+  it('can leverage state parameter and queue methods', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true
+    });
+
+    queue.requestInspector = async ({ queue: q, state }) => {
+      if (state.hello == 'world') {
+        const pReqRedirect = q.addRequestToQueue('https://rake-url', {
+          method: 'PUT',
+          body: 'status=403'
+        });
+
+        return Promise.resolve().then(() => {
+          jest.advanceTimersByTime(queue.intervalPeriodMs);
+          return pReqRedirect;
+        });
+      }
+    };
+
+    const pReq1 = queue.addRequestToQueue(
+      'https://fake-url',
+      { method: 'POST' },
+      { hello: 'world' }
+    );
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+
+    const req1 = await pReq1;
+
+    expect(req1.url).toBe('https://rake-url/');
+    expect(req1.status).toBe(403);
+    await expect(req1.json()).resolves.toHaveProperty('method', 'PUT');
+  });
+
+  it('can mutate request parameters', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true
+    });
+
+    queue.requestInspector = async (params) => {
+      params.requestInfo = 'https://rake-url';
+      params.requestInit.method = 'GET';
+      params.requestInit.headers = new Headers({ somewhere: 'in a better place' });
+    };
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url', { method: 'POST' });
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    const req1 = await pReq1;
+    const json = await req1.json();
+
+    expect(req1.url).toBe('https://rake-url/');
+    expect(json.method).toBe('GET');
+    expect(json.headers).toMatchObject({ somewhere: 'in a better place' });
+  });
+
+  it('skips internal fetch when passing defined return value', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true
+    });
+
+    queue.requestInspector = () => {
+      return { short: 'circuit' };
+    };
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url', { method: 'POST' });
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+
+    await expect(pReq1).resolves.toStrictEqual({ short: 'circuit' });
+  });
+});
+
+describe('RequestQueue::responseInspector', () => {
+  it('causes addRequestToQueue promise to resolve with return value', async () => {
+    expect.hasAssertions();
+
+    const globalState = {};
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true,
+      responseInspector: ({
+        response,
+        queue: q,
+        requestInfo,
+        requestInit,
+        state
+      }) => {
+        expect(response).toBeInstanceOf(Response);
+        expect(q).toBe(queue);
+        expect(requestInfo).toBe('https://fake-url');
+        expect(requestInit.method).toBe('POST');
+        expect(state).toStrictEqual(globalState);
+
+        return { hello: 'world' };
+      }
+    });
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url', { method: 'POST' });
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    await expect(pReq1).resolves.toStrictEqual({ hello: 'world' });
+  });
+
+  it('causes addRequestToQueue promise to reject when rejected or when Error is thrown', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true
+    });
+
+    queue.responseInspector = async () => {
+      throw new DummyError('bad');
+    };
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    await expect(pReq1).rejects.toThrow(/bad/);
+
+    queue.responseInspector = () => {
+      throw new DummyError('worse');
+    };
+
+    const pReq2 = queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    await expect(pReq2).rejects.toThrow(/worse/);
+  });
+
+  it('causes addRequestToQueue promise to reject with HttpError if non-Error is thrown/rejected', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true,
+      responseInspector: async () => {
+        throw 'goodbye, world!';
+      }
+    });
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+
+    await expect(pReq1).rejects.toMatchObject({
+      name: 'HttpError',
+      message: expect.stringContaining('goodbye, world!')
+    });
+
+    queue.responseInspector = () => {
+      throw 'goodbye, cruel world!';
+    };
+
+    const pReq2 = queue.addRequestToQueue('https://fake-url');
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+
+    await expect(pReq2).rejects.toMatchObject({
+      name: 'HttpError',
+      message: expect.stringContaining('goodbye, cruel world!')
+    });
+  });
+
+  it('can leverage state parameter and queue methods', async () => {
+    expect.hasAssertions();
+
+    const queue = new RequestQueue<Response>({
+      intervalPeriodMs: 1000,
+      maxRequestsPerInterval: 1,
+      autoStart: true
+    });
+
+    queue.responseInspector = async ({ response, queue: q, state }) => {
+      const res = response as Response;
+
+      if (res.status == 200) {
+        const pReqRetry = q.addRequestToQueue(
+          'https://fake-url',
+          { method: 'POST', body: 'status=403' },
+          { isARetry: true }
+        );
+
+        return Promise.resolve().then(() => {
+          jest.advanceTimersByTime(queue.intervalPeriodMs);
+          return pReqRetry;
+        });
+      }
+
+      return `hello, ${state.isARetry ? 'retry' : 'world'}!`;
+    };
+
+    const pReq1 = queue.addRequestToQueue('https://fake-url', { method: 'POST' });
+
+    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    await expect(pReq1).resolves.toBe('hello, retry!');
   });
 });
 
@@ -776,79 +1364,6 @@ describe('RequestQueue::defaultRequestInit', () => {
   });
 });
 
-describe('RequestQueue::intervalPeriodMs', () => {
-  it('determines the delay period between intervals', async () => {
-    expect.hasAssertions();
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 10000,
-      maxRequestsPerInterval: 1
-    });
-
-    queue.requestDelayMs = 1000;
-    queue.beginProcessingRequestQueue();
-
-    expect(mockSetTimeout).toBeCalledTimes(0);
-
-    const [, sentinel] = promiseSettledSentinel();
-
-    void queue.addRequestToQueue('https://fake-url').then(
-      sentinel.resolve(1),
-      // ? Since this request will get sent, the halt below will abort it
-      sentinel.resolve(0)
-    );
-
-    jest.advanceTimersByTime(10000);
-    expect(mockSetTimeout).toBeCalledTimes(1);
-
-    void queue.addRequestToQueue('https://fake-url');
-
-    // ? Wait for the current interval microtask to finish before continuing
-    await Promise.resolve().then(() => (queue.requestDelayMs = 1000));
-
-    jest.advanceTimersByTime(2500);
-    expect(mockSetTimeout).toBeCalledTimes(1);
-    jest.advanceTimersByTime(2500);
-    expect(mockSetTimeout).toBeCalledTimes(1);
-    jest.advanceTimersByTime(5000);
-    expect(mockSetTimeout).toBeCalledTimes(2);
-
-    queue.immediatelyStopProcessingRequestQueue();
-
-    queue.requestDelayMs = 1000;
-    queue.intervalPeriodMs = 500;
-
-    queue.beginProcessingRequestQueue();
-
-    void queue.addRequestToQueue('https://fake-url');
-
-    jest.advanceTimersByTime(250);
-    expect(mockSetTimeout).toBeCalledTimes(2);
-    jest.advanceTimersByTime(250);
-    expect(mockSetTimeout).toBeCalledTimes(3);
-  });
-});
-
-describe('RequestQueue::isProcessingRequestQueue', () => {
-  it('returns true when request queue is being processed and false otherwise', async () => {
-    expect.hasAssertions();
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1
-    });
-
-    queue.beginProcessingRequestQueue();
-    expect(queue.isProcessingRequestQueue).toBeTrue();
-
-    queue.gracefullyStopProcessingRequestQueue();
-    expect(queue.isProcessingRequestQueue).toBeTrue();
-
-    queue.immediatelyStopProcessingRequestQueue();
-    expect(queue.isProcessingRequestQueue).toBeFalse();
-  });
-});
-
 describe('RequestQueue::maxRequestsPerInterval', () => {
   it('determines the maximum number of requests processed per interval', async () => {
     expect.hasAssertions();
@@ -912,7 +1427,7 @@ describe('RequestQueue::maxRequestsPerInterval', () => {
       maxRequestsPerInterval: 2
     });
 
-    queue.requestDelayMs = 1000;
+    queue.delayRequestProcessingByMs(1000);
     queue.beginProcessingRequestQueue();
 
     const [setThreshold, sentinel] = promiseSettledSentinel();
@@ -940,7 +1455,7 @@ describe('RequestQueue::maxRequestsPerInterval', () => {
 
     await expect(pReq1).resolves.toBeInstanceOf(Response);
 
-    queue.requestDelayMs = 1000;
+    queue.delayRequestProcessingByMs(1000);
     jest.advanceTimersByTime(queue.intervalPeriodMs);
     queue.maxRequestsPerInterval = 3;
 
@@ -995,242 +1510,55 @@ describe('RequestQueue::maxRequestsPerInterval', () => {
   });
 });
 
-describe('RequestQueue::responseInspector', () => {
-  it('causes addRequestToQueue promise to resolve with return value', async () => {
+describe('RequestQueue::intervalPeriodMs', () => {
+  it('determines the delay period between intervals', async () => {
     expect.hasAssertions();
 
     const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1,
-      autoStart: true,
-      responseInspector: (res, q, wasARetry, url, requestInit) => {
-        expect(res).toBeInstanceOf(Response);
-        expect(q).toBe(queue);
-        expect(url).toBe('https://fake-url');
-        expect(requestInit.method).toBe('POST');
-        expect(wasARetry).toBeFalse();
-
-        return { hello: 'world' };
-      }
-    });
-
-    const pReq1 = queue.addRequestToQueue('https://fake-url', { method: 'POST' });
-
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
-    await expect(pReq1).resolves.toStrictEqual({ hello: 'world' });
-  });
-
-  it('causes addRequestToQueue promise to reject when Error is thrown', async () => {
-    expect.hasAssertions();
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1,
-      autoStart: true
-    });
-
-    queue.responseInspector = async () => {
-      throw new DummyError();
-    };
-
-    const pReq1 = queue.addRequestToQueue('https://fake-url');
-
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
-    await expect(pReq1).rejects.toBeInstanceOf(DummyError);
-  });
-
-  it('causes addRequestToQueue promise to reject with HttpError if non-Error is thrown', async () => {
-    expect.hasAssertions();
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1,
-      autoStart: true,
-      responseInspector: async () => {
-        throw 'goodbye, world!';
-      }
-    });
-
-    const pReq1 = queue.addRequestToQueue('https://fake-url');
-
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
-
-    await expect(pReq1).rejects.toMatchObject({
-      name: 'HttpError',
-      message: expect.stringContaining('goodbye, world!')
-    });
-  });
-
-  it('can detect retries and react accordingly', async () => {
-    expect.hasAssertions();
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1,
-      autoStart: true
-    });
-
-    queue.responseInspector = async (res, q, wasARetry) => {
-      if (res.status == 200) {
-        const pReqRetry = q.addRequestToQueue(
-          'https://fake-url',
-          { method: 'POST', body: 'status=403' },
-          true
-        );
-
-        return Promise.resolve().then(() => {
-          jest.advanceTimersByTime(queue.intervalPeriodMs);
-          return pReqRetry;
-        });
-      }
-
-      return `hello, ${wasARetry ? 'retry' : 'world'}!`;
-    };
-
-    const pReq1 = queue.addRequestToQueue('https://fake-url', { method: 'POST' });
-
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
-    await expect(pReq1).resolves.toBe('hello, retry!');
-  });
-});
-
-describe('RequestQueue::prependRetries', () => {
-  it('makes addRequestToQueue prepend retries to the request queue when true or append when false', async () => {
-    expect.hasAssertions();
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1,
-      autoStart: true
-    });
-
-    const [setThreshold, sentinel] = promiseSettledSentinel();
-
-    const pRes1 = queue
-      .addRequestToQueue('https://fake-url-1')
-      .then(sentinel.resolve(2), sentinel.reject());
-
-    const pRes2 = queue
-      .addRequestToQueue('https://fake-url-2', {}, true)
-      .then(sentinel.resolve(1), sentinel.reject());
-
-    queue.prependRetries = false;
-
-    const pRes3 = queue
-      .addRequestToQueue('https://fake-url-3', {}, true)
-      .then(sentinel.resolve(3), sentinel.reject());
-
-    setThreshold(1);
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
-    await expect(pRes2).resolves.toBeInstanceOf(Response);
-
-    setThreshold(2);
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
-    await expect(pRes1).resolves.toBeInstanceOf(Response);
-
-    setThreshold(3);
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
-    await expect(pRes3).resolves.toBeInstanceOf(Response);
-  });
-});
-
-describe('RequestQueue::requestDelayMs', () => {
-  it('causes delaying of entire request processing routine when set', async () => {
-    expect.hasAssertions();
-
-    let delayPromiseResolver: ((value?: unknown) => void) | undefined;
-
-    mockSetTimeout.mockImplementation((_, __) => {
-      return new Promise((resolve) => {
-        delayPromiseResolver = resolve;
-      });
-    });
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
+      intervalPeriodMs: 10000,
       maxRequestsPerInterval: 1
     });
 
-    queue.requestDelayMs = 1000;
+    queue.delayRequestProcessingByMs(1000);
     queue.beginProcessingRequestQueue();
 
-    const [setThreshold, sentinel] = promiseSettledSentinel();
+    expect(mockSetTimeout).toBeCalledTimes(0);
 
-    const pRes1 = queue
-      .addRequestToQueue('https://fake-url')
-      .then(sentinel.resolve(1), sentinel.reject());
+    const [, sentinel] = promiseSettledSentinel();
 
-    queue
-      .addRequestToQueue('https://fake-url')
-      .then(sentinel.resolve(), sentinel.reject());
+    void queue.addRequestToQueue('https://fake-url').then(
+      sentinel.resolve(1),
+      // ? Since this request will get sent, the halt below will abort it
+      sentinel.resolve(0)
+    );
 
-    jest.advanceTimersByTime(10 * queue.intervalPeriodMs);
+    jest.advanceTimersByTime(10000);
+    expect(mockSetTimeout).toBeCalledTimes(1);
 
-    expect(delayPromiseResolver).toBeDefined();
+    void queue.addRequestToQueue('https://fake-url');
 
-    setThreshold(1);
-    delayPromiseResolver?.();
+    // ? Wait for the current interval microtask to finish before continuing
+    await Promise.resolve().then(() => queue.delayRequestProcessingByMs(1000));
 
-    await expect(pRes1).resolves.toBeInstanceOf(Response);
-  });
+    jest.advanceTimersByTime(2500);
+    expect(mockSetTimeout).toBeCalledTimes(1);
+    jest.advanceTimersByTime(2500);
+    expect(mockSetTimeout).toBeCalledTimes(1);
+    jest.advanceTimersByTime(5000);
+    expect(mockSetTimeout).toBeCalledTimes(2);
 
-  it('is reset before a delay transpires', async () => {
-    expect.hasAssertions();
+    queue.immediatelyStopProcessingRequestQueue();
 
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1
-    });
+    queue.delayRequestProcessingByMs(1000);
+    queue.intervalPeriodMs = 500;
 
-    queue.requestDelayMs = 1000;
     queue.beginProcessingRequestQueue();
 
     void queue.addRequestToQueue('https://fake-url');
 
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
-    expect(queue.requestDelayMs).toBe(0);
-  });
-
-  it('is reset after a delay transpires, preventing unnecessary slowdowns', async () => {
-    expect.hasAssertions();
-
-    let delayPromiseResolver: ((value?: unknown) => void) | undefined;
-
-    mockSetTimeout.mockImplementation((_, __) => {
-      return new Promise((resolve) => {
-        delayPromiseResolver = resolve;
-      });
-    });
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1
-    });
-
-    queue.requestDelayMs = 1000;
-    queue.beginProcessingRequestQueue();
-
-    const pRes1 = queue.addRequestToQueue('https://fake-url');
-
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
-
-    expect(delayPromiseResolver).toBeDefined();
-
-    queue.requestDelayMs = 10000;
-    delayPromiseResolver?.();
-
-    await expect(pRes1).resolves.toBeInstanceOf(Response);
-    expect(queue.requestDelayMs).toBe(0);
-  });
-
-  it('throws when attempting to set negative delay', async () => {
-    expect.hasAssertions();
-
-    const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 1000,
-      maxRequestsPerInterval: 1
-    });
-
-    expect(() => (queue.requestDelayMs = -1)).toThrow(RequestQueueError);
+    jest.advanceTimersByTime(250);
+    expect(mockSetTimeout).toBeCalledTimes(2);
+    jest.advanceTimersByTime(250);
+    expect(mockSetTimeout).toBeCalledTimes(3);
   });
 });

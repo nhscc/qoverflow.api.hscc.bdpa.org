@@ -18,46 +18,95 @@ import type { RequestInfo, RequestInit } from 'node-fetch';
 type FetchParams = Parameters<typeof fetch>;
 
 /**
- * An internal representation of the `addRequestToQueue` parameters.
+ * An internal representation of the `addRequestToQueue` and
+ * `prependRequestToQueue` parameters.
  */
 type ExtendedFetchParams = [
   url: RequestInfo,
   init?: RequestInit | undefined,
-  isARetry?: boolean
+  state?: Record<string, unknown>
 ];
 
 /**
- * An internal function used to eventually resolve the `addRequestToQueue` call
- * with the response data.
+ * An internal function used to eventually resolve the `addRequestToQueue` and
+ * `prependRequestToQueue` calls with the response data.
  */
 type RequestQueueCallback = {
   (err: null, retval: unknown): void;
   (err: Error, retval?: undefined): void;
 };
 
+/**
+ * A `RequestInit` instance guaranteed to have a non-falsy signal property.
+ */
+type RequestInitWithSignal = RequestInit & {
+  signal: NonNullable<RequestInit['signal']>;
+};
+
+/**
+ * The shape of a request-inspecting function.
+ */
+export type RequestInspector = (params: {
+  queue: RequestQueue;
+  requestInfo: RequestInfo;
+  requestInit: RequestInitWithSignal;
+  state: Record<string, unknown>;
+}) => Promisable<unknown>;
+
+/**
+ * The shape of a response-inspecting function.
+ */
+export type ResponseInspector = (params: {
+  response: unknown;
+  queue: RequestQueue;
+  requestInfo: RequestInfo;
+  requestInit: RequestInitWithSignal;
+  state: Record<string, unknown>;
+}) => Promisable<unknown>;
+
+/**
+ * The shape of a FetchError-inspecting function.
+ */
+export type FetchErrorInspector = (params: {
+  error: unknown;
+  queue: RequestQueue;
+  requestInfo: RequestInfo;
+  requestInit: RequestInitWithSignal;
+  state: Record<string, unknown>;
+}) => Promisable<unknown>;
+
+/**
+ * Thrown in response to a queue-related error.
+ */
 export class RequestQueueError extends Error {}
 makeNamedError(RequestQueueError, 'RequestQueueError');
 
+/**
+ * Thrown by `addRequestToQueue` when the request was removed from the queue
+ * without being sent or otherwise processed.
+ */
 export class RequestQueueClearedError extends RequestQueueError {}
 makeNamedError(RequestQueueClearedError, 'RequestQueueClearedError');
 
 /**
- * A function used to alter the behavior of the queue based on feedback from
- * response data (e.g. JSON data or response status).
+ * The default `RequestInspector` used by each `RequestQueue` instance unless
+ * otherwise configured. Simply passes through the given fetch parameters.
  */
-export type ResponseInspector = (
-  response: Awaited<ReturnType<typeof fetch>>,
-  requestQueue: RequestQueue,
-  wasARetry: boolean,
-  requestInfo: RequestInfo,
-  requestInit: RequestInit
-) => Promisable<unknown>;
+export const defaultRequestInspector: RequestInspector = () => undefined;
 
 /**
  * The default `ResponseInspector` used by each `RequestQueue` instance unless
  * otherwise configured. Simply passes through the `Response` instance.
  */
-export const defaultResponseInspector: ResponseInspector = (res) => res;
+export const defaultResponseInspector: ResponseInspector = ({ response: res }) => res;
+
+/**
+ * The default `FetchErrorInspector` used by each `RequestQueue` instance unless
+ * otherwise configured. Re-throws the `FetchError` instance.
+ */
+export const defaultFetchErrorInspector: FetchErrorInspector = ({ error: e }) => {
+  throw e;
+};
 
 /**
  * Execute requests present in the request queue with respect to backoff data,
@@ -66,15 +115,22 @@ export const defaultResponseInspector: ResponseInspector = (res) => res;
 export class RequestQueue<T = any> {
   /**
    * If non-zero, no new requests will be made until this many milliseconds have
-   * expired.
+   * transpired.
    */
-  #requestDelayMs = 0;
+  #delayRequestProcessingByMs = 0;
 
   /**
    * Once this is set to false and requestQueue is empty,
    * `queueAbortController.abort()` will be called automatically.
    */
   #keepProcessingRequestQueue = true;
+
+  /**
+   * Determines when queue processing is "soft-paused," which allows the
+   * processor to avoid wasting cycles scheduling intervals when the request
+   * queue is empty.
+   */
+  #queueProcessingIsSoftPaused = false;
 
   /**
    * Used to abort the request queue processor.
@@ -87,20 +143,26 @@ export class RequestQueue<T = any> {
   #terminationAbortController = new AbortController();
 
   /**
+   * A function used to individual requests based on feedback from request data.
+   */
+  #requestInspector: RequestInspector;
+
+  /**
    * A function used to alter the behavior of the queue based on feedback from
-   * response data (e.g. JSON data or response status).
+   * response data.
    */
   #responseInspector: ResponseInspector;
+
+  /**
+   * A function used to alter the behavior of the queue when the fetch function
+   * rejects.
+   */
+  #fetchErrorInspector: FetchErrorInspector;
 
   /**
    * Default request initialization parameters sent along with every request.
    */
   #defaultRequestInit: RequestInit = {};
-
-  /**
-   * If true, retries will be prepended to the queue.
-   */
-  #prependRetries = true;
 
   /**
    * Used to facilitate "waiting" for the queue to stop processing requests.
@@ -130,13 +192,23 @@ export class RequestQueue<T = any> {
   #requestQueue: [
     fetchParams: FetchParams,
     callback: RequestQueueCallback,
-    retried: boolean
+    state: Record<string, unknown>
   ][] = [];
 
   /**
-   * A counter used only in debug output.
+   * A counter used only in debug and stats output.
    */
   #debugIntervalCounter = 0;
+
+  /**
+   * A counter used only in debug and stats output.
+   */
+  #debugAddRequestCounter = 0;
+
+  /**
+   * A counter used only in debug and stats output.
+   */
+  #debugSentRequestCounter = 0;
 
   /**
    * Create, configure, and return a new RequestQueue instance. All instance
@@ -145,7 +217,9 @@ export class RequestQueue<T = any> {
   constructor({
     maxRequestsPerInterval,
     intervalPeriodMs,
+    requestInspector,
     responseInspector,
+    fetchErrorInspector,
     autoStart = false
   }: {
     /**
@@ -159,22 +233,73 @@ export class RequestQueue<T = any> {
      */
     intervalPeriodMs: number;
     /**
-     * A function used to alter the behavior of the queue based on feedback from
-     * response data (e.g. JSON data or response status). This function must do
-     * one of the following before terminating:
+     * A function used to alter the behavior of individual requests based on
+     * available parameters. This function must do one of the following before
+     * terminating:
      *
-     *   - return a JSON representation of the response, e.g. `response.json()`.
-     *   - interpret and/or transform the response data and return any value.
-     *   - throw an error causing the `addRequestToQueue` method to reject.
+     *   - Mutate `addRequestToQueue`'s params before letting it continuing.
+     *   - BYO fetch library and return a promise that resolves how you want.
+     *   - Call `addRequestToQueue` again and return it (beware infinite loops).
+     *   - Await a `setTimeout` promise to delay the request before continuing.
+     *   - Throw an error causing the `addRequestToQueue` method to reject.
+     *
+     * Delaying a request using `requestInspector` will have no effect on the
+     * processing of other requests or the period between intervals, making it
+     * ideal for more complex (e.g. isolated, per-endpoint) throttling
+     * requirements.
+     *
+     * If this function returns `undefined` or a promise that resolves to
+     * `undefined`, an internal `fetch()` will be made using the request params
+     * passed to (and potentially mutated by) this function. The fetch result
+     * will be passed to `responseInspector`. Otherwise, the resolved defined
+     * value of this function will be passed to `responseInspector` directly (no
+     * additional internal `fetch()` happens).
+     *
+     * If this function throws, the corresponding `addRequestToQueue` call will
+     * reject and `responseInspector` will not be called.
+     *
+     * @default defaultRequestInspector (see export)
+     */
+    requestInspector?: RequestInspector;
+    /**
+     * A function used to reshape response data before returning it through the
+     * resolved `addRequestToQueue` promise. This function must do one of the
+     * following before terminating:
+     *
+     *   - Return a JSON representation of the response, e.g. `response.json()`.
+     *   - Interpret and/or transform the response data and return any value.
+     *   - Throw an error causing the `addRequestToQueue` method to reject.
      *
      * The return value of this function will eventually be used as the resolved
-     * value of the promise returned by the `addRequestToQueue` call that
-     * triggered it. Similarly, if this function throws, the corresponding
-     * `addRequestToQueue` call will reject.
+     * value of the promise returned by the corresponding `addRequestToQueue`
+     * call that triggered it. Similarly, if this function throws, the
+     * corresponding `addRequestToQueue` call will reject.
      *
      * @default defaultResponseInspector (see export)
      */
     responseInspector?: ResponseInspector;
+    /**
+     * A function used to take some action after the node-fetch `fetch` function
+     * rejects due to failure. Like `requestInspector`, this function must do
+     * one of the following before terminating:
+     *
+     *   - Return a promise that resolves how you want.
+     *   - Call `addRequestToQueue` again and return it (beware infinite loops).
+     *   - Await a `setTimeout` promise to delay the request before continuing.
+     *   - Throw an error causing the `addRequestToQueue` method to reject.
+     *
+     * Delaying a request using `requestInspector` will have no effect on the
+     * processing of other requests or the period between intervals, making it
+     * ideal to retry failed fetch requests.
+     *
+     * The resolved value of this function will always be passed to
+     * `responseInspector` directly (no additional internal `fetch()` happens)
+     * unless an error is thrown, in which case the `addRequestToQueue` return
+     * value will reject.
+     *
+     * @default defaultFetchErrorInspector (see export)
+     */
+    fetchErrorInspector?: FetchErrorInspector;
     /**
      * If `true`, `beginProcessingRequestQueue` and
      * `gracefullyStopProcessingRequestQueue` will be called immediately after
@@ -195,7 +320,9 @@ export class RequestQueue<T = any> {
   }) {
     this.#maxRequestsPerInterval = maxRequestsPerInterval;
     this.#intervalPeriodMs = intervalPeriodMs;
+    this.#requestInspector = requestInspector ?? defaultRequestInspector;
     this.#responseInspector = responseInspector ?? defaultResponseInspector;
+    this.#fetchErrorInspector = fetchErrorInspector ?? defaultFetchErrorInspector;
 
     // ? Note that this only auto-binds public methods
     autobind(this);
@@ -207,18 +334,73 @@ export class RequestQueue<T = any> {
   }
 
   /**
-   * A function used to alter the behavior of the queue based on feedback from
-   * response data (e.g. JSON data or response status). This function must do
-   * one of the following before terminating:
+   * Returns `true` if the request queue is currently being processed or `false`
+   * otherwise.
+   */
+  get isProcessingRequestQueue() {
+    return !!this.#timeoutId;
+  }
+
+  /**
+   * If non-zero, no new requests will be made until this many milliseconds have
+   * transpired. This value is relative to when `delayRequestProcessingByMs` was
+   * last called, so querying this property isn't useful without that additional
+   * context.
+   */
+  get requestProcessingDelayMs() {
+    return this.#delayRequestProcessingByMs;
+  }
+
+  /**
+   * A function used to alter the behavior of individual requests based on
+   * available parameters. This function must do one of the following before
+   * terminating:
    *
-   *   - return a JSON representation of the response, e.g. `response.json()`.
-   *   - interpret and/or transform the response data and return any value.
-   *   - throw an error causing the `addRequestToQueue` method to reject.
+   *   - Mutate `addRequestToQueue`'s params before letting it continuing.
+   *   - BYO fetch library and return a promise that resolves how you want.
+   *   - Call `addRequestToQueue` again and return it (beware infinite loops).
+   *   - Await a `setTimeout` promise to delay the request before continuing.
+   *   - Throw an error causing the `addRequestToQueue` method to reject.
+   *
+   * Delaying a request using `requestInspector` will have no effect on the
+   * processing of other requests or the period between intervals, making it
+   * ideal for more complex (e.g. isolated, per-endpoint) throttling
+   * requirements.
+   *
+   * If this function returns `undefined` or a promise that resolves to
+   * `undefined`, an internal `fetch()` will be made using the request params
+   * passed to (and potentially mutated by) this function. The fetch result
+   * will be passed to `responseInspector`. Otherwise, the resolved defined
+   * value of this function will be passed to `responseInspector` directly (no
+   * internal `fetch()` happens).
+   *
+   * If this function throws, the corresponding `addRequestToQueue` call will
+   * reject and `responseInspector` will not be called.
+   *
+   * @default defaultRequestInspector (see export)
+   */
+  get requestInspector() {
+    return this.#requestInspector;
+  }
+
+  set requestInspector(inspector) {
+    debug('set new requestInspector');
+    this.#requestInspector = inspector;
+  }
+
+  /**
+   * A function used to reshape response data before returning it through the
+   * resolved `addRequestToQueue` promise. This function must do one of the
+   * following before terminating:
+   *
+   *   - Return a JSON representation of the response, e.g. `response.json()`.
+   *   - Interpret and/or transform the response data and return any value.
+   *   - Throw an error causing the `addRequestToQueue` method to reject.
    *
    * The return value of this function will eventually be used as the resolved
-   * value of the promise returned by the `addRequestToQueue` call that
-   * triggered it. Similarly, if this function throws, the corresponding
-   * `addRequestToQueue` call will reject.
+   * value of the promise returned by the corresponding `addRequestToQueue`
+   * call that triggered it. Similarly, if this function throws, the
+   * corresponding `addRequestToQueue` call will reject.
    *
    * @default defaultResponseInspector (see export)
    */
@@ -226,25 +408,39 @@ export class RequestQueue<T = any> {
     return this.#responseInspector;
   }
 
-  /**
-   * A function used to alter the behavior of the queue based on feedback from
-   * response data (e.g. JSON data or response status). This function must do
-   * one of the following before terminating:
-   *
-   *   - return a JSON representation of the response, e.g. `response.json()`.
-   *   - interpret and/or transform the response data and return any value.
-   *   - throw an error causing the `addRequestToQueue` method to reject.
-   *
-   * The return value of this function will eventually be used as the resolved
-   * value of the promise returned by the `addRequestToQueue` call that
-   * triggered it. Similarly, if this function throws, the corresponding
-   * `addRequestToQueue` call will reject.
-   *
-   * @default defaultResponseInspector (see export)
-   */
   set responseInspector(inspector) {
     debug('set new responseInspector');
     this.#responseInspector = inspector;
+  }
+
+  /**
+   * A function used to take some action after the node-fetch `fetch` function
+   * rejects due to failure. Like `requestInspector`, this function must do one
+   * of the following before terminating:
+   *
+   *   - Return a promise that resolves how you want.
+   *   - Call `addRequestToQueue` again and return it (beware infinite loops).
+   *   - Await a `setTimeout` promise to delay the request before continuing.
+   *   - Throw an error causing the `addRequestToQueue` method to reject.
+   *
+   * Delaying a request using `requestInspector` will have no effect on the
+   * processing of other requests or the period between intervals, making it
+   * ideal to retry failed fetch requests.
+   *
+   * The resolved value of this function will always be passed to
+   * `responseInspector` directly (no additional internal `fetch()` happens)
+   * unless an error is thrown, in which case the `addRequestToQueue` return
+   * value will reject.
+   *
+   * @default defaultFetchErrorInspector (see export)
+   */
+  get fetchErrorInspector() {
+    return this.#fetchErrorInspector;
+  }
+
+  set fetchErrorInspector(inspector) {
+    debug('set new fetchErrorInspector');
+    this.#fetchErrorInspector = inspector;
   }
 
   /**
@@ -254,72 +450,9 @@ export class RequestQueue<T = any> {
     return this.#defaultRequestInit;
   }
 
-  /**
-   * Default request initialization parameters sent along with every request.
-   */
   set defaultRequestInit(init) {
     debug('set defaultRequestInit: %O => %O', this.#defaultRequestInit, init);
     this.#defaultRequestInit = init;
-  }
-
-  /**
-   * If true, `addRequestToQueue` will prepend to the queue requests where
-   * `isARetry == true`. Otherwise, retried requests will be appended like
-   * normal.
-   *
-   * @default true
-   */
-  get prependRetries() {
-    return this.#prependRetries;
-  }
-
-  /**
-   * If true, `addRequestToQueue` will prepend to the queue requests where
-   * `isARetry == true`. Otherwise, retried requests will be appended like
-   * normal.
-   *
-   * @default true
-   */
-  set prependRetries(value) {
-    debug(`set prependRetries: ${this.#prependRetries} => ${value}`);
-    this.#prependRetries = value;
-  }
-
-  /**
-   * If non-zero, this determines how long (in milliseconds) the request
-   * processor will wait before sending a new request.
-   *
-   * After the delay period transpires, `requestDelayMs` will be reset to `0`
-   * _regardless of changes to the value in the interim_. **Hence, due to the
-   * asynchronous nature of request processing, setting `requestDelayMs`
-   * asynchronously (e.g. via `responseInspector`) does not guarantee that the
-   * new value will be respected, or that no requests will be sent during the
-   * delay period.** Handle this eventuality accordingly.
-   */
-  get requestDelayMs() {
-    return this.#requestDelayMs;
-  }
-
-  /**
-   * If non-zero, this determines how long (in milliseconds) the request
-   * processor will wait before sending a new request.
-   *
-   * After the delay period transpires, `requestDelayMs` will be reset to `0`
-   * _regardless of changes to the value in the interim_. **Hence, due to the
-   * asynchronous nature of request processing, setting `requestDelayMs`
-   * asynchronously (e.g. via `responseInspector`) does not guarantee that the
-   * new value will be respected, or that no requests will be sent during the
-   * delay period.** Handle this eventuality accordingly.
-   */
-  set requestDelayMs(delay) {
-    if (delay < 0) {
-      throw new RequestQueueError(
-        `requestDelayMs must be a non-negative integer, saw ${delay} instead`
-      );
-    }
-
-    debug(`set requestDelayMs: ${this.#requestDelayMs} => ${delay}`);
-    this.#requestDelayMs = delay;
   }
 
   /**
@@ -330,10 +463,6 @@ export class RequestQueue<T = any> {
     return this.#maxRequestsPerInterval;
   }
 
-  /**
-   * A maximum of `maxRequestsPerInterval` requests will be processed every
-   * `>=intervalPeriodMs` milliseconds.
-   */
   set maxRequestsPerInterval(count) {
     debug(`set maxRequestsPerInterval: ${this.#maxRequestsPerInterval} => ${count}`);
     this.#maxRequestsPerInterval = count;
@@ -347,33 +476,32 @@ export class RequestQueue<T = any> {
     return this.#intervalPeriodMs;
   }
 
-  /**
-   * A maximum of `maxRequestsPerInterval` requests will be processed every
-   * `>=intervalPeriodMs` milliseconds.
-   */
   set intervalPeriodMs(period) {
     debug(`set intervalPeriodMs: ${this.#intervalPeriodMs} => ${period}`);
     this.#intervalPeriodMs = period;
   }
 
-  /**
-   * Add a request to the request queue. This function returns a promise that
-   * will resolve with the request's response data as determined by
-   * `responseInspector`.
-   */
-  addRequestToQueue<TT = T>(...params: ExtendedFetchParams): Promise<TT> {
-    debug(`adding new request to queue${params[2] ? ' (as retry)' : ''}`);
-    return new Promise((resolve, reject) => {
-      // ? If we're retrying, add the request to the beginning of the queue if ?
-      // prependRetries == true
-      this.#requestQueue[params[2] && this.prependRetries ? 'unshift' : 'push']([
-        [params[0], params[1]],
-        (err, retval) => {
-          err ? reject(err) : resolve(retval as TT);
-        },
-        !!params[2]
-      ]);
-    });
+  #scheduleNextInterval() {
+    this.#timeoutId = setTimeout(
+      this.#processRequestQueue.bind(this),
+      this.intervalPeriodMs
+    );
+
+    if (this.#queueProcessingIsSoftPaused) {
+      debug('queue processing unpaused');
+      this.#queueProcessingIsSoftPaused = false;
+    }
+
+    debug(`scheduled next interval in ${this.intervalPeriodMs}ms`);
+  }
+
+  #finishGracefulStop() {
+    this.#timeoutId = null;
+    this.#queueProcessingIsSoftPaused = false;
+
+    debug('queue processing stopped gracefully');
+
+    this.#queueStoppedPromiseResolver();
   }
 
   /**
@@ -397,24 +525,29 @@ export class RequestQueue<T = any> {
       for (; count < this.maxRequestsPerInterval; ++count) {
         const reqDebug = subDebug.extend(`request#${count + 1}`);
 
-        if (!terminationAbortController.signal.aborted && this.requestDelayMs) {
-          reqDebug('detected non-zero requestDelayMs, processing paused');
-          reqDebug(`resuming in ${this.requestDelayMs}ms...`);
+        if (
+          !terminationAbortController.signal.aborted &&
+          this.#delayRequestProcessingByMs
+        ) {
+          reqDebug('detected non-zero delayRequestProcessingByMs, processing paused');
+          reqDebug(`resuming in ${this.#delayRequestProcessingByMs}ms...`);
 
-          const previousRequestDelayMs = this.requestDelayMs;
-          this.requestDelayMs = 0;
+          const previousDelayRequestProcessingByMs = this.#delayRequestProcessingByMs;
+          this.#delayRequestProcessingByMs = 0;
 
           // ? If we need to delay, pause processing request queue immediately
           // eslint-disable-next-line no-await-in-loop
-          await wait(previousRequestDelayMs, undefined, {
+          await wait(previousDelayRequestProcessingByMs, undefined, {
             signal: terminationAbortController.signal
           });
 
           reqDebug(`processing resumed`);
 
-          if (this.requestDelayMs != 0) {
-            subDebug.warn(`resetting requestDelayMs after resuming queue processing`);
-            this.requestDelayMs = 0;
+          if (this.#delayRequestProcessingByMs != 0) {
+            subDebug.warn(
+              `resetting delayRequestProcessingByMs after resuming queue processing`
+            );
+            this.#delayRequestProcessingByMs = 0;
           }
         }
 
@@ -440,7 +573,7 @@ export class RequestQueue<T = any> {
           break;
         }
 
-        const [fetchParams, callback, wasARetry] = enqueuedRequest;
+        const [fetchParams, callback, state] = enqueuedRequest;
 
         // ? Guarantees fetchParams[1] is non-nullish
         fetchParams[1] = {
@@ -454,15 +587,70 @@ export class RequestQueue<T = any> {
             }).map(([k, v]) => [k, v.join(',')])
           ),
           signal: terminationAbortController.signal
-        } as RequestInit;
+        } as RequestInitWithSignal;
 
         const isFinal = count + 1 >= this.maxRequestsPerInterval;
 
-        reqDebug(`sending request to ${fetchParams[0]}`);
+        reqDebug(`preparing to fetch: ${fetchParams[0]}`);
 
-        void fetch(...fetchParams)
-          .then(async (res) => {
-            reqDebug('response received');
+        void (async () => {
+          try {
+            reqDebug('triggering request inspector');
+
+            const inspectorParams = {
+              queue: this,
+              requestInfo: fetchParams[0],
+              requestInit: fetchParams[1] as RequestInitWithSignal,
+              state
+            };
+
+            const requestInspectorResult = await this.requestInspector(
+              inspectorParams
+            );
+
+            let res: unknown;
+
+            if (requestInspectorResult === undefined) {
+              try {
+                reqDebug(`internal fetch: ${inspectorParams.requestInfo}`);
+                this.#debugSentRequestCounter++;
+
+                res = await fetch(
+                  inspectorParams.requestInfo,
+                  inspectorParams.requestInit
+                );
+
+                reqDebug('response received');
+              } catch (e) {
+                reqDebug.error(
+                  `triggering error inspector for in-flight request error: ${e}`
+                );
+
+                try {
+                  res = await this.fetchErrorInspector({
+                    error: e,
+                    queue: this,
+                    requestInfo: inspectorParams.requestInfo,
+                    requestInit: inspectorParams.requestInit,
+                    state: inspectorParams.state
+                  });
+                } catch (e) {
+                  reqDebug.error(`unhandled error during in-flight request: ${e}`);
+                  callback(
+                    e instanceof Error
+                      ? e
+                      : /* istanbul ignore next */
+                        new HttpError(res as Response, String(e))
+                  );
+                  return;
+                }
+              }
+            } else {
+              reqDebug(
+                'skipping internal fetch (due to defined requestInspector result)'
+              );
+              res = requestInspectorResult;
+            }
 
             if (isFinal) {
               reqDebug('this is the final request to be processed in this interval');
@@ -473,69 +661,130 @@ export class RequestQueue<T = any> {
 
               callback(
                 null,
-                await this.responseInspector(
-                  res,
-                  this,
-                  wasARetry,
-                  fetchParams[0],
-                  // ? Guaranteed to be non-nullish
-                  fetchParams[1] as RequestInit
-                )
+                await this.responseInspector({
+                  response: res,
+                  queue: this,
+                  requestInfo: inspectorParams.requestInfo,
+                  requestInit: inspectorParams.requestInit,
+                  state: inspectorParams.state
+                })
               );
 
               reqDebug('finished processing request');
             } catch (e) {
-              subDebug.error(`error during response inspection: ${e}`);
-              callback(e instanceof Error ? e : new HttpError(res, String(e)));
+              reqDebug.error(`unhandled error during response inspection: ${e}`);
+              callback(e instanceof Error ? e : new HttpError(String(e)));
             }
-          })
-          .catch((e) => {
-            subDebug.error(`error during request execution: ${e}`);
-            callback(
-              e instanceof Error
-                ? e
-                : /* istanbul ignore next */
-                  new HttpError(String(e))
-            );
-          });
+          } catch (e) {
+            reqDebug.error(`unhandled error during request inspection: ${e}`);
+            callback(e instanceof Error ? e : new HttpError(String(e)));
+          }
+        })();
       }
 
       subDebug(
         `processing complete: ${count} request${count > 1 ? 's' : ''} in-flight`
       );
+
+      this.#scheduleNextInterval();
     } else if (this.#keepProcessingRequestQueue) {
       subDebug('queue empty: nothing to process in this interval');
+
+      this.#queueProcessingIsSoftPaused = true;
+
+      subDebug(
+        'queue processing soft-paused (next interval will be scheduled on new request)'
+      );
     } else {
       subDebug(
         'queue empty and graceful stop requested: queue processing will be terminated'
       );
 
-      this.#timeoutId = null;
+      this.#finishGracefulStop();
+    }
+  }
 
-      subDebug('queue processing stopped gracefully');
+  /**
+   * Append a request to the request queue. This function returns a promise that
+   * will resolve with the request's response data as determined by
+   * `responseInspector`.
+   */
+  addRequestToQueue<TT = T>(...params: ExtendedFetchParams): Promise<TT> {
+    debug('adding (appending) new request to queue');
+    this.#debugAddRequestCounter++;
 
-      this.#queueStoppedPromiseResolver();
-      return;
+    if (this.#queueProcessingIsSoftPaused && this.#keepProcessingRequestQueue) {
+      this.#scheduleNextInterval();
     }
 
-    this.#timeoutId = setTimeout(
-      this.#processRequestQueue.bind(this),
-      this.intervalPeriodMs
-    );
-
-    subDebug(`scheduled next interval in ${this.intervalPeriodMs}ms`);
+    return new Promise((resolve, reject) => {
+      this.#requestQueue.push([
+        [params[0], params[1]],
+        (err, retval) => {
+          err ? reject(err) : resolve(retval as TT);
+        },
+        params[2] || {}
+      ]);
+    });
   }
 
   /**
-   * Returns `true` if the request queue is currently being processed or `false`
-   * otherwise.
+   * Exactly the same as `addRequestToQueue` in every way, except the request is
+   * _prepended_ rather than appended to the queue.
    */
-  get isProcessingRequestQueue() {
-    return !!this.#timeoutId;
+  prependRequestToQueue<TT = T>(...params: ExtendedFetchParams): Promise<TT> {
+    debug('adding (prepending) new request to queue');
+    this.#debugAddRequestCounter++;
+
+    if (this.#queueProcessingIsSoftPaused && this.#keepProcessingRequestQueue) {
+      this.#scheduleNextInterval();
+    }
+
+    return new Promise((resolve, reject) => {
+      this.#requestQueue.unshift([
+        [params[0], params[1]],
+        (err, retval) => {
+          err ? reject(err) : resolve(retval as TT);
+        },
+        params[2] || {}
+      ]);
+    });
   }
 
   /**
-   * Begin asynchronously processing the request queue.
+   * Calling this function will cause the request processor to wait `delay`
+   * milliseconds before sending any subsequent requests. Requests that have
+   * already been sent will resolve without delay.
+   *
+   * After the delay period transpires, the internal delay value will be reset
+   * to `0` _regardless of calls to `delayRequestProcessingByMs` in the
+   * interim_. Hence, due to the asynchronous nature of request processing,
+   * calling `delayRequestProcessingByMs` asynchronously (e.g. via
+   * `requestInspector` or `responseInspector`) **does not guarantee that the
+   * new value will be respected.**
+   *
+   * To implement backoff or other complex throttling functionality, consider
+   * instead using per-request delays manually (e.g. via `setTimeout`) at the
+   * `requestInspector` level.
+   */
+  delayRequestProcessingByMs(delay: number) {
+    if (delay < 0) {
+      throw new RequestQueueError(
+        `delayRequestProcessingByMs must be a non-negative integer, saw ${delay} instead`
+      );
+    }
+
+    debug(
+      `set delayRequestProcessingByMs: ${
+        this.#delayRequestProcessingByMs
+      } => ${delay}`
+    );
+    this.#delayRequestProcessingByMs = delay;
+  }
+
+  /**
+   * Begin asynchronously processing the request queue. If the queue is already
+   * being processed, calling this function again will throw.
    */
   beginProcessingRequestQueue() {
     if (this.isProcessingRequestQueue) {
@@ -547,16 +796,15 @@ export class RequestQueue<T = any> {
       debug(`beginning queue processing (${this.intervalPeriodMs}ms intervals)`);
 
       this.#keepProcessingRequestQueue = true;
+      this.#queueProcessingIsSoftPaused = false;
+
       this.#terminationAbortController = new AbortController();
 
       this.#queueStoppedPromise = new Promise((resolve) => {
         this.#queueStoppedPromiseResolver = resolve;
       });
 
-      this.#timeoutId = setTimeout(
-        this.#processRequestQueue.bind(this),
-        this.intervalPeriodMs
-      );
+      this.#scheduleNextInterval();
     }
   }
 
@@ -568,6 +816,8 @@ export class RequestQueue<T = any> {
    * Requests can still be added to the queue after request processing
    * eventually stops (via `addRequestToQueue`), but they will not be dequeued
    * and executed until `beginProcessingRequestQueue` is called again.
+   *
+   * This function will throw if called when the queue is not being processed.
    */
   gracefullyStopProcessingRequestQueue() {
     if (!this.isProcessingRequestQueue) {
@@ -578,7 +828,12 @@ export class RequestQueue<T = any> {
     }
 
     debug('graceful stop signal received: processing will stop when queue is empty');
+
     this.#keepProcessingRequestQueue = false;
+
+    if (this.#queueProcessingIsSoftPaused) {
+      this.#finishGracefulStop();
+    }
   }
 
   /**
@@ -592,6 +847,8 @@ export class RequestQueue<T = any> {
    * aborted and the corresponding promise rejected with an `AbortError`. The
    * aborted request must be re-added to the queue manually as it will not be
    * retried automatically.
+   *
+   * This function will throw if called when the queue is not being processed.
    */
   immediatelyStopProcessingRequestQueue() {
     if (!this.isProcessingRequestQueue) {
@@ -604,6 +861,7 @@ export class RequestQueue<T = any> {
     debug('immediately halting queue processing and aborting in-flight requests');
 
     this.#keepProcessingRequestQueue = false;
+    this.#queueProcessingIsSoftPaused = false;
 
     clearTimeout(this.#timeoutId as NodeJS.Timeout);
     this.#timeoutId = null;
@@ -646,5 +904,16 @@ export class RequestQueue<T = any> {
   waitForQueueProcessingToStop() {
     debug('caller is waiting for queue processing to terminate...');
     return this.#queueStoppedPromise;
+  }
+
+  /**
+   * Returns various statistics about the queue runtime.
+   */
+  getStats() {
+    return {
+      intervals: this.#debugIntervalCounter,
+      requestsEnqueued: this.#debugAddRequestCounter,
+      internalRequestsSent: this.#debugSentRequestCounter
+    };
   }
 }
