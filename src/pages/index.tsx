@@ -1,18 +1,9 @@
 import * as React from 'react';
 import { version as pkgVersion } from 'package';
 import { getEnv } from 'universe/backend/env';
-// import { initializeDb } from 'multiverse/mongo-schema';
-// import { hydrateDb } from 'multiverse/mongo-test';
 
 export async function getServerSideProps() {
   const env = getEnv();
-
-  // await initializeDb({ name: 'root' });
-  // await initializeDb({ name: 'hscc-api-qoverflow' });
-  // ! Careful when using these to populate production: they can be destructive!
-  // await hydrateDb({ name: 'hscc-api-qoverflow' });
-  // ! Uncommenting this for prod is usually unnecessary
-  // await hydrateDb({ name: 'root' });
 
   return {
     props: {
