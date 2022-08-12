@@ -101,7 +101,7 @@
     "@types/jest": "^28.1.6",
     "@types/jsonfile": "^6.1.0",
     "@types/node-fetch": "^2.5.12",
-    "@types/semver": "^7.3.10",
+    "@types/semver": "^7.3.12",
     "@types/tar-stream": "^2.2.2",
     "@types/test-listen": "^1.1.0",
     "@types/webpack": "^5.28.0",
