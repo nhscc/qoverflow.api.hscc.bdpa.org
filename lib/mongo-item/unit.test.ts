@@ -157,6 +157,71 @@ describe('::itemToObjectId', () => {
     ).toStrictEqual(ids);
   });
 
+  it('reduces nested arrays of items down to their respective ObjectId instances', async () => {
+    expect.hasAssertions();
+
+    const dummyIds = Array.from({ length: 8 }).map(() => new ObjectId());
+
+    const mixedIds = Array.from({ length: 2 }).map((_, ndx) => [
+      dummyIds[ndx * 4 + 0].toString(),
+      dummyIds[ndx * 4 + 1],
+      dummyIds[ndx * 4 + 2].toString(),
+      dummyIds[ndx * 4 + 3]
+    ]);
+
+    const mixedIdObjects = Array.from({ length: 2 }).map((_, ndx) => [
+      { _id: dummyIds[ndx * 4 + 0].toString() },
+      { _id: dummyIds[ndx * 4 + 1] },
+      { _id: dummyIds[ndx * 4 + 2].toString() },
+      { _id: dummyIds[ndx * 4 + 3] }
+    ]);
+
+    const nestedMixedIds = [
+      [
+        [
+          [
+            [dummyIds[7].toString()],
+            dummyIds[4],
+            dummyIds[5].toString(),
+            dummyIds[6]
+          ],
+          dummyIds[3].toString()
+        ],
+        dummyIds[1].toString(),
+        dummyIds[2].toString()
+      ],
+      dummyIds[0]
+    ];
+
+    expect(itemToObjectId(dummyIds)).toStrictEqual(dummyIds);
+
+    expect(
+      itemToObjectId(mixedIds).every((ids, ndx) =>
+        ids.every((id, subNdx) => id.equals(dummyIds[ndx * 4 + subNdx]))
+      )
+    ).toBeTrue();
+
+    expect(
+      itemToObjectId(mixedIdObjects).every((ids, ndx) =>
+        ids.every(
+          (id, subNdx) => id.toString() == dummyIds[ndx * 4 + subNdx].toString()
+        )
+      )
+    ).toBeTrue();
+
+    const resultIds = itemToObjectId(nestedMixedIds);
+
+    expect(resultIds[1]).toStrictEqual(dummyIds[0]);
+
+    expect(
+      itemToObjectId([
+        identityIds[0].toString(),
+        identityIds[1].toString(),
+        identityIds[2].toString()
+      ])
+    ).toStrictEqual(identityIds);
+  });
+
   it('duplicate ObjectIds are eliminated during simple array reduction', async () => {
     expect.hasAssertions();
 

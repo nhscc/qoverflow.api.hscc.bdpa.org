@@ -113,10 +113,11 @@ export async function itemExists<T>(
  * The shape of an object that can be translated into an `ObjectId` (or `T`)
  * instance or is `null`/`undefined`.
  */
-export type IdItem<T extends ObjectId> =
+export type IdItem<IdType extends ObjectId> =
   | WithId<unknown>
+  | { _id: string }
   | string
-  | T
+  | IdType
   | null
   | undefined;
 
@@ -124,46 +125,75 @@ export type IdItem<T extends ObjectId> =
  * The shape of an array of objects that can be translated into an array of
  * `ObjectId` (or `T`) instances or are `null`/`undefined`.
  */
-export type IdItemArray<T extends ObjectId> = IdItem<T>[];
+export type IdItemArray<
+  IdType extends ObjectId,
+  ItemType
+> = ItemType extends IdItem<IdType>[]
+  ? ItemType
+  : ItemType extends unknown[]
+  ? IdItemArray<IdType, ItemType[number]>[]
+  : never;
+
+export type MaybeNestedIdArray<
+  IdType extends ObjectId,
+  ItemArrayType
+> = ItemArrayType extends (IdItem<IdType> | IdItemArray<IdType, ItemArrayType>)[]
+  ? (IdType | MaybeNestedIdArray<IdType, ItemArrayType[number]>)[]
+  : ItemArrayType extends IdItemArray<IdType, ItemArrayType>
+  ? MaybeNestedIdArray<IdType, ItemArrayType[number]>[]
+  : IdType;
+
+const j = {} as unknown as IdItemArray<>;
+const i = {} as unknown as MaybeNestedIdArray<ObjectId, (string | string[])[]>;
 
 /**
  * Reduces an `item` down to its `ObjectId` instance.
  */
-export function itemToObjectId<T extends ObjectId>(item: IdItem<T>): T;
+export function itemToObjectId<IdType extends ObjectId>(item: IdItem<IdType>): IdType;
 /**
  * Reduces an array of `items` down to their respective `ObjectId` instances.
  *
  * An attempt is made to eliminate duplicates via `new Set(...)`, but the
  * absence of duplicates is not guaranteed when `items` contains `WithId<...>`
- * objects.
+ * objects and/or contains nested arrays. If you must eliminate duplicates,
+ * flatten your array before passing it into this function.
  */
-export function itemToObjectId<T extends ObjectId>(items: IdItemArray<T>): T[];
-export function itemToObjectId<T extends ObjectId>(
-  item: IdItem<T> | IdItemArray<T>
-): T | T[] {
+export function itemToObjectId<
+  IdType extends ObjectId,
+  ItemType,
+  ItemArrayType extends IdItemArray<IdType, ItemType>
+>(items: ItemType): MaybeNestedIdArray<IdType, ItemArrayType>;
+export function itemToObjectId<IdType extends ObjectId>(
+  item: IdItem<IdType> | IdItemArray<IdType, unknown[]>
+): unknown {
   let _id: unknown = '<uninitialized>';
   try {
     return item instanceof ObjectId
       ? item
       : Array.isArray(item)
       ? Array.from(new Set<typeof item[0]>(item)).map((i) => {
-          _id = i;
           return (
             i instanceof ObjectId
               ? i
+              : Array.isArray(i)
+              ? itemToObjectId(i)
               : typeof i == 'string'
-              ? new ObjectId(i)
+              ? ((_id = i), new ObjectId(i))
               : i?._id instanceof ObjectId
               ? i._id
+              : typeof i?._id == 'string'
+              ? ((_id = i._id), new ObjectId(i._id))
               : toss(
                   new GuruMeditationError(`encountered irreducible sub-item: ${i}`)
                 )
-          ) as T;
+          ) as IdType;
         })
       : typeof item == 'string'
-      ? ((_id = item), new ObjectId(item) as T)
+      ? ((_id = item), new ObjectId(item) as IdType)
       : item?._id instanceof ObjectId
-      ? (item._id as T)
+      ? (item._id as IdType)
+      : typeof item?._id == 'string'
+      ? ((_id = item._id), new ObjectId(item._id) as IdType)
       : toss(new GuruMeditationError(`encountered irreducible item: ${item}`));
   } catch (e) {
     if (isError(e) && e.name == 'BSONTypeError') {
@@ -182,6 +212,11 @@ export function itemToStringId<T extends ObjectId>(item: IdItem<T>): string;
 /**
  * Reduces an array of `items` down to the string representations of their
  * respective `ObjectId` instances.
+ *
+ * An attempt is made to eliminate duplicates via `new Set(...)`, but the
+ * absence of duplicates is not guaranteed when `items` contains nested arrays.
+ * If you must eliminate duplicates, flatten your array before passing it into
+ * this function.
  */
 export function itemToStringId<T extends ObjectId>(items: IdItemArray<T>): string[];
 export function itemToStringId<T extends ObjectId>(

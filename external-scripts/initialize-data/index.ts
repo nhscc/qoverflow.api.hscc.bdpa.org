@@ -384,7 +384,9 @@ const invoked = async () => {
         ? null
         : await jsonFile.readFile(cachePath, {
             reviver(key, value) {
-              return key == '_id' ? itemToObjectId(value) : value;
+              return ['_id', 'questionIds', 'answerIds'].includes(key)
+                ? itemToObjectId(value)
+                : value;
             }
           });
     } catch {
@@ -936,16 +938,16 @@ const invoked = async () => {
                             })(),
                             (async () => {
                               for (
-                                let commentPage = 1, shouldContinue = true;
+                                let questionCommentPage = 1, shouldContinue = true;
                                 shouldContinue;
-                                ++commentPage
+                                ++questionCommentPage
                               ) {
                                 const comments = await queue.addRequestToQueue<
                                   StackExchangeApiResponse<StackExchangeComment>
                                 >(
                                   api.questions.comments({
                                     question_id: question.question_id,
-                                    page: commentPage,
+                                    page: questionCommentPage,
                                     pageSize: maxPageSize
                                   }),
                                   undefined,
@@ -1098,7 +1100,9 @@ const invoked = async () => {
                         for (
                           let answerPage = 1;
                           randomAnswers.length < collectAllQuestionAnswersCount;
-                          ++answerPage
+                          // ? StackExchange is a live site with new answers all
+                          // ? the time!
+                          answerPage += 10
                         ) {
                           const answers = await queue.addRequestToQueue<
                             StackExchangeApiResponse<StackExchangeAnswer>
@@ -1176,7 +1180,9 @@ const invoked = async () => {
                         for (
                           let commentPage = 1;
                           randomComments.length < totalDesiredComments;
-                          ++commentPage
+                          // ? StackExchange is a live site with new comments
+                          // ? all the time!
+                          commentPage += 10
                         ) {
                           const comments = await queue.addRequestToQueue<
                             StackExchangeApiResponse<StackExchangeComment>
