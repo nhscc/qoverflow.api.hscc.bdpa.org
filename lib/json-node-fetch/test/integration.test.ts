@@ -1,4 +1,4 @@
-import { createServer, ServerResponse, IncomingMessage } from 'http';
+import { createServer, type ServerResponse, type IncomingMessage } from 'node:http';
 import { globalJsonRequestOptions, jsonFetch } from 'multiverse/json-node-fetch';
 
 let cleanupFn = () => undefined;
@@ -81,7 +81,9 @@ describe('::jsonFetch', () => {
     data = { hello: 'world!' };
 
     await expect(
-      jsonFetch(localUrl, { rejectIfNonJsonContentType: true }).catch((e) => e.json)
+      jsonFetch(localUrl, { rejectIfNonJsonContentType: true }).catch(
+        (error) => error.json
+      )
     ).resolves.toStrictEqual(data);
 
     header = { 'content-type': 'application/json' };

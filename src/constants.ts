@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/prefer-export-from */
 import { name as pkgName } from 'package';
 
 /**

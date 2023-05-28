@@ -1,9 +1,10 @@
+import inspector from 'node:inspector';
 import { MongoClient } from 'mongodb';
-import { getEnv } from 'multiverse/next-env';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { InvalidAppConfigurationError, TrialError } from 'named-app-errors';
+
+import { getEnv } from 'multiverse/next-env';
 import { debugFactory } from 'multiverse/debug-extended';
-import inspector from 'inspector';
 
 import {
   getSchemaConfig,
@@ -63,9 +64,9 @@ export async function getDummyData(): Promise<DummyData> {
   try {
     debug('importing `getDummyData` from "configverse/get-dummy-data"');
     return await (await import('configverse/get-dummy-data')).getDummyData();
-  } catch (e) {
+  } catch (error) {
     debug.warn(
-      `failed to import getDummyData from "configverse/get-dummy-data": ${e}`
+      `failed to import getDummyData from "configverse/get-dummy-data": ${error}`
     );
 
     throw new InvalidAppConfigurationError(
@@ -126,6 +127,7 @@ export async function hydrateDb({
     );
   }
 
+  // eslint-disable-next-line unicorn/prefer-set-has
   const collectionNames = (await getSchemaConfig()).databases[
     nameActual
   ].collections.map((col) => (typeof col == 'string' ? col : col.name));
@@ -204,10 +206,10 @@ export function setupMemoryServerOverride(params?: {
           )
         );
       }
-    } catch (e) {
+    } catch (error) {
       errored = true;
       debug.error('an error occurred during reinitialization');
-      throw e;
+      throw error;
     }
   };
 
@@ -235,10 +237,10 @@ export function setupMemoryServerOverride(params?: {
 
         if (params?.defer) await reinitializeServer();
       }
-    } catch (e) {
+    } catch (error) {
       errored = true;
       debug.error('an error occurred within "beforeAll" lifecycle hook');
-      throw e;
+      throw error;
     }
   });
 

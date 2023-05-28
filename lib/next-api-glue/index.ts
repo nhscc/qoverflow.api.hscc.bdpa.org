@@ -110,7 +110,7 @@ export function withMiddleware<
   }
 ) {
   if (!Array.isArray(use)) {
-    throw new Error('withMiddleware `use` parameter must be an array');
+    throw new TypeError('withMiddleware `use` parameter must be an array');
   }
 
   if (useOnError && !Array.isArray(useOnError)) {
@@ -246,10 +246,10 @@ export function withMiddleware<
         );
 
         return executionWasAborted;
-      } catch (e) {
+      } catch (error) {
         executionWasAborted = true;
         debug.warn('execution chain aborted due to error');
-        throw e;
+        throw error;
       }
     };
 
@@ -264,9 +264,9 @@ export function withMiddleware<
           use[Symbol.iterator](),
           debug
         );
-      } catch (e) {
+      } catch (error) {
         debug('error in primary middleware chain');
-        throw e;
+        throw error;
       }
 
       if (typeof handler == 'function') {
@@ -287,12 +287,12 @@ export function withMiddleware<
       }
 
       debug('-- done --');
-    } catch (e) {
+    } catch (error) {
       try {
-        debug.error('attempting to handle error: %O', e);
+        debug.error('attempting to handle error: %O', error);
 
         // @ts-expect-error: error is readonly to everyone but us
-        middlewareContext.runtime.error = e;
+        middlewareContext.runtime.error = error;
 
         if (useOnError) {
           try {
@@ -300,22 +300,22 @@ export function withMiddleware<
               'selecting first middleware in error handling middleware chain'
             );
             await startPullingChain(useOnError[Symbol.iterator](), debug.error);
-          } catch (err) {
+          } catch (subError) {
             // ? Error in error handler was unhandled
-            debug.error('error in error handling middleware chain: %O', err);
+            debug.error('error in error handling middleware chain: %O', subError);
             debug.error('throwing unhandled error');
-            throw err;
+            throw subError;
           }
         } else {
           debug.error('no error handling middleware found');
           debug.error('throwing unhandled error');
-          throw e;
+          throw error;
         }
 
         // ? Error was unhandled, kick it up to the caller (usually Next itself)
         if (!res.writableEnded && !res.headersSent) {
           debug.error('throwing unhandled error');
-          throw e;
+          throw error;
         }
       } finally {
         debug('-- done (with errors) --');

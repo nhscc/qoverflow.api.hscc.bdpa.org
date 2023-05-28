@@ -1,4 +1,4 @@
-import { ResponseTransformer, rest } from 'msw';
+import { rest, type ResponseTransformer, type RestContext } from 'msw';
 import { setupServer } from 'msw/node';
 
 import { debugNamespace as namespace } from 'universe/constants';
@@ -20,7 +20,6 @@ import {
   withMockedOutput
 } from 'testverse/setup';
 
-import type { RestContext } from 'msw';
 import type {
   SecondsFromNow,
   StackExchangeApiResponse
@@ -29,7 +28,7 @@ import type {
 void namespace;
 
 // ? Ensure the isolated external picks up the memory server override
-jest.mock('multiverse/mongo-schema', () => {
+jest.mock('multiverse/mongo-schema', (): typeof import('multiverse/mongo-schema') => {
   return jest.requireActual('multiverse/mongo-schema');
 });
 
@@ -80,7 +79,7 @@ const calcError503Modulo = calcError500Modulo * 2;
 const calcError429Modulo = calcError500Modulo * 2 + 1;
 
 const maybeErrorResponse = (
-  ctx: RestContext,
+  context: RestContext,
   { okTransformers }: { okTransformers: ResponseTransformer[] }
 ) => {
   delete mockedResponseJson.backoff;
@@ -96,8 +95,8 @@ const maybeErrorResponse = (
     const results =
       counter % calcError500Modulo == 0
         ? [
-            ctx.status(500),
-            ctx.json({
+            context.status(500),
+            context.json({
               error_id: 123,
               error_message: 'fake 500 error',
               error_name: 'fake_500'
@@ -105,8 +104,8 @@ const maybeErrorResponse = (
           ]
         : counter % calcError503Modulo == 0
         ? [
-            ctx.status(503),
-            ctx.json({
+            context.status(503),
+            context.json({
               error_id: 123,
               error_message: 'fake 503 error',
               error_name: 'fake_503'
@@ -114,15 +113,15 @@ const maybeErrorResponse = (
           ]
         : counter % calcError502Modulo == 0
         ? [
-            ctx.status(502),
-            ctx.json({
+            context.status(502),
+            context.json({
               error_id: 123,
               error_message: 'fake 502 error',
               error_name: 'fake_502'
             })
           ]
         : counter % calcError429Modulo == 0
-        ? [ctx.status(429)]
+        ? [context.status(429)]
         : okTransformers;
 
     counter++;
@@ -134,12 +133,12 @@ const maybeErrorResponse = (
 };
 
 const server = setupServer(
-  rest.get('*/questions/:question_id/answers', async (req, res, ctx) => {
+  rest.get('*/questions/:question_id/answers', async (req, res, context) => {
     return res(
-      ...maybeErrorResponse(ctx, {
+      ...maybeErrorResponse(context, {
         okTransformers: [
-          ctx.status(200),
-          ctx.json({
+          context.status(200),
+          context.json({
             ...getDummyQuestionAnswers(req),
             ...mockedResponseJson
           })
@@ -147,12 +146,12 @@ const server = setupServer(
       })
     );
   }),
-  rest.get('*/questions/:question_id/comments', async (req, res, ctx) => {
+  rest.get('*/questions/:question_id/comments', async (req, res, context) => {
     return res(
-      ...maybeErrorResponse(ctx, {
+      ...maybeErrorResponse(context, {
         okTransformers: [
-          ctx.status(200),
-          ctx.json({
+          context.status(200),
+          context.json({
             ...getDummyQuestionComments(req),
             ...mockedResponseJson
           })
@@ -160,12 +159,12 @@ const server = setupServer(
       })
     );
   }),
-  rest.get('*/answers/:answer_id/comments', async (req, res, ctx) => {
+  rest.get('*/answers/:answer_id/comments', async (req, res, context) => {
     return res(
-      ...maybeErrorResponse(ctx, {
+      ...maybeErrorResponse(context, {
         okTransformers: [
-          ctx.status(200),
-          ctx.json({
+          context.status(200),
+          context.json({
             ...getDummyAnswerComments(req),
             ...mockedResponseJson
           })
@@ -173,12 +172,12 @@ const server = setupServer(
       })
     );
   }),
-  rest.get('*/questions', async (req, res, ctx) => {
+  rest.get('*/questions', async (req, res, context) => {
     return res(
-      ...maybeErrorResponse(ctx, {
+      ...maybeErrorResponse(context, {
         okTransformers: [
-          ctx.status(200),
-          ctx.json({
+          context.status(200),
+          context.json({
             ...getDummyQuestions(req),
             ...mockedResponseJson
           })
@@ -186,12 +185,12 @@ const server = setupServer(
       })
     );
   }),
-  rest.get('*/answers', async (req, res, ctx) => {
+  rest.get('*/answers', async (req, res, context) => {
     return res(
-      ...maybeErrorResponse(ctx, {
+      ...maybeErrorResponse(context, {
         okTransformers: [
-          ctx.status(200),
-          ctx.json({
+          context.status(200),
+          context.json({
             ...getDummyAnswers(req),
             ...mockedResponseJson
           })
@@ -199,12 +198,12 @@ const server = setupServer(
       })
     );
   }),
-  rest.get('*/comments', async (req, res, ctx) => {
+  rest.get('*/comments', async (req, res, context) => {
     return res(
-      ...maybeErrorResponse(ctx, {
+      ...maybeErrorResponse(context, {
         okTransformers: [
-          ctx.status(200),
-          ctx.json({
+          context.status(200),
+          context.json({
             ...getDummyComments(req),
             ...mockedResponseJson
           })

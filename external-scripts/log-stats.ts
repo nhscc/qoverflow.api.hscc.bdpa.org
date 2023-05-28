@@ -1,3 +1,5 @@
+/* eslint-disable unicorn/no-process-exit */
+/* eslint-disable unicorn/no-thenable */
 import jsonFile from 'jsonfile';
 
 import {
@@ -434,14 +436,10 @@ const invoked = async () => {
           owner == '<unauthenticated>'
             ? chalk.gray(owner)
             : chalk[error ? 'red' : 'green'].bold(owner)
-        }`
+        }`,
+        `  token: ${token == '<unauthenticated>' ? chalk.gray(token) : token}`,
+        `  header: ${header ?? chalk.gray(header)}`
       );
-
-      outputStrings.push(
-        `  token: ${token == '<unauthenticated>' ? chalk.gray(token) : token}`
-      );
-
-      outputStrings.push(`  header: ${!header ? chalk.gray(header) : header}`);
     };
 
     debug('compiling output');
@@ -489,14 +487,10 @@ const invoked = async () => {
               delta !== null
                 ? chalk.yellow(` (Δ${delta >= 0 ? `+${delta}` : delta})`)
                 : ''
-            }`
+            }`,
+            `  most recent request: ${new Date(latestAt).toLocaleString()}`,
+            '  requests by ip:'
           );
-
-          outputStrings.push(
-            `  most recent request: ${new Date(latestAt).toLocaleString()}`
-          );
-
-          outputStrings.push('  requests by ip:');
 
           ips.forEach(({ ip, requests: requestsFromIp }) =>
             outputStrings.push(`    ${ip} - ${requestsFromIp} requests`)
@@ -508,8 +502,7 @@ const invoked = async () => {
             .sort(byRequests)
             .forEach(({ status, requests: requestResponseStatus }) => {
               const str = `    ${status} - ${requestResponseStatus} requests`;
-              outputStrings.push(status == 429 ? chalk.red(str) : str);
-              outputStrings.push();
+              outputStrings.push(status == 429 ? chalk.red(str) : str, '');
             });
 
           outputStrings.push('  requests by HTTP method:');
@@ -534,65 +527,43 @@ const invoked = async () => {
         }
       );
 
-      outputStrings.push('  :PERCENTILES:');
-
       outputStrings.push(
+        '  :PERCENTILES:',
         `   fastest: ${
           requestPercentiles?.fastest !== undefined
             ? `${requestPercentiles.fastest}ms`
             : '<unknown>'
-        }`
-      );
-
-      outputStrings.push(
+        }`,
         `     50%<=: ${
           requestPercentiles?.percentile_50 !== undefined
             ? `${requestPercentiles.percentile_50}ms`
             : '<unknown>'
-        }`
-      );
-
-      outputStrings.push(
+        }`,
         `     90%<=: ${
           requestPercentiles?.percentile_90 !== undefined
             ? `${requestPercentiles.percentile_90}ms`
             : '<unknown>'
-        }`
-      );
-
-      outputStrings.push(
+        }`,
         `     95%<=: ${
           requestPercentiles?.percentile_95 !== undefined
             ? `${requestPercentiles.percentile_95}ms`
             : '<unknown>'
-        }`
-      );
-
-      outputStrings.push(
+        }`,
         `     99%<=: ${
           requestPercentiles?.percentile_99 !== undefined
             ? `${requestPercentiles.percentile_99}ms`
             : '<unknown>'
-        }`
-      );
-
-      outputStrings.push(
+        }`,
         `   99.9%<=: ${
           requestPercentiles?.percentile_999 !== undefined
             ? `${requestPercentiles.percentile_999}ms`
             : '<unknown>'
-        }`
-      );
-
-      outputStrings.push(
+        }`,
         `  99.99%<=: ${
           requestPercentiles?.percentile_9999 !== undefined
             ? `${requestPercentiles.percentile_9999}ms`
             : '<unknown>'
-        }`
-      );
-
-      outputStrings.push(
+        }`,
         `   slowest: ${
           requestPercentiles?.slowest !== undefined
             ? `${requestPercentiles.slowest}ms`
@@ -625,10 +596,9 @@ const invoked = async () => {
               : chalk.red.bold(
                   `banned until ${new Date(until - now).toLocaleString()}`
                 )
-          }`
+          }`,
+          ''
         );
-
-        outputStrings.push('');
       });
     }
 
@@ -639,12 +609,12 @@ const invoked = async () => {
 
     log('execution complete');
     process.exit(0);
-  } catch (e) {
-    throw new AppError(`${e}`);
+  } catch (error) {
+    throw new AppError(`${error}`);
   }
 };
 
-export default invoked().catch((e: Error) => {
-  log.error(e.message);
+export default invoked().catch((error: Error) => {
+  log.error(error.message);
   process.exit(2);
 });

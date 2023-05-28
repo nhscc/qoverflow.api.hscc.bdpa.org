@@ -1,12 +1,12 @@
 import { asMockedFunction } from '@xunnamius/jest-types';
 import fetch, { Headers } from 'node-fetch';
 import { globalJsonRequestOptions, jsonFetch } from 'multiverse/json-node-fetch';
-import { JsonObject } from 'type-fest';
 import { toss } from 'toss-expression';
 
+import type { JsonObject } from 'type-fest';
 import type { Response } from 'node-fetch';
 
-jest.mock('node-fetch', () => {
+jest.mock('node-fetch', (): typeof import('node-fetch') => {
   const fetch = jest.fn();
   // ? We need to mock Headers (earlier than when beforeEach runs)
   // @ts-expect-error: defining Headers
@@ -14,7 +14,7 @@ jest.mock('node-fetch', () => {
   // ? We also need to mock FetchError
   // @ts-expect-error: defining FetchError
   fetch.FetchError = jest.requireActual('node-fetch').FetchError;
-  return fetch;
+  return fetch as unknown as typeof import('node-fetch');
 });
 
 const mockFetch = asMockedFunction(fetch);

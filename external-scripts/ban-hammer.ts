@@ -1,3 +1,5 @@
+/* eslint-disable unicorn/no-process-exit */
+/* eslint-disable unicorn/no-thenable */
 import { AppError, InvalidAppEnvironmentError } from 'named-app-errors';
 
 import { debugNamespace as namespace } from 'universe/constants';
@@ -277,12 +279,12 @@ const invoked = async () => {
 
     log('execution complete');
     process.exit(0);
-  } catch (e) {
-    throw new AppError(`${e}`);
+  } catch (error) {
+    throw new AppError(`${error}`);
   }
 };
 
-export default invoked().catch((e: Error) => {
-  log.error(e.message);
+export default invoked().catch((error: Error) => {
+  log.error(error.message);
   process.exit(2);
 });

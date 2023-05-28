@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { createServer, ServerResponse, IncomingMessage } from 'http';
+import { createServer, type ServerResponse, type IncomingMessage } from 'node:http';
 import { createHttpTerminator } from 'http-terminator';
 import { globalJsonRequestOptions, jsonFetch } from 'multiverse/json-unfetch';
 
@@ -89,7 +89,9 @@ describe('::jsonFetch', () => {
     data = { hello: 'world!' };
 
     await expect(
-      jsonFetch(localUrl, { rejectIfNonJsonContentType: true }).catch((e) => e.json)
+      jsonFetch(localUrl, { rejectIfNonJsonContentType: true }).catch(
+        ({ json }) => json
+      )
     ).resolves.toStrictEqual(data);
 
     header = { 'content-type': 'application/json' };

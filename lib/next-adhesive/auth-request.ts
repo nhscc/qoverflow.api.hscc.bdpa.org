@@ -1,9 +1,10 @@
-import { debugFactory } from 'multiverse/debug-extended';
+import { InvalidAppConfigurationError } from 'named-app-errors';
+
 import {
   authenticateHeader,
   authorizeHeader,
-  AuthScheme,
-  AuthConstraint
+  type AuthScheme,
+  type AuthConstraint
 } from 'multiverse/next-auth';
 
 import {
@@ -11,9 +12,10 @@ import {
   sendHttpUnauthorized
 } from 'multiverse/next-api-respond';
 
+import { debugFactory } from 'multiverse/debug-extended';
+
 import type { NextApiRequest, NextApiResponse } from 'next';
 import type { MiddlewareContext } from 'multiverse/next-api-glue';
-import { InvalidAppConfigurationError } from 'named-app-errors';
 
 const debug = debugFactory('next-adhesive:auth-request');
 

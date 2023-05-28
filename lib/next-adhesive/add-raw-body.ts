@@ -5,7 +5,7 @@ import {
 } from 'named-app-errors';
 import { debugFactory } from 'multiverse/debug-extended';
 import { parse } from 'content-type';
-import getRawBody, { RawBodyError } from 'raw-body';
+import getRawBody, { type RawBodyError } from 'raw-body';
 import querystring from 'node:querystring';
 import { isError } from '@xunnamius/types';
 
@@ -17,8 +17,8 @@ const debug = debugFactory('next-adhesive:add-raw-body');
 // * https://xunn.at/source-nextjs-defaultbodylimit
 const defaultRequestBodySizeLimit = '1mb';
 
-const isRawBodyError = (e: unknown): e is RawBodyError => {
-  return isError(e) && typeof (e as RawBodyError).type == 'string';
+const isRawBodyError = (error: unknown): error is RawBodyError => {
+  return isError(error) && typeof (error as RawBodyError).type == 'string';
 };
 
 /**
@@ -124,15 +124,15 @@ export default async function (
     }
 
     const { type, parameters } = contentType;
-    const encoding = parameters.charset || 'utf-8';
+    const encoding = parameters.charset || 'utf8';
     const limit = context.options.requestBodySizeLimit || defaultRequestBodySizeLimit;
 
     let buffer;
 
     try {
       buffer = (await getRawBody(req, { encoding, limit })).toString();
-    } catch (e) {
-      if (isRawBodyError(e) && e.type == 'entity.too.large') {
+    } catch (error) {
+      if (isRawBodyError(error) && error.type == 'entity.too.large') {
         sendHttpTooLarge(res, { error: `body exceeded ${limit} size limit` });
       } else {
         throw new ClientValidationError('invalid body');

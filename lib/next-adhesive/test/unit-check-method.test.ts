@@ -1,7 +1,7 @@
 import { testApiHandler } from 'next-test-api-route-handler';
 import { noopHandler, wrapHandler, mockEnvFactory } from 'testverse/setup';
 import { withMiddleware } from 'multiverse/next-api-glue';
-import checkMethod, { Options } from 'multiverse/next-adhesive/check-method';
+import checkMethod, { type Options } from 'multiverse/next-adhesive/check-method';
 
 import type { ValidHttpMethod } from '@xunnamius/types';
 

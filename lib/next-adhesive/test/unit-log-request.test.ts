@@ -89,8 +89,8 @@ it('handles request log errors after res.end as gracefully as possible', async (
         descriptor: '/fake',
         use: [logRequest],
         useOnError: [
-          (_req, _res, ctx) => {
-            expect(ctx.runtime.error).toMatchObject({ message: 'fake error' });
+          (_req, _res, context) => {
+            expect(context.runtime.error).toMatchObject({ message: 'fake error' });
             called = true;
           }
         ]

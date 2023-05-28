@@ -1,14 +1,15 @@
+import { GuruMeditationError } from 'named-app-errors';
+
 import { getCommonSchemaConfig } from 'multiverse/mongo-common';
+import { type DbSchema, getDb } from 'multiverse/mongo-schema';
 
 import type { Document, ObjectId, WithId, WithoutId } from 'mongodb';
 import type { UnixEpochMs } from '@xunnamius/types';
-import { DbSchema, getDb } from 'multiverse/mongo-schema';
-import { GuruMeditationError } from 'named-app-errors';
 
 /**
  * A generic projection specification.
  */
-type Projection = { [key in keyof InternalAnswer]?: unknown } & Document;
+export type Projection = { [key in keyof InternalAnswer]?: unknown } & Document;
 
 /**
  * A JSON representation of the backend Mongo database structure. This is used
@@ -198,7 +199,7 @@ export type InternalQuestion = WithId<{
   'title-lowercase': string;
   createdAt: UnixEpochMs;
   text: string;
-  status: typeof questionStatuses[number];
+  status: (typeof questionStatuses)[number];
   hasAcceptedAnswer: boolean;
   upvotes: number;
   upvoterUsernames: Username[];
@@ -583,10 +584,12 @@ export function voterStatusProjection(username: Username) {
         branches: [
           {
             case: { $in: [username, '$upvoterUsernames'] },
+            // eslint-disable-next-line unicorn/no-thenable
             then: 'upvoted'
           },
           {
             case: { $in: [username, '$downvoterUsernames'] },
+            // eslint-disable-next-line unicorn/no-thenable
             then: 'downvoted'
           }
         ],
@@ -768,21 +771,19 @@ export async function addCommentToDb({
 }) {
   const db = (await getDb({ name: 'app' })).collection<InternalQuestion>('questions');
 
-  if (answerId) {
-    return db.updateOne(
-      { _id: questionId },
-      { $push: { 'answerItems.$[answer].commentItems': comment } },
-      { arrayFilters: [{ 'answer._id': answerId }] }
-    );
-  } else {
-    return db.updateOne(
-      { _id: questionId },
-      {
-        $inc: { comments: 1, 'sorter.uvc': 1, 'sorter.uvac': 1 },
-        $push: { commentItems: comment }
-      }
-    );
-  }
+  return answerId
+    ? db.updateOne(
+        { _id: questionId },
+        { $push: { 'answerItems.$[answer].commentItems': comment } },
+        { arrayFilters: [{ 'answer._id': answerId }] }
+      )
+    : db.updateOne(
+        { _id: questionId },
+        {
+          $inc: { comments: 1, 'sorter.uvc': 1, 'sorter.uvac': 1 },
+          $push: { commentItems: comment }
+        }
+      );
 }
 
 /**
@@ -792,15 +793,18 @@ export async function addCommentToDb({
  * `updateOps` must be a valid MongoDB update document, e.g. `{ $set: ... }`.
  */
 function translateToFlatUpdateOps(updateOps: Document, predicate: string) {
-  return Object.entries(updateOps).reduce((newUpdateOps, [updateOp, opSpec]) => {
-    newUpdateOps[updateOp] ??= {};
-
-    Object.entries(opSpec).forEach(([targetField, updateVal]) => {
-      newUpdateOps[updateOp][`${predicate}.${targetField}`] = updateVal;
-    });
-
-    return newUpdateOps;
-  }, {} as Document);
+  return Object.fromEntries(
+    Object.entries(updateOps).map(([updateOp, opSpec]) => {
+      return [
+        updateOp,
+        Object.fromEntries(
+          Object.entries(opSpec).map(([targetField, updateVal]) => {
+            return [`${predicate}.${targetField}`, updateVal];
+          })
+        )
+      ];
+    })
+  );
 }
 
 /**
@@ -840,22 +844,20 @@ export async function patchCommentInDb({
 }) {
   const db = (await getDb({ name: 'app' })).collection<InternalQuestion>('questions');
 
-  if (answerId) {
-    return db.updateOne(
-      { _id: questionId },
-      translateToFlatUpdateOps(
-        updateOps,
-        'answerItems.$[answer].commentItems.$[comment]'
-      ),
-      { arrayFilters: [{ 'answer._id': answerId }, { 'comment._id': commentId }] }
-    );
-  } else {
-    return db.updateOne(
-      { _id: questionId },
-      translateToFlatUpdateOps(updateOps, 'commentItems.$[comment]'),
-      { arrayFilters: [{ 'comment._id': commentId }] }
-    );
-  }
+  return answerId
+    ? db.updateOne(
+        { _id: questionId },
+        translateToFlatUpdateOps(
+          updateOps,
+          'answerItems.$[answer].commentItems.$[comment]'
+        ),
+        { arrayFilters: [{ 'answer._id': answerId }, { 'comment._id': commentId }] }
+      )
+    : db.updateOne(
+        { _id: questionId },
+        translateToFlatUpdateOps(updateOps, 'commentItems.$[comment]'),
+        { arrayFilters: [{ 'comment._id': commentId }] }
+      );
 }
 
 /**
@@ -893,19 +895,17 @@ export async function removeCommentFromDb({
 }) {
   const db = (await getDb({ name: 'app' })).collection<InternalQuestion>('questions');
 
-  if (answerId) {
-    return db.updateOne(
-      { _id: questionId },
-      { $pull: { 'answerItems.$[answer].commentItems': { _id: commentId } } },
-      { arrayFilters: [{ 'answer._id': answerId }] }
-    );
-  } else {
-    return db.updateOne(
-      { _id: questionId },
-      {
-        $inc: { comments: -1, 'sorter.uvc': -1, 'sorter.uvac': -1 },
-        $pull: { commentItems: { _id: commentId } }
-      }
-    );
-  }
+  return answerId
+    ? db.updateOne(
+        { _id: questionId },
+        { $pull: { 'answerItems.$[answer].commentItems': { _id: commentId } } },
+        { arrayFilters: [{ 'answer._id': answerId }] }
+      )
+    : db.updateOne(
+        { _id: questionId },
+        {
+          $inc: { comments: -1, 'sorter.uvc': -1, 'sorter.uvac': -1 },
+          $pull: { commentItems: { _id: commentId } }
+        }
+      );
 }

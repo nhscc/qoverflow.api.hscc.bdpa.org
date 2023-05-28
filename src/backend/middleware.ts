@@ -1,39 +1,39 @@
 import { middlewareFactory } from 'multiverse/next-api-glue';
 
 import logRequest, {
-  Options as LogRequestOptions
+  type Options as LogRequestOptions
 } from 'multiverse/next-adhesive/log-request';
 
 import checkVersion, {
-  Options as CheckVersionOptions
+  type Options as CheckVersionOptions
 } from 'multiverse/next-adhesive/check-version';
 
 import useCors, {
-  Options as UseCorsOptions
+  type Options as UseCorsOptions
 } from 'multiverse/next-adhesive/use-cors';
 
 import authRequest, {
-  Options as AuthRequestOptions
+  type Options as AuthRequestOptions
 } from 'multiverse/next-adhesive/auth-request';
 
 import limitRequest, {
-  Options as LimitRequestOptions
+  type Options as LimitRequestOptions
 } from 'multiverse/next-adhesive/limit-request';
 
 import checkMethod, {
-  Options as CheckMethodOptions
+  type Options as CheckMethodOptions
 } from 'multiverse/next-adhesive/check-method';
 
 import checkContentType, {
-  Options as CheckContentTypeOptions
+  type Options as CheckContentTypeOptions
 } from 'multiverse/next-adhesive/check-content-type';
 
 import handleError, {
-  Options as HandleErrorOptions
+  type Options as HandleErrorOptions
 } from 'multiverse/next-adhesive/handle-error';
 
 import contriveError, {
-  Options as ContriveErrorOptions
+  type Options as ContriveErrorOptions
 } from 'multiverse/next-adhesive/contrive-error';
 
 /**

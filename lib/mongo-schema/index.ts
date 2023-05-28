@@ -106,9 +106,9 @@ export async function getSchemaConfig(): Promise<DbSchema> {
       return (memory.schema = await (
         await import('configverse/get-schema-config')
       ).getSchemaConfig());
-    } catch (e) {
+    } catch (error) {
       debug.warn(
-        `failed to import getSchemaConfig from "configverse/get-schema-config": ${e}`
+        `failed to import getSchemaConfig from "configverse/get-schema-config": ${error}`
       );
 
       throw new InvalidAppConfigurationError(

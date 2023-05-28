@@ -1,8 +1,14 @@
-import fetch, { FetchError, Headers, Response } from 'node-fetch';
 import { makeNamedError } from 'named-app-errors';
 import { isError } from '@xunnamius/types';
 
-import type { BodyInit, RequestInit } from 'node-fetch';
+import fetch, {
+  FetchError,
+  Headers,
+  type Response,
+  type BodyInit,
+  type RequestInit
+} from 'node-fetch';
+
 import type { JsonObject, JsonPrimitive } from 'type-fest';
 
 export const JsonContentType = 'application/json' as const;
@@ -294,11 +300,13 @@ export async function jsonFetch<
     if (parsedOptions.headers.get('content-type') == JsonContentType) {
       try {
         parsedOptions.body = JSON.stringify(parsedOptions.body);
-      } catch (e) {
+      } catch (error) {
         throw new JsonFetchError(
           undefined,
           undefined,
-          `failed to stringify request body: ${isError(e) ? e.message : e}`
+          `failed to stringify request body: ${
+            isError(error) ? error.message : error
+          }`
         );
       }
     }
@@ -313,8 +321,8 @@ export async function jsonFetch<
 
   try {
     json = await res.json();
-  } catch (e) {
-    parseError = `${isError(e) ? e.message : e}`;
+  } catch (error) {
+    parseError = `${isError(error) ? error.message : error}`;
   }
 
   if (!res.ok && parsedOptions.rejectIfNotOk) {

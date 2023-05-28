@@ -60,13 +60,15 @@ module.exports = {
    * and verification succeeded. When `isCli=true` (the default), this function
    * will output errors to the console and non-zero exit if verification fails.
    */
-  verifyEnvironment(
-    { rules, env: outsideEnv, isCli } = {
-      rules: undefined,
+  verifyEnvironment(options) {
+    let { rules } = options || {};
+
+    const { env: outsideEnv, isCli } = {
+      ...options,
       env: undefined,
       isCli: true
-    }
-  ) {
+    };
+
     let fromPkg = false;
     let errorMessage = null;
 
@@ -80,7 +82,7 @@ module.exports = {
         if (typeof rule == 'string') {
           rule = rule.startsWith('^') ? rule.slice(1) : rule;
           rule = rule.startsWith('$') ? rule.slice(0, -1) : rule;
-          rule = RegExp(`^${rule}$`);
+          rule = new RegExp(`^${rule}$`);
         }
 
         normalizedRule = {
@@ -94,10 +96,10 @@ module.exports = {
           )
         };
       } else if (typeof rule.name == 'string' || rule.name instanceof RegExp) {
-        rule.name = rule.name instanceof RegExp ? rule.name : RegExp(rule.name);
+        rule.name = rule.name instanceof RegExp ? rule.name : new RegExp(rule.name);
         rule.value =
           typeof rule.value == 'string'
-            ? RegExp(rule.value)
+            ? new RegExp(rule.value)
             : rule.value instanceof RegExp
             ? rule.value
             : DEFAULT_VALUE_REGEX[0];
@@ -105,7 +107,7 @@ module.exports = {
         normalizedRule = {
           operation: 'or',
           variables: [{ name: rule.name, value: rule.value }],
-          required: typeof rule.required == 'undefined' || !!rule.required,
+          required: rule.required === undefined || !!rule.required,
           errorMessage: String(
             rule.errorMessage ||
               makeErrorMessage(
@@ -135,7 +137,7 @@ module.exports = {
         normalizedRule = {
           operation: rule.operation,
           variables,
-          required: typeof rule.required == 'undefined' || !!rule.required,
+          required: rule.required === undefined || !!rule.required,
           errorMessage: String(
             rule.errorMessage ||
               makeErrorMessage(
@@ -145,6 +147,7 @@ module.exports = {
                   (variables.length > 1 ? ':\n' : ' ') +
                   variables
                     .slice(1)
+                    // eslint-disable-next-line unicorn/no-array-reduce
                     .reduce(
                       (str, { name, value }) =>
                         `${str}\n${opString}${makeSubstr(name, value)}`,
@@ -175,13 +178,15 @@ module.exports = {
           'expect-env': { rules, errorMessage }
         } = require('./package.json'));
         fromPkg = true;
-      } catch (ignored) {}
+      } catch {
+        /* ignored */
+      }
     }
 
     debug('rules: %O', rules);
     debug('errorMessage: %O', errorMessage);
 
-    if (typeof rules == 'undefined') return [];
+    if (rules === undefined) return [];
 
     if (!Array.isArray(rules)) {
       throw new IllegalEnvironmentError(
@@ -192,67 +197,69 @@ module.exports = {
     }
 
     const env = outsideEnv || process.env;
-    const envVars = Object.keys(env);
+    const envVariables = Object.keys(env);
     const violations = [];
     let verificationSucceeded = true;
 
-    rules.map(normalize).forEach((rule) => {
-      let succeeded = null;
+    rules
+      .map((rule) => normalize(rule))
+      .forEach((rule) => {
+        let succeeded = null;
 
-      for (const { name, value } of rule.variables) {
-        let matchedAtLeastOneVar = false;
+        for (const { name, value } of rule.variables) {
+          let matchedAtLeastOneVariable = false;
 
-        // ? Attempt to match variable names and values vs name and value
-        const matched = envVars.some((v) => {
-          const matchesName = name.test(v);
-          matchedAtLeastOneVar = matchedAtLeastOneVar || matchesName;
-          return matchesName && value.test(env[v]);
-        });
+          // ? Attempt to match variable names and values vs name and value
+          const matched = envVariables.some((v) => {
+            const matchesName = name.test(v);
+            matchedAtLeastOneVariable = matchedAtLeastOneVariable || matchesName;
+            return matchesName && value.test(env[v]);
+          });
 
-        // ? If it's not required and not in env, skip evaluation
-        if (!rule.required && !matchedAtLeastOneVar) {
-          succeeded = true;
-          continue;
-        }
-
-        if (rule.operation == 'or') {
-          if (matched) {
+          // ? If it's not required and not in env, skip evaluation
+          if (!rule.required && !matchedAtLeastOneVariable) {
             succeeded = true;
-            break;
+            continue;
           }
-        } else if (rule.operation == 'and') {
-          if (matched) succeeded = true;
-          else {
-            succeeded = false;
-            break;
-          }
-        } else if (rule.operation == 'not') {
-          if (!matched) succeeded = true;
-          else {
-            succeeded = false;
-            break;
-          }
-        } else if (rule.operation == 'xor') {
-          if (succeeded === null) succeeded = !matched ? null : true;
-          else if (succeeded && matched) {
-            succeeded = false;
-            break;
-          }
-        } else {
-          throw new IllegalEnvironmentError(
-            `unrecognized operation "${rule.operation}"`
-          );
-        }
-      }
 
-      if (!succeeded)
-        isCli ? console.error(rule.errorMessage) : violations.push(rule);
-      verificationSucceeded = verificationSucceeded && succeeded;
-    });
+          if (rule.operation == 'or') {
+            if (matched) {
+              succeeded = true;
+              break;
+            }
+          } else if (rule.operation == 'and') {
+            if (matched) succeeded = true;
+            else {
+              succeeded = false;
+              break;
+            }
+          } else if (rule.operation == 'not') {
+            if (!matched) succeeded = true;
+            else {
+              succeeded = false;
+              break;
+            }
+          } else if (rule.operation == 'xor') {
+            if (succeeded === null) succeeded = !matched ? null : true;
+            else if (succeeded && matched) {
+              succeeded = false;
+              break;
+            }
+          } else {
+            throw new IllegalEnvironmentError(
+              `unrecognized operation "${rule.operation}"`
+            );
+          }
+        }
+
+        if (!succeeded)
+          isCli ? console.error(rule.errorMessage) : violations.push(rule);
+        verificationSucceeded = verificationSucceeded && succeeded;
+      });
 
     if (!verificationSucceeded && isCli)
       throw new IllegalEnvironmentError(
-        !errorMessage ? 'environment verification failed' : errorMessage
+        errorMessage || 'environment verification failed'
       );
 
     debug('violated rules: %O', violations);
@@ -262,7 +269,8 @@ module.exports = {
 
 try {
   !module.parent && module.exports.verifyEnvironment();
-} catch (e) {
-  console.error(e);
+} catch (error) {
+  console.error(error);
+  // eslint-disable-next-line unicorn/no-process-exit
   process.exit(1);
 }

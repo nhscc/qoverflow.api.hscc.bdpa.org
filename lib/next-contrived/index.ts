@@ -11,21 +11,21 @@ const debug = debugFactory('next-contrived:isDueForContrivedError');
  * across all Vercel virtual machines.
  */
 export async function isDueForContrivedError() {
-  const { REQUESTS_PER_CONTRIVED_ERROR: reqPerErr } = getEnv();
+  const { REQUESTS_PER_CONTRIVED_ERROR: reqPerError } = getEnv();
 
-  if (reqPerErr) {
+  if (reqPerError) {
     const x = (await getDb({ name: 'root' })).collection('request-log');
     const count = await x.estimatedDocumentCount();
 
-    debug(`${count}%${reqPerErr} = ${count % reqPerErr}`);
+    debug(`${count}%${reqPerError} = ${count % reqPerError}`);
 
-    if (count % reqPerErr == 0) {
+    if (count % reqPerError == 0) {
       debug('determined request is due for contrived error');
       return true;
     }
   } else {
     debug(
-      `skipped contrived error check (cause: REQUESTS_PER_CONTRIVED_ERROR=${reqPerErr})`
+      `skipped contrived error check (cause: REQUESTS_PER_CONTRIVED_ERROR=${reqPerError})`
     );
   }
 

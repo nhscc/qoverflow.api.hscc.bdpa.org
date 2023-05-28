@@ -30,14 +30,14 @@ let { NODE_ENV: nodeEnv, ...sanitizedProcessEnv } = {
 };
 
 try {
-  require('fs').accessSync('.env');
+  require('node:fs').accessSync('.env');
   const { NODE_ENV: forceEnv, ...parsedEnv } = require('dotenv').config().parsed;
   nodeEnv = forceEnv || nodeEnv;
   sanitizedEnv = parsedEnv;
   debug(`NODE_ENV: ${nodeEnv}`);
   debug('sanitized .env vars: %O', sanitizedEnv);
-} catch (e) {
-  debug(`.env support disabled; reason: ${e}`);
+} catch (error) {
+  debug(`.env support disabled; reason: ${error}`);
 }
 
 debug('sanitized process env: %O', sanitizedProcessEnv);
@@ -58,9 +58,9 @@ const envPlugins = [
 
 const externals = [
   nodeExternals(),
-  ({ request }, cb) =>
+  ({ request }, callback) =>
     // ? Externalize all .json imports (required as commonjs modules)
-    /\.json$/.test(request) ? cb(null, `commonjs ${request}`) : cb()
+    /\.json$/.test(request) ? callback(null, `commonjs ${request}`) : callback()
 ];
 
 /* const libConfig = {

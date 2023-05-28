@@ -1,12 +1,16 @@
 import { isolatedImportFactory, mockEnvFactory } from 'testverse/setup';
-import { Db, MongoClient } from 'mongodb';
+import { type Db, MongoClient } from 'mongodb';
 import { asMockedClass } from '@xunnamius/jest-types';
 
 import type { TestCustomizations } from 'multiverse/mongo-test';
 import { getInitialInternalMemoryState } from 'multiverse/mongo-schema';
 
 jest.mock('mongodb');
-jest.mock('configverse/get-schema-config', () => mockedMongoCustomizations);
+jest.mock(
+  'configverse/get-schema-config',
+  (): typeof import('configverse/get-schema-config') =>
+    mockedMongoCustomizations as unknown as typeof import('configverse/get-schema-config')
+);
 
 const withMockedEnv = mockEnvFactory({ NODE_ENV: 'test' });
 

@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/no-process-exit */
 /* eslint-disable no-await-in-loop */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
@@ -8,10 +9,10 @@ import {
 } from 'named-app-errors';
 
 import jsonFile from 'jsonfile';
-import { AnyBulkWriteOperation, ObjectId } from 'mongodb';
+import { type AnyBulkWriteOperation, ObjectId } from 'mongodb';
 import { toss } from 'toss-expression';
 import { setTimeout as wait } from 'node:timers/promises';
-import inquirer, { PromptModule } from 'inquirer';
+import inquirer, { type PromptModule } from 'inquirer';
 import { decode as decodeEntities } from 'html-entities';
 
 import { debugNamespace as namespace } from 'universe/constants';
@@ -103,12 +104,9 @@ const getPrompter = (testPrompterParams?: string): { prompt: PromptModule } => {
           );
 
           return Promise.resolve(
-            Array.from(new URLSearchParams(testPrompterParams).entries()).reduce<
-              Record<string, unknown>
-            >((obj, [k, v]) => {
-              obj[k] = v;
-              return obj;
-            }, {})
+            Object.fromEntries(
+              Array.from(new URLSearchParams(testPrompterParams).entries())
+            )
           );
         }) as unknown as PromptModule
       }
@@ -160,7 +158,7 @@ const getDataStats = (data: Data | null) => {
   let totalComments = 0;
 
   data.questions.forEach((question) => {
-    questionsDataSizeBytes += Buffer.byteLength(JSON.stringify(question), 'utf-8');
+    questionsDataSizeBytes += Buffer.byteLength(JSON.stringify(question), 'utf8');
     totalComments += question.commentItems.length;
     question.answerItems.forEach((answer) => {
       totalAnswers++;
@@ -169,7 +167,7 @@ const getDataStats = (data: Data | null) => {
   });
 
   data.users.forEach((user) => {
-    userDataSizeBytes += Buffer.byteLength(JSON.stringify(user), 'utf-8');
+    userDataSizeBytes += Buffer.byteLength(JSON.stringify(user), 'utf8');
   });
 
   return {
@@ -303,10 +301,10 @@ const commitRootDataToDb = async (data: Data | null) => {
 const invoked = async () => {
   try {
     const {
-      MAX_ANSWER_BODY_LENGTH_BYTES: maxAnswerLen,
-      MAX_COMMENT_LENGTH: maxCommentLen,
-      MAX_QUESTION_BODY_LENGTH_BYTES: maxQuestionBodyLen,
-      MAX_QUESTION_TITLE_LENGTH: maxQuestionTitleLen,
+      MAX_ANSWER_BODY_LENGTH_BYTES: maxAnswerLength,
+      MAX_COMMENT_LENGTH: maxCommentLength,
+      MAX_QUESTION_BODY_LENGTH_BYTES: maxQuestionBodyLength,
+      MAX_QUESTION_TITLE_LENGTH: maxQuestionTitleLength,
       STACKAPPS_INTERVAL_PERIOD_MS: intervalPeriodMs,
       STACKAPPS_MAX_REQUESTS_PER_INTERVAL: maxRequestsPerInterval,
       STACKAPPS_TOTAL_API_GENERATED_QUESTIONS: desiredApiGeneratedQuestionsCount,
@@ -541,7 +539,7 @@ const invoked = async () => {
         maxRequestsPerInterval,
         // requestInspector: dummyRequestInspector
         fetchErrorInspector: ({
-          error: e,
+          error: error_,
           queue: q,
           requestInfo,
           requestInit,
@@ -562,7 +560,7 @@ const invoked = async () => {
 
           if (retriedTooManyTimes) {
             subDebug.warn('request retried too many times');
-            throw new HttpError(`${e}`);
+            throw new HttpError(`${error_}`);
           }
 
           subDebug(`requeuing errored request: ${requestInfo}`);
@@ -730,8 +728,8 @@ const invoked = async () => {
                             } directly from local cache: ${question.title}`
                           );
                         } else if (
-                          question.body.length > maxQuestionBodyLen ||
-                          question.title.length > maxQuestionTitleLen
+                          question.body.length > maxQuestionBodyLength ||
+                          question.title.length > maxQuestionTitleLength
                         ) {
                           logOrDebug()(
                             `skipped question #${
@@ -783,7 +781,7 @@ const invoked = async () => {
 
                                 await Promise.all(
                                   answers.items.map(async (answer, answerIndex) => {
-                                    if (answer.body.length <= maxAnswerLen) {
+                                    if (answer.body.length <= maxAnswerLength) {
                                       const newAnswerId = new ObjectId();
                                       const [answerUpvotes, answerDownvotes] =
                                         getUpvotesDownvotesFromScore(answer.score);
@@ -825,7 +823,7 @@ const invoked = async () => {
                                         await Promise.all(
                                           comments.items.map(async (comment) => {
                                             if (
-                                              comment.body.length <= maxCommentLen
+                                              comment.body.length <= maxCommentLength
                                             ) {
                                               const [
                                                 commentUpvotes,
@@ -965,7 +963,7 @@ const invoked = async () => {
 
                                 await Promise.all(
                                   comments.items.map(async (comment) => {
-                                    if (comment.body.length <= maxCommentLen) {
+                                    if (comment.body.length <= maxCommentLength) {
                                       const [commentUpvotes, commentDownvotes] =
                                         getUpvotesDownvotesFromScore(comment.score);
 
@@ -1119,7 +1117,7 @@ const invoked = async () => {
 
                           await Promise.all(
                             answers.items.map(async (answer) => {
-                              if (answer.body.length <= maxAnswerLen) {
+                              if (answer.body.length <= maxAnswerLength) {
                                 const createdAt =
                                   answer.creation_date * oneSecondInMs;
 
@@ -1197,7 +1195,7 @@ const invoked = async () => {
 
                           await Promise.all(
                             comments.items.map(async (comment) => {
-                              if (comment.body.length <= maxCommentLen) {
+                              if (comment.body.length <= maxCommentLength) {
                                 const createdAt =
                                   comment.creation_date * oneSecondInMs;
 
@@ -1313,7 +1311,7 @@ const invoked = async () => {
                     );
 
                     await addOrUpdateUser('Hordak', {
-                      points: 1234567,
+                      points: 1_234_567,
                       newQuestionId
                     });
                   }
@@ -1332,8 +1330,8 @@ const invoked = async () => {
 
               data.cache.complete = true;
             }
-          } catch (e) {
-            logOrDebug().error(e);
+          } catch (error) {
+            logOrDebug().error(error);
 
             queue.immediatelyStopProcessingRequestQueue();
 
@@ -1460,8 +1458,8 @@ const invoked = async () => {
 
     logOrDebug()('execution complete');
     process.exit(0);
-  } catch (e) {
-    throw new AppError(`${e}`);
+  } catch (error) {
+    throw new AppError(`${error}`);
   }
 };
 
@@ -1474,7 +1472,7 @@ export type Data = {
   };
 };
 
-export default invoked().catch((e: Error) => {
-  log.error(e.message);
+export default invoked().catch((error: Error) => {
+  log.error(error.message);
   process.exit(2);
 });

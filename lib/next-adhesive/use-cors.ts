@@ -1,7 +1,7 @@
 import Cors from 'cors';
 import { debugFactory } from 'multiverse/debug-extended';
-import { Options as CheckMethodOptions } from 'multiverse/next-adhesive/check-method';
 
+import type { Options as CheckMethodOptions } from 'multiverse/next-adhesive/check-method';
 import type { MiddlewareContext } from 'multiverse/next-api-glue';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
@@ -31,6 +31,6 @@ export default async function (
 
   const cors = Cors({ methods: context.options.allowedMethods });
   await new Promise((resolve, reject) =>
-    cors(req, res, (err) => (err ? reject(err) : resolve(undefined)))
+    cors(req, res, (error) => (error ? reject(error) : resolve(undefined)))
   );
 }

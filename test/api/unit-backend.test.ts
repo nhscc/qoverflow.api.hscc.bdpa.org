@@ -2,36 +2,40 @@
 /* eslint-disable no-await-in-loop */
 import { ObjectId } from 'mongodb';
 import randomCase from 'random-case';
+import { toss } from 'toss-expression';
 
 import * as Backend from 'universe/backend';
 import { getEnv } from 'universe/backend/env';
 import { ErrorMessage, GuruMeditationError } from 'universe/error';
 
 import {
+  patchAnswerInDb,
+  patchCommentInDb,
+  questionStatuses,
   selectAnswerFromDb,
   selectCommentFromDb,
-  InternalQuestion,
-  InternalUser,
-  NewAnswer,
-  NewComment,
-  NewMail,
-  NewQuestion,
-  PatchAnswer,
-  PatchQuestion,
-  PointsUpdateOperation,
-  PublicAnswer,
-  PublicComment,
-  PublicMail,
-  PublicQuestion,
   toPublicAnswer,
   toPublicComment,
   toPublicMail,
   toPublicQuestion,
   toPublicUser,
-  patchAnswerInDb,
-  patchCommentInDb,
-  questionStatuses,
-  InternalMail
+  type InternalQuestion,
+  type InternalUser,
+  type NewAnswer,
+  type NewComment,
+  type NewMail,
+  type NewQuestion,
+  type PatchAnswer,
+  type PatchQuestion,
+  type PointsUpdateOperation,
+  type PublicAnswer,
+  type PublicComment,
+  type PublicMail,
+  type PublicQuestion,
+  type InternalMail,
+  type PublicUser,
+  type NewUser,
+  type PatchUser
 } from 'universe/backend/db';
 
 import { useMockDateNow } from 'multiverse/mongo-common';
@@ -41,9 +45,6 @@ import { itemToObjectId, itemToStringId } from 'multiverse/mongo-item';
 
 import { dummyAppData } from 'testverse/db';
 import { mockEnvFactory } from 'testverse/setup';
-
-import type { PublicUser, NewUser, PatchUser } from 'universe/backend/db';
-import { toss } from 'toss-expression';
 
 setupMemoryServerOverride();
 useMockDateNow();
@@ -71,8 +72,8 @@ const sortByFieldAndId = (
     .sort(
       (a, b) =>
         getField(b) - getField(a) ||
-        parseInt(b._id.toString().slice(-5), 16) -
-          parseInt(a._id.toString().slice(-5), 16)
+        Number.parseInt(b._id.toString().slice(-5), 16) -
+          Number.parseInt(a._id.toString().slice(-5), 16)
     );
 
   return sortedQuestions;
@@ -83,7 +84,7 @@ describe('::getAllUsers', () => {
     expect.hasAssertions();
 
     await expect(Backend.getAllUsers({ after_id: undefined })).resolves.toStrictEqual(
-      sortedUsers.map(toPublicUser)
+      sortedUsers.map((internalUser) => toPublicUser(internalUser))
     );
   });
 
@@ -373,7 +374,7 @@ describe('::createUser', () => {
   it('creates and returns a new user', async () => {
     expect.hasAssertions();
 
-    const newUser: Required<NewUser> = {
+    const latestUser: Required<NewUser> = {
       username: 'new-user',
       email: 'new-user@email.com',
       key: '0'.repeat(getEnv().USER_KEY_LENGTH),
@@ -381,12 +382,12 @@ describe('::createUser', () => {
     };
 
     await expect(
-      Backend.createUser({ data: newUser })
+      Backend.createUser({ data: latestUser })
     ).resolves.toStrictEqual<PublicUser>({
       user_id: expect.any(String),
-      username: newUser.username,
-      email: newUser.email,
-      salt: newUser.salt,
+      username: latestUser.username,
+      email: latestUser.email,
+      salt: latestUser.salt,
       points: 1,
       questions: 0,
       answers: 0
@@ -431,144 +432,169 @@ describe('::createUser', () => {
     expect.hasAssertions();
 
     const {
-      MIN_USER_NAME_LENGTH: minULen,
-      MAX_USER_NAME_LENGTH: maxULen,
-      MIN_USER_EMAIL_LENGTH: minELen,
-      MAX_USER_EMAIL_LENGTH: maxELen,
-      USER_SALT_LENGTH: saltLen,
-      USER_KEY_LENGTH: keyLen
+      MIN_USER_NAME_LENGTH: minULength,
+      MAX_USER_NAME_LENGTH: maxULength,
+      MIN_USER_EMAIL_LENGTH: minELength,
+      MAX_USER_EMAIL_LENGTH: maxELength,
+      USER_SALT_LENGTH: saltLength,
+      USER_KEY_LENGTH: keyLength
     } = getEnv();
 
-    const newUsers: [NewUser, string][] = [
+    const latestUsers: [NewUser, string][] = [
       [undefined as unknown as NewUser, ErrorMessage.InvalidJSON()],
       ['string data' as NewUser, ErrorMessage.InvalidJSON()],
       [
         {} as NewUser,
-        ErrorMessage.InvalidStringLength('email', minELen, maxELen, 'string')
+        ErrorMessage.InvalidStringLength('email', minELength, maxELength, 'string')
       ],
       [
         { email: null } as unknown as NewUser,
-        ErrorMessage.InvalidStringLength('email', minELen, maxELen, 'string')
+        ErrorMessage.InvalidStringLength('email', minELength, maxELength, 'string')
       ],
       [
-        { email: 'x'.repeat(minELen - 1) },
-        ErrorMessage.InvalidStringLength('email', minELen, maxELen, 'string')
+        { email: 'x'.repeat(minELength - 1) },
+        ErrorMessage.InvalidStringLength('email', minELength, maxELength, 'string')
       ],
       [
-        { email: 'x'.repeat(maxELen + 1) },
-        ErrorMessage.InvalidStringLength('email', minELen, maxELen, 'string')
+        { email: 'x'.repeat(maxELength + 1) },
+        ErrorMessage.InvalidStringLength('email', minELength, maxELength, 'string')
       ],
       [
-        { email: 'x'.repeat(maxELen) },
-        ErrorMessage.InvalidStringLength('email', minELen, maxELen, 'string')
+        { email: 'x'.repeat(maxELength) },
+        ErrorMessage.InvalidStringLength('email', minELength, maxELength, 'string')
       ],
       [
         { email: 'valid@email.address' },
-        ErrorMessage.InvalidStringLength('salt', saltLen, null, 'hexadecimal')
+        ErrorMessage.InvalidStringLength('salt', saltLength, null, 'hexadecimal')
       ],
       [
         {
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen - 1)
+          salt: '0'.repeat(saltLength - 1)
         },
-        ErrorMessage.InvalidStringLength('salt', saltLen, null, 'hexadecimal')
+        ErrorMessage.InvalidStringLength('salt', saltLength, null, 'hexadecimal')
       ],
       [
         {
           email: 'valid@email.address',
           salt: null
         } as unknown as NewUser,
-        ErrorMessage.InvalidStringLength('salt', saltLen, null, 'hexadecimal')
+        ErrorMessage.InvalidStringLength('salt', saltLength, null, 'hexadecimal')
       ],
       [
         {
           email: 'valid@email.address',
-          salt: 'x'.repeat(saltLen)
+          salt: 'x'.repeat(saltLength)
         },
-        ErrorMessage.InvalidStringLength('salt', saltLen, null, 'hexadecimal')
+        ErrorMessage.InvalidStringLength('salt', saltLength, null, 'hexadecimal')
       ],
       [
         {
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen)
+          salt: '0'.repeat(saltLength)
         },
-        ErrorMessage.InvalidStringLength('key', keyLen, null, 'hexadecimal')
+        ErrorMessage.InvalidStringLength('key', keyLength, null, 'hexadecimal')
       ],
       [
         {
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen),
-          key: '0'.repeat(keyLen - 1)
+          salt: '0'.repeat(saltLength),
+          key: '0'.repeat(keyLength - 1)
         },
-        ErrorMessage.InvalidStringLength('key', keyLen, null, 'hexadecimal')
+        ErrorMessage.InvalidStringLength('key', keyLength, null, 'hexadecimal')
       ],
       [
         {
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen),
-          key: 'x'.repeat(keyLen)
+          salt: '0'.repeat(saltLength),
+          key: 'x'.repeat(keyLength)
         },
-        ErrorMessage.InvalidStringLength('key', keyLen, null, 'hexadecimal')
+        ErrorMessage.InvalidStringLength('key', keyLength, null, 'hexadecimal')
       ],
       [
         {
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen),
+          salt: '0'.repeat(saltLength),
           key: null
         } as unknown as NewUser,
-        ErrorMessage.InvalidStringLength('key', keyLen, null, 'hexadecimal')
+        ErrorMessage.InvalidStringLength('key', keyLength, null, 'hexadecimal')
       ],
       [
         {
           username: 'must be alphanumeric',
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen),
-          key: '0'.repeat(keyLen)
+          salt: '0'.repeat(saltLength),
+          key: '0'.repeat(keyLength)
         },
-        ErrorMessage.InvalidStringLength('username', minULen, maxULen, 'alphanumeric')
+        ErrorMessage.InvalidStringLength(
+          'username',
+          minULength,
+          maxULength,
+          'alphanumeric'
+        )
       ],
       [
         {
           username: '#&*@^(#@(^$&*#',
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen),
-          key: '0'.repeat(keyLen)
+          salt: '0'.repeat(saltLength),
+          key: '0'.repeat(keyLength)
         },
-        ErrorMessage.InvalidStringLength('username', minULen, maxULen, 'alphanumeric')
+        ErrorMessage.InvalidStringLength(
+          'username',
+          minULength,
+          maxULength,
+          'alphanumeric'
+        )
       ],
       [
         {
           username: null,
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen),
-          key: '0'.repeat(keyLen)
+          salt: '0'.repeat(saltLength),
+          key: '0'.repeat(keyLength)
         } as unknown as NewUser,
-        ErrorMessage.InvalidStringLength('username', minULen, maxULen, 'alphanumeric')
+        ErrorMessage.InvalidStringLength(
+          'username',
+          minULength,
+          maxULength,
+          'alphanumeric'
+        )
       ],
       [
         {
-          username: 'x'.repeat(minULen - 1),
+          username: 'x'.repeat(minULength - 1),
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen),
-          key: '0'.repeat(keyLen)
+          salt: '0'.repeat(saltLength),
+          key: '0'.repeat(keyLength)
         },
-        ErrorMessage.InvalidStringLength('username', minULen, maxULen, 'alphanumeric')
+        ErrorMessage.InvalidStringLength(
+          'username',
+          minULength,
+          maxULength,
+          'alphanumeric'
+        )
       ],
       [
         {
-          username: 'x'.repeat(maxULen + 1),
+          username: 'x'.repeat(maxULength + 1),
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen),
-          key: '0'.repeat(keyLen)
+          salt: '0'.repeat(saltLength),
+          key: '0'.repeat(keyLength)
         },
-        ErrorMessage.InvalidStringLength('username', minULen, maxULen, 'alphanumeric')
+        ErrorMessage.InvalidStringLength(
+          'username',
+          minULength,
+          maxULength,
+          'alphanumeric'
+        )
       ],
       [
         {
-          username: 'x'.repeat(maxULen - 1),
+          username: 'x'.repeat(maxULength - 1),
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen),
-          key: '0'.repeat(keyLen),
+          salt: '0'.repeat(saltLength),
+          key: '0'.repeat(keyLength),
           user_id: 1
         } as NewUser,
         ErrorMessage.UnknownField('user_id')
@@ -576,7 +602,7 @@ describe('::createUser', () => {
     ];
 
     await Promise.all(
-      newUsers.map(([data, message]) =>
+      latestUsers.map(([data, message]) =>
         expect(Backend.createUser({ data })).rejects.toMatchObject({ message })
       )
     );
@@ -750,10 +776,10 @@ describe('::updateUser', () => {
     expect.hasAssertions();
 
     const {
-      MIN_USER_EMAIL_LENGTH: minELen,
-      MAX_USER_EMAIL_LENGTH: maxELen,
-      USER_SALT_LENGTH: saltLen,
-      USER_KEY_LENGTH: keyLen
+      MIN_USER_EMAIL_LENGTH: minELength,
+      MAX_USER_EMAIL_LENGTH: maxELength,
+      USER_SALT_LENGTH: saltLength,
+      USER_KEY_LENGTH: keyLength
     } = getEnv();
 
     const patchUsers: [PatchUser, string][] = [
@@ -761,43 +787,43 @@ describe('::updateUser', () => {
       ['string data' as PatchUser, ErrorMessage.InvalidJSON()],
       [
         { email: '' },
-        ErrorMessage.InvalidStringLength('email', minELen, maxELen, 'string')
+        ErrorMessage.InvalidStringLength('email', minELength, maxELength, 'string')
       ],
       [
-        { email: 'x'.repeat(minELen - 1) },
-        ErrorMessage.InvalidStringLength('email', minELen, maxELen, 'string')
+        { email: 'x'.repeat(minELength - 1) },
+        ErrorMessage.InvalidStringLength('email', minELength, maxELength, 'string')
       ],
       [
-        { email: 'x'.repeat(maxELen + 1) },
-        ErrorMessage.InvalidStringLength('email', minELen, maxELen, 'string')
+        { email: 'x'.repeat(maxELength + 1) },
+        ErrorMessage.InvalidStringLength('email', minELength, maxELength, 'string')
       ],
       [
-        { email: 'x'.repeat(maxELen) },
-        ErrorMessage.InvalidStringLength('email', minELen, maxELen, 'string')
+        { email: 'x'.repeat(maxELength) },
+        ErrorMessage.InvalidStringLength('email', minELength, maxELength, 'string')
       ],
       [
         { salt: '' },
-        ErrorMessage.InvalidStringLength('salt', saltLen, null, 'hexadecimal')
+        ErrorMessage.InvalidStringLength('salt', saltLength, null, 'hexadecimal')
       ],
       [
-        { salt: '0'.repeat(saltLen - 1) },
-        ErrorMessage.InvalidStringLength('salt', saltLen, null, 'hexadecimal')
+        { salt: '0'.repeat(saltLength - 1) },
+        ErrorMessage.InvalidStringLength('salt', saltLength, null, 'hexadecimal')
       ],
       [
-        { salt: 'x'.repeat(saltLen) },
-        ErrorMessage.InvalidStringLength('salt', saltLen, null, 'hexadecimal')
+        { salt: 'x'.repeat(saltLength) },
+        ErrorMessage.InvalidStringLength('salt', saltLength, null, 'hexadecimal')
       ],
       [
         { key: '' },
-        ErrorMessage.InvalidStringLength('key', keyLen, null, 'hexadecimal')
+        ErrorMessage.InvalidStringLength('key', keyLength, null, 'hexadecimal')
       ],
       [
-        { key: '0'.repeat(keyLen - 1) },
-        ErrorMessage.InvalidStringLength('key', keyLen, null, 'hexadecimal')
+        { key: '0'.repeat(keyLength - 1) },
+        ErrorMessage.InvalidStringLength('key', keyLength, null, 'hexadecimal')
       ],
       [
-        { key: 'x'.repeat(keyLen) },
-        ErrorMessage.InvalidStringLength('key', keyLen, null, 'hexadecimal')
+        { key: 'x'.repeat(keyLength) },
+        ErrorMessage.InvalidStringLength('key', keyLength, null, 'hexadecimal')
       ],
       [{ points: -1 }, ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')],
       [
@@ -869,8 +895,8 @@ describe('::updateUser', () => {
       [
         {
           email: 'valid@email.address',
-          salt: '0'.repeat(saltLen),
-          key: '0'.repeat(keyLen),
+          salt: '0'.repeat(saltLength),
+          key: '0'.repeat(keyLength),
           points: 0,
           username: 'new-username'
         } as PatchUser,
@@ -1042,7 +1068,7 @@ describe('::createMessage', () => {
   it('creates and returns a new message', async () => {
     expect.hasAssertions();
 
-    const newMessage: Required<NewMail> = {
+    const latestMessage: Required<NewMail> = {
       receiver: dummyAppData.users[2].username,
       sender: dummyAppData.users[1].username,
       subject: 'You have got mail!',
@@ -1056,14 +1082,14 @@ describe('::createMessage', () => {
     ).resolves.toBe(0);
 
     await expect(
-      Backend.createMessage({ data: newMessage })
+      Backend.createMessage({ data: latestMessage })
     ).resolves.toStrictEqual<PublicMail>({
       mail_id: expect.any(String),
       createdAt: Date.now(),
-      receiver: newMessage.receiver,
-      sender: newMessage.sender,
-      subject: newMessage.subject,
-      text: newMessage.text
+      receiver: latestMessage.receiver,
+      sender: latestMessage.sender,
+      subject: latestMessage.subject,
+      text: latestMessage.text
     });
 
     await expect(
@@ -1133,11 +1159,11 @@ describe('::createMessage', () => {
     expect.hasAssertions();
 
     const {
-      MAX_MAIL_SUBJECT_LENGTH: maxSubjectLen,
-      MAX_MAIL_BODY_LENGTH_BYTES: maxBodyLen
+      MAX_MAIL_SUBJECT_LENGTH: maxSubjectLength,
+      MAX_MAIL_BODY_LENGTH_BYTES: maxBodyLength
     } = getEnv();
 
-    const newMailMessages: [NewMail, string][] = [
+    const latestMailMessages: [NewMail, string][] = [
       [undefined as unknown as NewMail, ErrorMessage.InvalidJSON()],
       ['string data' as unknown as NewMail, ErrorMessage.InvalidJSON()],
       [{} as NewMail, ErrorMessage.InvalidFieldValue('receiver')],
@@ -1150,7 +1176,7 @@ describe('::createMessage', () => {
           receiver: dummyAppData.users[0].username,
           sender: dummyAppData.users[0].username
         } as NewMail,
-        ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLen, 'string')
+        ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLength, 'string')
       ],
       [
         {
@@ -1158,15 +1184,15 @@ describe('::createMessage', () => {
           sender: dummyAppData.users[0].username,
           subject: ''
         } as NewMail,
-        ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLen, 'string')
+        ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLength, 'string')
       ],
       [
         {
           receiver: dummyAppData.users[0].username,
           sender: dummyAppData.users[0].username,
-          subject: 'x'.repeat(maxSubjectLen + 1)
+          subject: 'x'.repeat(maxSubjectLength + 1)
         } as NewMail,
-        ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLen, 'string')
+        ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLength, 'string')
       ],
       [
         {
@@ -1174,7 +1200,7 @@ describe('::createMessage', () => {
           sender: dummyAppData.users[0].username,
           subject: 'x'
         } as NewMail,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
@@ -1183,16 +1209,16 @@ describe('::createMessage', () => {
           subject: 'x',
           text: ''
         } as NewMail,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
           receiver: dummyAppData.users[0].username,
           sender: dummyAppData.users[0].username,
           subject: 'x',
-          text: 'x'.repeat(maxBodyLen + 1)
+          text: 'x'.repeat(maxBodyLength + 1)
         } as NewMail,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
@@ -1225,7 +1251,7 @@ describe('::createMessage', () => {
     ];
 
     await Promise.all(
-      newMailMessages.map(([data, message]) =>
+      latestMailMessages.map(([data, message]) =>
         expect(Backend.createMessage({ data })).rejects.toMatchObject({ message })
       )
     );
@@ -1274,7 +1300,9 @@ describe('::deleteMessage', () => {
 
 describe('::searchQuestions', () => {
   const reversedInternalQuestions = dummyAppData.questions.slice().reverse();
-  const reversedPublicQuestions = reversedInternalQuestions.map(toPublicQuestion);
+  const reversedPublicQuestions = reversedInternalQuestions.map((internalQuestion) =>
+    toPublicQuestion(internalQuestion)
+  );
 
   it('returns RESULTS_PER_PAGE questions in default sort order (insertion, latest first) if no query params given', async () => {
     expect.hasAssertions();
@@ -1299,23 +1327,23 @@ describe('::searchQuestions', () => {
 
     await withMockedEnv(
       async () => {
-        let prevQuestion: PublicQuestion | null = null;
+        let previousQuestion: PublicQuestion | null = null;
 
         for (const question of reversedPublicQuestions) {
           await expect(
             Backend.searchQuestions({
-              after_id: prevQuestion ? prevQuestion.question_id : undefined,
+              after_id: previousQuestion ? previousQuestion.question_id : undefined,
               match: {},
               regexMatch: {},
               sort: undefined
             })
           ).resolves.toStrictEqual([question]);
-          prevQuestion = question;
+          previousQuestion = question;
         }
 
         await expect(
           Backend.searchQuestions({
-            after_id: prevQuestion ? prevQuestion.question_id : undefined,
+            after_id: previousQuestion ? previousQuestion.question_id : undefined,
             match: {},
             regexMatch: {},
             sort: undefined
@@ -1376,7 +1404,7 @@ describe('::searchQuestions', () => {
     ).resolves.toStrictEqual(
       reversedInternalQuestions
         .filter((q) => q['title-lowercase'] == 'where is the nhscc github page?')
-        .map(toPublicQuestion)
+        .map((internalQuestion) => toPublicQuestion(internalQuestion))
     );
   });
 
@@ -1436,12 +1464,12 @@ describe('::searchQuestions', () => {
     await expect(
       Backend.searchQuestions({
         after_id: undefined,
-        match: { createdAt: { $gte: Date.now() - 98765 } },
+        match: { createdAt: { $gte: Date.now() - 98_765 } },
         regexMatch: {},
         sort: undefined
       })
     ).resolves.toStrictEqual(
-      reversedPublicQuestions.filter((q) => q.createdAt >= Date.now() - 98765)
+      reversedPublicQuestions.filter((q) => q.createdAt >= Date.now() - 98_765)
     );
   });
 
@@ -1469,6 +1497,7 @@ describe('::searchQuestions', () => {
   it('supports multi-line case-insensitive regex matching of text via regexMatch', async () => {
     expect.hasAssertions();
 
+    // eslint-disable-next-line unicorn/better-regex
     const regex = /^alsO:.*$/im;
 
     await expect(
@@ -1494,7 +1523,9 @@ describe('::searchQuestions', () => {
         sort: 'u'
       })
     ).resolves.toStrictEqual(
-      sortByFieldAndId(reversedInternalQuestions, 'upvotes').map(toPublicQuestion)
+      sortByFieldAndId(reversedInternalQuestions, 'upvotes').map((internalQuestion) =>
+        toPublicQuestion(internalQuestion)
+      )
     );
 
     await expect(
@@ -1505,7 +1536,9 @@ describe('::searchQuestions', () => {
         sort: 'uvc'
       })
     ).resolves.toStrictEqual(
-      sortByFieldAndId(reversedInternalQuestions, 'uvc').map(toPublicQuestion)
+      sortByFieldAndId(reversedInternalQuestions, 'uvc').map((internalQuestion) =>
+        toPublicQuestion(internalQuestion)
+      )
     );
 
     await expect(
@@ -1516,7 +1549,9 @@ describe('::searchQuestions', () => {
         sort: 'uvac'
       })
     ).resolves.toStrictEqual(
-      sortByFieldAndId(reversedInternalQuestions, 'uvac').map(toPublicQuestion)
+      sortByFieldAndId(reversedInternalQuestions, 'uvac').map((internalQuestion) =>
+        toPublicQuestion(internalQuestion)
+      )
     );
   });
 
@@ -1533,7 +1568,7 @@ describe('::searchQuestions', () => {
     ).resolves.toStrictEqual(
       sortByFieldAndId(reversedInternalQuestions, 'uvc')
         .filter((q) => !q.answers)
-        .map(toPublicQuestion)
+        .map((internalQuestion) => toPublicQuestion(internalQuestion))
     );
 
     await expect(
@@ -1546,7 +1581,7 @@ describe('::searchQuestions', () => {
     ).resolves.toStrictEqual(
       sortByFieldAndId(reversedInternalQuestions, 'uvac')
         .filter((q) => !q.hasAcceptedAnswer)
-        .map(toPublicQuestion)
+        .map((internalQuestion) => toPublicQuestion(internalQuestion))
     );
   });
 
@@ -1555,7 +1590,7 @@ describe('::searchQuestions', () => {
 
     await withMockedEnv(
       async () => {
-        let prevQuestion: InternalQuestion | null = null;
+        let previousQuestion: InternalQuestion | null = null;
 
         for (const question of sortByFieldAndId(
           reversedInternalQuestions,
@@ -1563,18 +1598,20 @@ describe('::searchQuestions', () => {
         )) {
           await expect(
             Backend.searchQuestions({
-              after_id: prevQuestion ? prevQuestion._id.toString() : undefined,
+              after_id: previousQuestion
+                ? previousQuestion._id.toString()
+                : undefined,
               match: {},
               regexMatch: {},
               sort: 'u'
             })
           ).resolves.toStrictEqual([toPublicQuestion(question)]);
-          prevQuestion = question;
+          previousQuestion = question;
         }
 
         await expect(
           Backend.searchQuestions({
-            after_id: prevQuestion ? prevQuestion._id.toString() : undefined,
+            after_id: previousQuestion ? previousQuestion._id.toString() : undefined,
             match: {},
             regexMatch: {},
             sort: 'u'
@@ -1595,25 +1632,25 @@ describe('::searchQuestions', () => {
           'upvotes'
         )
           .filter((q) => q.upvotes < 2048 && q.upvotes > 0)
-          .map(toPublicQuestion);
+          .map((internalQuestion) => toPublicQuestion(internalQuestion));
 
-        let prevQuestion: PublicQuestion | null = null;
+        let previousQuestion: PublicQuestion | null = null;
 
         for (const question of interestingQuestions) {
           await expect(
             Backend.searchQuestions({
-              after_id: prevQuestion ? prevQuestion.question_id : undefined,
+              after_id: previousQuestion ? previousQuestion.question_id : undefined,
               match: { upvotes: { $lt: 2048, $gt: 0 } },
               regexMatch: {},
               sort: 'u'
             })
           ).resolves.toStrictEqual([question]);
-          prevQuestion = question;
+          previousQuestion = question;
         }
 
         await expect(
           Backend.searchQuestions({
-            after_id: prevQuestion ? prevQuestion.question_id : undefined,
+            after_id: previousQuestion ? previousQuestion.question_id : undefined,
             match: { upvotes: { $lt: 2048, $gt: 0 } },
             regexMatch: {},
             sort: 'u'
@@ -1936,7 +1973,7 @@ describe('::createQuestion', () => {
   it('creates and returns a new question', async () => {
     expect.hasAssertions();
 
-    const newQuestion: Required<NewQuestion> = {
+    const latestQuestion: Required<NewQuestion> = {
       creator: dummyAppData.users[0].username,
       title: 'Title',
       text: 'Text'
@@ -1949,7 +1986,7 @@ describe('::createQuestion', () => {
     ).resolves.toBe(0);
 
     await expect(
-      Backend.createQuestion({ data: newQuestion })
+      Backend.createQuestion({ data: latestQuestion })
     ).resolves.toStrictEqual<PublicQuestion>({
       question_id: expect.any(String),
       creator: dummyAppData.users[0].username,
@@ -1975,7 +2012,7 @@ describe('::createQuestion', () => {
   it("updates user's questions array when they create a new question", async () => {
     expect.hasAssertions();
 
-    const newQuestion = await Backend.createQuestion({
+    const latestQuestion = await Backend.createQuestion({
       data: {
         creator: dummyAppData.users[0].username,
         title: 'Title',
@@ -1991,7 +2028,9 @@ describe('::createQuestion', () => {
           { projection: { _id: false, questionIds: true } }
         )
     ).resolves.toStrictEqual({
-      questionIds: expect.arrayContaining([itemToObjectId(newQuestion.question_id)])
+      questionIds: expect.arrayContaining([
+        itemToObjectId(latestQuestion.question_id)
+      ])
     });
   });
 
@@ -2027,37 +2066,37 @@ describe('::createQuestion', () => {
     expect.hasAssertions();
 
     const {
-      MAX_QUESTION_TITLE_LENGTH: maxTitleLen,
-      MAX_QUESTION_BODY_LENGTH_BYTES: maxBodyLen
+      MAX_QUESTION_TITLE_LENGTH: maxTitleLength,
+      MAX_QUESTION_BODY_LENGTH_BYTES: maxBodyLength
     } = getEnv();
 
-    const newQuestions: [NewQuestion, string][] = [
+    const latestQuestions: [NewQuestion, string][] = [
       [undefined as unknown as NewQuestion, ErrorMessage.InvalidJSON()],
       ['string data' as unknown as NewQuestion, ErrorMessage.InvalidJSON()],
       [
         {} as NewQuestion,
-        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLength, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           title: ''
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLength, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
-          title: 'x'.repeat(maxTitleLen + 1)
+          title: 'x'.repeat(maxTitleLength + 1)
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLength, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           title: 'x'
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
@@ -2065,15 +2104,15 @@ describe('::createQuestion', () => {
           title: 'x',
           text: ''
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           title: 'x',
-          text: 'x'.repeat(maxBodyLen + 1)
+          text: 'x'.repeat(maxBodyLength + 1)
         } as NewQuestion,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         { creator: 'does-not-exist', title: 'x', text: 'x' } as NewQuestion,
@@ -2091,7 +2130,7 @@ describe('::createQuestion', () => {
     ];
 
     await Promise.all(
-      newQuestions.map(([data, message]) =>
+      latestQuestions.map(([data, message]) =>
         expect(Backend.createQuestion({ data })).rejects.toMatchObject({ message })
       )
     );
@@ -2322,8 +2361,8 @@ describe('::updateQuestion', () => {
     expect.hasAssertions();
 
     const {
-      MAX_QUESTION_TITLE_LENGTH: maxTitleLen,
-      MAX_QUESTION_BODY_LENGTH_BYTES: maxBodyLen
+      MAX_QUESTION_TITLE_LENGTH: maxTitleLength,
+      MAX_QUESTION_BODY_LENGTH_BYTES: maxBodyLength
     } = getEnv();
 
     const patchQuestions: [PatchQuestion, string][] = [
@@ -2335,27 +2374,27 @@ describe('::updateQuestion', () => {
       ],
       [
         { title: null } as unknown as PatchQuestion,
-        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLength, 'string')
       ],
       [
         { title: '' } as PatchQuestion,
-        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLength, 'string')
       ],
       [
-        { title: 'x'.repeat(maxTitleLen + 1) } as PatchQuestion,
-        ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
+        { title: 'x'.repeat(maxTitleLength + 1) } as PatchQuestion,
+        ErrorMessage.InvalidStringLength('title', 1, maxTitleLength, 'string')
       ],
       [
         { text: 5 } as unknown as PatchQuestion,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         { text: '' } as PatchQuestion,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
-        { text: 'x'.repeat(maxBodyLen + 1) } as PatchQuestion,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        { text: 'x'.repeat(maxBodyLength + 1) } as PatchQuestion,
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         { upvotes: null } as unknown as PatchQuestion,
@@ -2705,7 +2744,7 @@ describe('::createAnswer', () => {
   it('creates and returns a new answer to a question', async () => {
     expect.hasAssertions();
 
-    const newAnswer: Required<NewAnswer> = {
+    const latestAnswer: Required<NewAnswer> = {
       creator: dummyAppData.users[0].username,
       text: 'Text!'
     };
@@ -2724,7 +2763,7 @@ describe('::createAnswer', () => {
     await expect(
       Backend.createAnswer({
         question_id,
-        data: newAnswer
+        data: latestAnswer
       })
     ).resolves.toStrictEqual<PublicAnswer>({
       answer_id: expect.any(String),
@@ -2751,7 +2790,7 @@ describe('::createAnswer', () => {
   it('updates answer count when creating new answer to question', async () => {
     expect.hasAssertions();
 
-    const newAnswer: Required<NewAnswer> = {
+    const latestAnswer: Required<NewAnswer> = {
       creator: dummyAppData.users[0].username,
       text: 'Comment.'
     };
@@ -2767,7 +2806,7 @@ describe('::createAnswer', () => {
 
     await Backend.createAnswer({
       question_id: itemToStringId(dummyAppData.questions[1]),
-      data: newAnswer
+      data: latestAnswer
     });
 
     await expect(
@@ -2783,7 +2822,7 @@ describe('::createAnswer', () => {
   it("updates user's answers array when they create a new answer", async () => {
     expect.hasAssertions();
 
-    const newAnswer = await Backend.createAnswer({
+    const latestAnswer = await Backend.createAnswer({
       question_id: itemToStringId(dummyAppData.questions[1]),
       data: {
         creator: dummyAppData.users[0].username,
@@ -2803,7 +2842,7 @@ describe('::createAnswer', () => {
         ...dummyAppData.users[0].answerIds,
         [
           itemToObjectId(dummyAppData.questions[1]),
-          itemToObjectId(newAnswer.answer_id)
+          itemToObjectId(latestAnswer.answer_id)
         ]
       ])
     });
@@ -2812,7 +2851,7 @@ describe('::createAnswer', () => {
   it('updates sorter uvac (and NOT uvc) counters when creating a new answer', async () => {
     expect.hasAssertions();
 
-    const newAnswer: Required<NewAnswer> = {
+    const latestAnswer: Required<NewAnswer> = {
       creator: dummyAppData.users[0].username,
       text: 'Text!'
     };
@@ -2825,7 +2864,7 @@ describe('::createAnswer', () => {
 
     await Backend.createAnswer({
       question_id: itemToStringId(dummyAppData.questions[1]),
-      data: newAnswer
+      data: latestAnswer
     });
 
     await expect(
@@ -2840,19 +2879,19 @@ describe('::createAnswer', () => {
     expect.hasAssertions();
 
     const question_id = 'does-not-exist';
-    const newAnswer: Required<NewAnswer> = {
+    const latestAnswer: Required<NewAnswer> = {
       creator: dummyAppData.users[0].username,
       text: 'Text!'
     };
 
     await expect(
-      Backend.createAnswer({ question_id, data: newAnswer })
+      Backend.createAnswer({ question_id, data: latestAnswer })
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidObjectId(question_id)
     });
 
     await expect(
-      Backend.createAnswer({ question_id: undefined, data: newAnswer })
+      Backend.createAnswer({ question_id: undefined, data: latestAnswer })
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidItem('question_id', 'parameter')
     });
@@ -2862,13 +2901,13 @@ describe('::createAnswer', () => {
     expect.hasAssertions();
 
     const question_id = new ObjectId().toString();
-    const newAnswer: Required<NewAnswer> = {
+    const latestAnswer: Required<NewAnswer> = {
       creator: dummyAppData.users[0].username,
       text: 'Text!'
     };
 
     await expect(
-      Backend.createAnswer({ question_id, data: newAnswer })
+      Backend.createAnswer({ question_id, data: latestAnswer })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound(question_id, 'question')
     });
@@ -2905,7 +2944,7 @@ describe('::createAnswer', () => {
   it('rejects if the creator has already answered the question', async () => {
     expect.hasAssertions();
 
-    const newAnswer: Required<NewAnswer> = {
+    const latestAnswer: Required<NewAnswer> = {
       creator: dummyAppData.users[0].username,
       text: 'Text!'
     };
@@ -2913,7 +2952,7 @@ describe('::createAnswer', () => {
     await expect(
       Backend.createAnswer({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        data: newAnswer
+        data: latestAnswer
       })
     ).rejects.toMatchObject({ message: ErrorMessage.UserAlreadyAnswered() });
   });
@@ -2921,28 +2960,28 @@ describe('::createAnswer', () => {
   it('rejects if data is invalid or contains properties that violates limits', async () => {
     expect.hasAssertions();
 
-    const { MAX_ANSWER_BODY_LENGTH_BYTES: maxBodyLen } = getEnv();
+    const { MAX_ANSWER_BODY_LENGTH_BYTES: maxBodyLength } = getEnv();
 
-    const newAnswers: [NewAnswer, string][] = [
+    const latestAnswers: [NewAnswer, string][] = [
       [undefined as unknown as NewAnswer, ErrorMessage.InvalidJSON()],
       ['string data' as unknown as NewAnswer, ErrorMessage.InvalidJSON()],
       [
         {} as NewAnswer,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           text: ''
         } as NewAnswer,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
-          text: 'x'.repeat(maxBodyLen + 1)
+          text: 'x'.repeat(maxBodyLength + 1)
         } as NewAnswer,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         { creator: 'does-not-exist', text: 'x' } as NewAnswer,
@@ -2959,7 +2998,7 @@ describe('::createAnswer', () => {
     ];
 
     await Promise.all(
-      newAnswers.map(([data, message]) =>
+      latestAnswers.map(([data, message]) =>
         expect(
           Backend.createAnswer({
             question_id: itemToStringId(dummyAppData.questions[2]),
@@ -3179,7 +3218,7 @@ describe('::updateAnswer', () => {
   it('rejects if data is invalid or contains properties that violates limits', async () => {
     expect.hasAssertions();
 
-    const { MAX_ANSWER_BODY_LENGTH_BYTES: maxBodyLen } = getEnv();
+    const { MAX_ANSWER_BODY_LENGTH_BYTES: maxBodyLength } = getEnv();
 
     const patchAnswers: [PatchAnswer, string][] = [
       [undefined as unknown as PatchAnswer, ErrorMessage.InvalidJSON()],
@@ -3190,15 +3229,15 @@ describe('::updateAnswer', () => {
       ],
       [
         { text: '' } as PatchAnswer,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
-        { text: 'x'.repeat(maxBodyLen + 1) } as PatchAnswer,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        { text: 'x'.repeat(maxBodyLength + 1) } as PatchAnswer,
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         { text: null } as unknown as PatchAnswer,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         { upvotes: null } as unknown as PatchAnswer,
@@ -3709,7 +3748,7 @@ describe('::createComment', () => {
   it('creates and returns a new comment to a question', async () => {
     expect.hasAssertions();
 
-    const newComment: Required<NewComment> = {
+    const latestComment: Required<NewComment> = {
       creator: dummyAppData.users[0].username,
       text: 'Comment.'
     };
@@ -3727,7 +3766,7 @@ describe('::createComment', () => {
       Backend.createComment({
         question_id: itemToStringId(dummyAppData.questions[1]),
         answer_id: undefined,
-        data: newComment
+        data: latestComment
       })
     ).resolves.toStrictEqual<PublicComment>({
       comment_id: expect.any(String),
@@ -3751,7 +3790,7 @@ describe('::createComment', () => {
   it('creates and returns a new comment to an answer', async () => {
     expect.hasAssertions();
 
-    const newComment: Required<NewComment> = {
+    const latestComment: Required<NewComment> = {
       creator: dummyAppData.users[0].username,
       text: 'Comment.'
     };
@@ -3772,7 +3811,7 @@ describe('::createComment', () => {
       Backend.createComment({
         question_id: itemToStringId(dummyAppData.questions[1]),
         answer_id: itemToStringId(dummyAppData.questions[1].answerItems[0]),
-        data: newComment
+        data: latestComment
       })
     ).resolves.toStrictEqual<PublicComment>({
       comment_id: expect.any(String),
@@ -3799,7 +3838,7 @@ describe('::createComment', () => {
   it('updates comment count when creating new comment to a question', async () => {
     expect.hasAssertions();
 
-    const newComment: Required<NewComment> = {
+    const latestComment: Required<NewComment> = {
       creator: dummyAppData.users[0].username,
       text: 'Comment.'
     };
@@ -3816,7 +3855,7 @@ describe('::createComment', () => {
     await Backend.createComment({
       question_id: itemToStringId(dummyAppData.questions[1]),
       answer_id: undefined,
-      data: newComment
+      data: latestComment
     });
 
     await expect(
@@ -3838,7 +3877,7 @@ describe('::createComment', () => {
       sorter: { uvc, uvac }
     } = dummyAppData.questions[1];
 
-    const newComment: Required<NewComment> = {
+    const latestComment: Required<NewComment> = {
       creator: dummyAppData.users[0].username,
       text: 'Comment.'
     };
@@ -3846,7 +3885,7 @@ describe('::createComment', () => {
     await Backend.createComment({
       question_id: itemToStringId(dummyAppData.questions[1]),
       answer_id: undefined,
-      data: newComment
+      data: latestComment
     });
 
     await expect(
@@ -3861,7 +3900,7 @@ describe('::createComment', () => {
     expect.hasAssertions();
 
     const question_id = 'does-not-exist';
-    const newComment: Required<NewComment> = {
+    const latestComment: Required<NewComment> = {
       creator: dummyAppData.users[0].username,
       text: 'Text!'
     };
@@ -3870,7 +3909,7 @@ describe('::createComment', () => {
       Backend.createComment({
         question_id,
         answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
-        data: newComment
+        data: latestComment
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidObjectId(question_id)
@@ -3880,7 +3919,7 @@ describe('::createComment', () => {
       Backend.createComment({
         question_id: undefined,
         answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
-        data: newComment
+        data: latestComment
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidItem('question_id', 'parameter')
@@ -3891,7 +3930,7 @@ describe('::createComment', () => {
     expect.hasAssertions();
 
     const answer_id = 'does-not-exist';
-    const newComment: Required<NewComment> = {
+    const latestComment: Required<NewComment> = {
       creator: dummyAppData.users[0].username,
       text: 'Text!'
     };
@@ -3900,7 +3939,7 @@ describe('::createComment', () => {
       Backend.createComment({
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
-        data: newComment
+        data: latestComment
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidObjectId(answer_id)
@@ -3911,7 +3950,7 @@ describe('::createComment', () => {
     expect.hasAssertions();
 
     const question_id = new ObjectId().toString();
-    const newComment: Required<NewComment> = {
+    const latestComment: Required<NewComment> = {
       creator: dummyAppData.users[0].username,
       text: 'Text!'
     };
@@ -3920,7 +3959,7 @@ describe('::createComment', () => {
       Backend.createComment({
         question_id,
         answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
-        data: newComment
+        data: latestComment
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound(question_id, 'question')
@@ -3930,7 +3969,7 @@ describe('::createComment', () => {
       Backend.createComment({
         question_id,
         answer_id: undefined,
-        data: newComment
+        data: latestComment
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound(question_id, 'question')
@@ -3941,7 +3980,7 @@ describe('::createComment', () => {
     expect.hasAssertions();
 
     const answer_id = new ObjectId().toString();
-    const newComment: Required<NewComment> = {
+    const latestComment: Required<NewComment> = {
       creator: dummyAppData.users[0].username,
       text: 'Text!'
     };
@@ -3950,7 +3989,7 @@ describe('::createComment', () => {
       Backend.createComment({
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
-        data: newComment
+        data: latestComment
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound(answer_id, 'answer')
@@ -3990,9 +4029,9 @@ describe('::createComment', () => {
   it('rejects if data is invalid or contains properties that violates limits', async () => {
     expect.hasAssertions();
 
-    const { MAX_COMMENT_LENGTH: maxBodyLen } = getEnv();
+    const { MAX_COMMENT_LENGTH: maxBodyLength } = getEnv();
 
-    const newComments: [NewComment, string][] = [
+    const latestComments: [NewComment, string][] = [
       [undefined as unknown as NewComment, ErrorMessage.InvalidJSON()],
       ['string data' as unknown as NewComment, ErrorMessage.InvalidJSON()],
       [{} as NewComment, ErrorMessage.InvalidFieldValue('creator')],
@@ -4000,21 +4039,21 @@ describe('::createComment', () => {
         {
           creator: dummyAppData.users[0].username
         } as NewComment,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
           text: ''
         } as NewComment,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
           creator: dummyAppData.users[0].username,
-          text: 'x'.repeat(maxBodyLen + 1)
+          text: 'x'.repeat(maxBodyLength + 1)
         } as NewComment,
-        ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+        ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
@@ -4034,7 +4073,7 @@ describe('::createComment', () => {
     ];
 
     await Promise.all(
-      newComments.map(([data, message]) =>
+      latestComments.map(([data, message]) =>
         expect(
           Backend.createComment({
             question_id: itemToStringId(dummyAppData.questions[1]),
@@ -5716,7 +5755,7 @@ describe('::applyVotesUpdateOperation', () => {
   it('rejects if operation is invalid or missing', async () => {
     expect.hasAssertions();
 
-    const params = {
+    const parameters = {
       username: dummyAppData.users[0].username,
       question_id: itemToStringId(dummyAppData.questions[0]),
       answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
@@ -5788,7 +5827,7 @@ describe('::applyVotesUpdateOperation', () => {
       badOps.map(async ([op, error]) => {
         await expect(
           Backend.applyVotesUpdateOperation({
-            ...params,
+            ...parameters,
             operation: op
           })
         ).rejects.toMatchObject({

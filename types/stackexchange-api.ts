@@ -1,4 +1,4 @@
-import { Opaque } from 'type-fest';
+import type { Opaque } from 'type-fest';
 
 export type EpochTimeInSeconds = Opaque<number, 'EpochTimeInSeconds'>;
 export type SecondsFromNow = Opaque<number, 'SecondsFromNow'>;

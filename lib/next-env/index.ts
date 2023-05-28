@@ -22,7 +22,7 @@ const debug = debugFactory('next-env:env');
  */
 export const envToArray = (envVal: string) => {
   return envVal
-    .replace(/[^A-Za-z0-9=.<>,-^~_*]+/g, '')
+    .replaceAll(/[^\w*,-^~]+/g, '')
     .split(',')
     .filter(Boolean);
 };
@@ -75,7 +75,7 @@ export function getEnv<T extends Environment>(customizedEnv?: T) {
       ? envToArray(process.env.DISALLOWED_METHODS.toUpperCase())
       : [],
     MAX_CONTENT_LENGTH_BYTES:
-      parseAsBytes(process.env.MAX_CONTENT_LENGTH_BYTES ?? '-Infinity') || 102400,
+      parseAsBytes(process.env.MAX_CONTENT_LENGTH_BYTES ?? '-Infinity') || 102_400,
     AUTH_HEADER_MAX_LENGTH: Number(process.env.AUTH_HEADER_MAX_LENGTH) || 500,
     DEBUG: process.env.DEBUG ?? null,
     DEBUG_INSPECTING: !!process.env.VSCODE_INSPECTOR_OPTIONS,
@@ -133,7 +133,7 @@ export function getEnv<T extends Environment>(customizedEnv?: T) {
     const envIsGtZero = (name: keyof typeof env) => {
       if (
         typeof env[name] != 'number' ||
-        isNaN(env[name] as number) ||
+        Number.isNaN(env[name] as number) ||
         (env[name] as number) < 0
       ) {
         errors.push(

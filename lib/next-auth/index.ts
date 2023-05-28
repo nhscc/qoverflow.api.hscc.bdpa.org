@@ -69,12 +69,12 @@ export const authAttributes = ['owner', 'isGlobalAdmin'] as const;
 /**
  * A supported authentication scheme.
  */
-export type AuthScheme = typeof authSchemes[number];
+export type AuthScheme = (typeof authSchemes)[number];
 
 /**
  * A supported "auth" entry attribute (field name).
  */
-export type AuthAttribute = typeof authAttributes[number];
+export type AuthAttribute = (typeof authAttributes)[number];
 
 // * Well-known authorization (Authorization header) constraints
 
@@ -92,7 +92,7 @@ export const authConstraints = [
 /**
  * A supported authorization constraint.
  */
-export type AuthConstraint = typeof authConstraints[number];
+export type AuthConstraint = (typeof authConstraints)[number];
 
 // * Base token interfaces
 
@@ -218,23 +218,22 @@ export function isAllowedScheme(
  */
 export function isTokenAttributes(
   obj: unknown,
-  { patch }: { patch: boolean } = { patch: false }
+  { patch = false } = {}
 ): obj is TokenAttributes {
-  const attr = obj as TokenAttributes;
-  if (!!attr && typeof attr == 'object') {
-    const isValidOwner = !!attr.owner && typeof attr.owner == 'string';
+  const attribute = obj as TokenAttributes;
+  if (!!attribute && typeof attribute == 'object') {
+    const isValidOwner = !!attribute.owner && typeof attribute.owner == 'string';
     const isValidGlobalAdmin =
-      attr.isGlobalAdmin === undefined || typeof attr.isGlobalAdmin == 'boolean';
-    const allKeysAreValid = Object.keys(attr).every((key) =>
+      attribute.isGlobalAdmin === undefined ||
+      typeof attribute.isGlobalAdmin == 'boolean';
+    const allKeysAreValid = Object.keys(attribute).every((key) =>
       authAttributes.includes(key as AuthAttribute)
     );
 
     if (allKeysAreValid) {
-      if (patch) {
-        return (attr.owner === undefined || isValidOwner) && isValidGlobalAdmin;
-      } else {
-        return isValidOwner && isValidGlobalAdmin;
-      }
+      return patch
+        ? (attribute.owner === undefined || isValidOwner) && isValidGlobalAdmin
+        : isValidOwner && isValidGlobalAdmin;
     }
   }
 
@@ -421,11 +420,11 @@ export async function authenticateHeader({
       authString: header,
       allowedSchemes
     }));
-  } catch (e) {
+  } catch (error) {
     return {
       authenticated: false,
       error: `bad Authorization header: ${
-        isError(e) ? e.message : /* istanbul ignore next */ e
+        isError(error) ? error.message : /* istanbul ignore next */ error
       }`
     };
   }
@@ -464,11 +463,11 @@ export async function authorizeHeader({
     attributes = await getAttributes({
       target: await deriveSchemeAndToken({ authString: header })
     });
-  } catch (e) {
+  } catch (error) {
     return {
       authorized: false,
       error: `bad Authorization header: ${
-        isError(e) ? e.message : /* istanbul ignore next */ e
+        isError(error) ? error.message : /* istanbul ignore next */ error
       }`
     };
   }
@@ -620,7 +619,9 @@ export async function getOwnersEntries({
       .collection<InternalAuthEntry>('auth')
       .find<PublicAuthEntry>(
         // * Query is covered by the index
+        // eslint-disable-next-line unicorn/no-array-callback-reference
         returnAll ? {} : { 'attributes.owner': { $in: owners } },
+        // eslint-disable-next-line unicorn/no-array-method-this-argument
         { projection: { _id: false }, sort: { _id: 1 } }
       )
       .toArray();
@@ -658,13 +659,10 @@ export async function createEntry({
       await (await getDb({ name: 'root' }))
         .collection('auth')
         .insertOne({ ...newEntry });
-    } catch (e) {
-      /* istanbul ignore else */
-      if (e instanceof MongoServerError && e.code == 11000) {
-        throw new AppValidationError('token collision');
-      } else {
-        throw e;
-      }
+    } catch (error) {
+      throw error instanceof MongoServerError && error.code == 11_000
+        ? new AppValidationError('token collision')
+        : error;
     }
     return newEntry;
   } else {

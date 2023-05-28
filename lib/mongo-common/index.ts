@@ -125,7 +125,7 @@ export const dummyRootData: DummyRootData = {
       token: { bearer: BANNED_BEARER_TOKEN }
     }
   ],
-  'request-log': [...Array(22)].map((_, ndx) => ({
+  'request-log': Array.from({ length: 22 }).map((_, ndx) => ({
     _id: new ObjectId(),
     ip: '1.2.3.4',
     header: ndx % 2 ? null : `bearer ${BANNED_BEARER_TOKEN}`,

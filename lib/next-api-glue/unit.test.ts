@@ -7,8 +7,8 @@ import { DummyError } from 'universe/error';
 import type { NextApiRequest, NextApiResponse, NextConfig } from 'next';
 import type { Middleware, MiddlewareContext } from 'multiverse/next-api-glue';
 
-const MAX_CONTENT_LENGTH_BYTES = 100000;
-const MAX_CONTENT_LENGTH_BYTES_PLUS_1 = 100001;
+const MAX_CONTENT_LENGTH_BYTES = 100_000;
+const MAX_CONTENT_LENGTH_BYTES_PLUS_1 = 100_001;
 
 const withMockedOutput = mockOutputFactory({ passthrough: { stdErrSpy: false } });
 
@@ -197,7 +197,8 @@ describe('::withMiddleware', () => {
       handler: withMiddleware(undefined, {
         descriptor: '/fake/:path',
         use: [
-          (_, res, ctx) => res.status(200).send({ endpoint: ctx.runtime.endpoint })
+          (_, res, context) =>
+            res.status(200).send({ endpoint: context.runtime.endpoint })
         ]
       }),
       test: async ({ fetch }) => {
@@ -219,7 +220,7 @@ describe('::withMiddleware', () => {
       rejectOnHandlerError: true,
       handler: withMiddleware(handler, {
         descriptor: '/fake',
-        use: [(_, __, ctx) => ctx.runtime.done()]
+        use: [(_, __, context) => context.runtime.done()]
       }),
       test: async ({ fetch }) => {
         await fetch();
@@ -278,13 +279,13 @@ describe('::withMiddleware', () => {
           handler: withMiddleware(noopHandler, {
             descriptor: '/fake',
             use: [
-              (_, __, ctx) => expect(ctx.runtime.error).toBeUndefined(),
-              (_, __, ctx) => expect(ctx.runtime.error).toBeUndefined(),
+              (_, __, context) => expect(context.runtime.error).toBeUndefined(),
+              (_, __, context) => expect(context.runtime.error).toBeUndefined(),
               () => toss(error)
             ],
             useOnError: [
-              (_, __, ctx) => expect(ctx.runtime.error).toBe(error),
-              (_, __, ctx) => expect(ctx.runtime.error).toBe(error)
+              (_, __, context) => expect(context.runtime.error).toBe(error),
+              (_, __, context) => expect(context.runtime.error).toBe(error)
             ]
           }),
           test: async ({ fetch }) => void (await fetch())
@@ -387,8 +388,12 @@ describe('::withMiddleware', () => {
         rejectOnHandlerError: true,
         handler: withMiddleware(noopHandler, {
           descriptor: '/fake',
-          use: [(_, __, ctx) => ctx.runtime.done(), middleware, middleware],
-          useOnError: [(_, __, ctx) => ctx.runtime.done(), middleware, middleware]
+          use: [(_, __, context) => context.runtime.done(), middleware, middleware],
+          useOnError: [
+            (_, __, context) => context.runtime.done(),
+            middleware,
+            middleware
+          ]
         }),
         test: async ({ fetch }) => {
           await fetch();

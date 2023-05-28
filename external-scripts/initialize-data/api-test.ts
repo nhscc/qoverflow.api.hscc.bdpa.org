@@ -6,12 +6,7 @@ import type { RequestInspector } from 'multiverse/throttled-fetch';
 type RequestLike = { url: string | URL };
 
 const idToInt = (id: string) => {
-  return Number.parseInt(
-    id
-      .split('-')
-      .at(-1)!
-      .replace(/[^0-9]/g, '')
-  );
+  return Number.parseInt(id.split('-').at(-1)!.replaceAll(/\D/g, ''));
 };
 
 const reqParamToNumber = (req: RequestLike, parameter: string) => {
@@ -25,11 +20,9 @@ export const dummyRequestInspector: RequestInspector = ({ requestInfo }) => {
   const url = new URL(requestInfo.toString());
 
   if (/\/questions\//.test(url.pathname)) {
-    if (/\/answers/.test(url.pathname)) {
-      return getDummyQuestionAnswers({ url });
-    } else {
-      return getDummyQuestionComments({ url });
-    }
+    return /\/answers/.test(url.pathname)
+      ? getDummyQuestionAnswers({ url })
+      : getDummyQuestionComments({ url });
   } else if (/\/answers\//.test(url.pathname)) {
     return getDummyAnswerComments({ url });
   } else if (/\/questions/.test(url.pathname)) {

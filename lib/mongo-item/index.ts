@@ -1,9 +1,7 @@
-import { ObjectId } from 'mongodb';
+import { ObjectId, type Document, type Collection, type WithId } from 'mongodb';
 import { isError } from '@xunnamius/types';
 import { toss } from 'toss-expression';
 import { GuruMeditationError, ValidationError } from 'named-app-errors';
-
-import type { Collection, WithId } from 'mongodb';
 
 /**
  * Represents the value of the `_id` property of a MongoDB collection entry.
@@ -44,7 +42,7 @@ export type ItemExistsOptions = {
 /**
  * Checks if an item matching `{ _id: id }` exists within `collection`.
  */
-export async function itemExists<T>(
+export async function itemExists<T extends Document>(
   collection: Collection<T>,
   id: string | ObjectId,
   options?: ItemExistsOptions
@@ -53,12 +51,12 @@ export async function itemExists<T>(
  * Checks if an item matching `{ [descriptor.key]: descriptor.id }` exists
  * within `collection`.
  */
-export async function itemExists<T>(
+export async function itemExists<T extends Document>(
   collection: Collection<T>,
   descriptor: { key: string; id: string | ObjectId },
   options?: ItemExistsOptions
 ): Promise<boolean>;
-export async function itemExists<T>(
+export async function itemExists<T extends Document>(
   collection: Collection<T>,
   id: ItemExistsIdParam,
   options?: ItemExistsOptions
@@ -146,17 +144,19 @@ export function itemToObjectId<T extends ObjectId>(
     return item instanceof ObjectId
       ? item
       : Array.isArray(item)
-      ? Array.from(new Set<typeof item[0]>(item)).map((i) => {
-          _id = i;
+      ? Array.from(new Set<(typeof item)[0]>(item)).map((index) => {
+          _id = index;
           return (
-            i instanceof ObjectId
-              ? i
-              : typeof i == 'string'
-              ? new ObjectId(i)
-              : i?._id instanceof ObjectId
-              ? i._id
+            index instanceof ObjectId
+              ? index
+              : typeof index == 'string'
+              ? new ObjectId(index)
+              : index?._id instanceof ObjectId
+              ? index._id
               : toss(
-                  new GuruMeditationError(`encountered irreducible sub-item: ${i}`)
+                  new GuruMeditationError(
+                    `encountered irreducible sub-item: ${index}`
+                  )
                 )
           ) as T;
         })
@@ -165,12 +165,16 @@ export function itemToObjectId<T extends ObjectId>(
       : item?._id instanceof ObjectId
       ? (item._id as T)
       : toss(new GuruMeditationError(`encountered irreducible item: ${item}`));
-  } catch (e) {
-    if (isError(e) && e.name == 'BSONTypeError') {
+  } catch (error) {
+    if (
+      isError(error) &&
+      error.name.startsWith('BSON') &&
+      error.name.endsWith('Error')
+    ) {
       throw new ValidationError(`invalid id "${_id}"`);
     }
 
-    throw e;
+    throw error;
   }
 }
 

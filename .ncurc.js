@@ -17,6 +17,8 @@ module.exports = {
     // ? Pin the CJS version of auto-bind
     'auto-bind',
     // ? Pin the CJS version of inquirer
-    'inquirer'
+    'inquirer',
+    // ? Pin the non-busted version of unfetch
+    'unfetch'
   ]
 };

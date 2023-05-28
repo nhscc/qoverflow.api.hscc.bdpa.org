@@ -3,8 +3,17 @@ import { getClient } from 'multiverse/mongo-schema';
 
 import type { TestCustomizations } from 'multiverse/mongo-test';
 
-jest.mock('configverse/get-schema-config', () => mockedMongoCustomizations);
-jest.mock('configverse/get-dummy-data', () => mockedMongoCustomizations);
+jest.mock(
+  'configverse/get-schema-config',
+  (): typeof import('configverse/get-schema-config') =>
+    mockedMongoCustomizations as unknown as typeof import('configverse/get-schema-config')
+);
+
+jest.mock(
+  'configverse/get-dummy-data',
+  (): typeof import('configverse/get-dummy-data') =>
+    mockedMongoCustomizations as unknown as typeof import('configverse/get-dummy-data')
+);
 
 const now = Date.now();
 
@@ -60,7 +69,7 @@ beforeEach(() => {
 describe('[run using non-deferred setupMemoryServerOverride]', () => {
   setupMemoryServerOverride();
 
-  it('setupMemoryServerOverride works', async () => {
+  test('setupMemoryServerOverride works', async () => {
     expect.hasAssertions();
 
     const client = await getClient();
@@ -83,7 +92,7 @@ describe('[run using non-deferred setupMemoryServerOverride]', () => {
       db2.collection('col-3').listIndexes().toArray()
     ).resolves.toIncludeAllPartialMembers([
       { key: { _id: 1 } },
-      { key: { key: 1 }, unique: true },
+      { key: { key: -1 }, unique: true },
       { key: { item: 1 } }
     ]);
 

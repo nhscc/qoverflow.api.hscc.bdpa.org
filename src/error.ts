@@ -8,54 +8,59 @@ export * from 'named-app-errors';
 /* istanbul ignore next */
 export const ErrorMessage = {
   ...NamedErrorMessage,
-  DuplicateFieldValue: (prop: string) => `an item with that "${prop}" already exists`,
+  DuplicateFieldValue: (property: string) =>
+    `an item with that "${property}" already exists`,
   InvalidFieldValue: (
-    prop: string,
+    property: string,
     value?: string,
     validValues?: readonly string[]
   ) =>
-    `\`${prop}\` field has ${
+    `\`${property}\` field has ${
       value
         ? `invalid or illegal value "${value}"`
         : 'a missing, invalid, or illegal value'
     }${validValues ? `. Valid values: ${validValues.join(', ')}` : ''}`,
-  InvalidArrayValue: (prop: string, value: string, validValues?: readonly string[]) =>
-    `the \`${prop}\` array element "${value}" is invalid or illegal${
+  InvalidArrayValue: (
+    property: string,
+    value: string,
+    validValues?: readonly string[]
+  ) =>
+    `the \`${property}\` array element "${value}" is invalid or illegal${
       validValues ? `. Valid values: ${validValues.join(', ')}` : ''
     }`,
   InvalidObjectKeyValue: (
-    prop: string,
+    property: string,
     value?: string,
     validValues?: readonly string[]
   ) =>
-    `a \`${prop}\` object key has ${
+    `a \`${property}\` object key has ${
       value
         ? `invalid or illegal value "${value}"`
         : 'a missing, invalid, or illegal value'
     }${validValues ? `. Valid values: ${validValues.join(', ')}` : ''}`,
   InvalidJSON: () => 'encountered invalid JSON',
   InvalidNumberValue: (
-    prop: string,
+    property: string,
     min: number | string,
     max: number | string | null,
     type: 'number' | 'integer',
     nullable = false,
     isArray = false
   ) =>
-    `${isArray ? `each \`${prop}\` element` : `\`${prop}\``} must be a${
+    `${isArray ? `each \`${property}\` element` : `\`${property}\``} must be a${
       type == 'integer' ? 'n integer' : ' number'
     } ${max ? `between ${min} and ${max} (inclusive)` : `>= ${min}`}${
       nullable ? ' or null' : ''
     }`,
   InvalidStringLength: (
-    prop: string,
+    property: string,
     min: number | string,
     max: number | string | null,
     syntax: 'string' | 'alphanumeric' | 'hexadecimal' | 'bytes',
     nullable = false,
     isArray = false
   ) =>
-    `${isArray ? `each \`${prop}\` element` : `\`${prop}\``} must be a${
+    `${isArray ? `each \`${property}\` element` : `\`${property}\``} must be a${
       syntax == 'alphanumeric'
         ? 'n alphanumeric'
         : syntax == 'hexadecimal'
@@ -69,16 +74,17 @@ export const ErrorMessage = {
         : `${min} ${syntax == 'bytes' ? 'byte' : 'character'} string`
     }${nullable ? ' or null' : ''}`,
   InvalidObjectId: (id: string) => `invalid id "${id}"`,
-  UnknownField: (prop: string) => `encountered unknown or illegal field \`${prop}\``,
-  UnknownSpecifier: (prop: string, sub = false) =>
-    `encountered unknown or illegal ${sub ? 'sub-' : ''}specifier \`${prop}\``,
-  InvalidSpecifierValueType: (prop: string, type: string, sub = false) =>
-    `\`${prop}\` has invalid ${
+  UnknownField: (property: string) =>
+    `encountered unknown or illegal field \`${property}\``,
+  UnknownSpecifier: (property: string, sub = false) =>
+    `encountered unknown or illegal ${sub ? 'sub-' : ''}specifier \`${property}\``,
+  InvalidSpecifierValueType: (property: string, type: string, sub = false) =>
+    `\`${property}\` has invalid ${
       sub ? 'sub-' : ''
     }specifier value type (must be ${type})`,
-  InvalidRegexString: (prop: string) =>
-    `\`${prop}\` has invalid or illegal regex value`,
-  InvalidMatcher: (prop: string) => `invalid \`${prop}\`: must be object`,
+  InvalidRegexString: (property: string) =>
+    `\`${property}\` has invalid or illegal regex value`,
+  InvalidMatcher: (property: string) => `invalid \`${property}\`: must be object`,
   InvalidOrSpecifier: () =>
     'invalid "$or" sub-specifier: must be array with exactly two elements',
   InvalidOrSpecifierNonObject: (index: number) =>

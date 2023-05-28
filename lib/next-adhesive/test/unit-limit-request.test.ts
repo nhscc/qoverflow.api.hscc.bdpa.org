@@ -141,14 +141,14 @@ it('includes retry-after value in header (s) and in response JSON (ms)', async (
           ).resolves.toStrictEqual([null, {}]);
 
           void mockClientIsRateLimited.mockReturnValue(
-            Promise.resolve({ isLimited: true, retryAfter: 12344 })
+            Promise.resolve({ isLimited: true, retryAfter: 12_344 })
           );
 
           await expect(
             fetch().then(async (r) => [r.headers.get('retry-after'), await r.json()])
           ).resolves.toStrictEqual([
             '13',
-            expect.objectContaining({ retryAfter: 12344 })
+            expect.objectContaining({ retryAfter: 12_344 })
           ]);
         },
         { IGNORE_RATE_LIMITS: 'false' }

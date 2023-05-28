@@ -2,7 +2,11 @@
 // * Every now and then, we adopt best practices from CRA
 // * https://tinyurl.com/yakv4ggx
 
-const debug = require('debug')(`${require('./package.json').name}:babel-config`);
+// TODO: replace with 'package'
+const pkgName = require('./package.json').name;
+const debug = require('debug')(`${pkgName}:babel-config`);
+
+debug('NODE_ENV: %O', process.env.NODE_ENV);
 
 // ! This is pretty aggressive. It targets modern browsers only.
 // ? For some projects, less aggressive targets will make much more
@@ -36,12 +40,16 @@ const nextBabelPreset = [
   }
 ];
 
+/**
+ * @type {import('@babel/core').TransformOptions}
+ */
 module.exports = {
+  comments: false,
   parserOpts: { strictMode: true },
   plugins: [
     '@babel/plugin-proposal-export-default-from',
-    '@babel/plugin-proposal-function-bind',
-    '@babel/plugin-transform-typescript'
+    '@babel/plugin-syntax-import-assertions'
+
     // ? Interoperable named CJS imports for free
     // [
     //   'transform-default-named-imports',
@@ -56,6 +64,7 @@ module.exports = {
   env: {
     // * Used by Jest and `npm test`
     test: {
+      comments: true,
       sourceMaps: 'both',
       presets: [
         ['@babel/preset-env', { targets: { node: true } }],

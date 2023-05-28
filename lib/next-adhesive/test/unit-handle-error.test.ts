@@ -7,7 +7,7 @@ import {
   wrapHandler
 } from 'testverse/setup';
 import { toss } from 'toss-expression';
-import handleError, { Options } from 'multiverse/next-adhesive/handle-error';
+import handleError, { type Options } from 'multiverse/next-adhesive/handle-error';
 
 import {
   ValidationError,
@@ -57,7 +57,7 @@ it('sends correct HTTP error codes when certain errors occur', async () => {
     [new AppError(), 500],
     [new GuruMeditationError(), 500],
     [new NotImplementedError(), 501],
-    [new Error(), 500], // ? Every other error type should return 500
+    [new Error('bad'), 500], // ? Every other error type should return 500
     ['strange error', 500] // ? This too
   ]);
 

@@ -15,7 +15,7 @@ import type { InternalRequestLogEntry } from 'multiverse/next-log';
 import { ObjectId } from 'mongodb';
 
 // ? Ensure the isolated external picks up the memory server override
-jest.mock('multiverse/mongo-schema', () => {
+jest.mock('multiverse/mongo-schema', (): typeof import('multiverse/mongo-schema') => {
   return jest.requireActual('multiverse/mongo-schema');
 });
 
@@ -301,12 +301,12 @@ it('does not replace longer bans with shorter bans', async () => {
 
   await (
     await getRateLimitsCollection()
-  ).updateMany({ ip: { $ne: '5.6.7.8' } }, { $set: { until: 9998784552826 } });
+  ).updateMany({ ip: { $ne: '5.6.7.8' } }, { $set: { until: 9_998_784_552_826 } });
 
   await withMockedEnv(() => importBanHammer({ expectedExitCode: 0 }));
 
   let saw = 0;
-  (await getRateLimitUntils()).forEach((u) => u.until == 9998784552826 && saw++);
+  (await getRateLimitUntils()).forEach((u) => u.until == 9_998_784_552_826 && saw++);
 
   expect(saw).toBe(2);
 });

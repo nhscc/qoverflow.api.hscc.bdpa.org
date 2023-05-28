@@ -8,14 +8,18 @@ import {
 } from 'testverse/setup';
 
 // ? Ensure the isolated external picks up the memory server override
-jest.mock('multiverse/mongo-schema', () => {
+jest.mock('multiverse/mongo-schema', (): typeof import('multiverse/mongo-schema') => {
   return jest.requireActual('multiverse/mongo-schema');
 });
 
-jest.mock('jsonfile', () => ({
-  readFile: jest.fn().mockReturnValue({}),
-  writeFile: jest.fn()
-}));
+jest.mock(
+  'jsonfile',
+  (): typeof import('jsonfile') =>
+    ({
+      readFile: jest.fn().mockReturnValue({}),
+      writeFile: jest.fn()
+    } as unknown as typeof import('jsonfile'))
+);
 
 const withMockedEnv = mockEnvFactory({
   NODE_ENV: 'test',

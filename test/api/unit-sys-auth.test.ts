@@ -1,19 +1,21 @@
 /* eslint-disable no-global-assign */
+import { randomUUID } from 'node:crypto';
 import { testApiHandler } from 'next-test-api-route-handler';
+import { ObjectId, type Collection, type Db } from 'mongodb';
+
 import AuthEndpoint, { config as AuthConfig } from 'universe/pages/api/sys/auth';
 import { setupMemoryServerOverride } from 'multiverse/mongo-test';
 import { useMockDateNow } from 'multiverse/jest-mock-date';
 import { getDb } from 'multiverse/mongo-schema';
 import { dummyRootData } from 'multiverse/mongo-common';
-import { randomUUID } from 'node:crypto';
-import { ObjectId } from 'mongodb';
 
 import {
   BANNED_BEARER_TOKEN,
   DEV_BEARER_TOKEN,
   DUMMY_BEARER_TOKEN,
-  PublicAuthEntry,
-  toPublicAuthEntry
+  toPublicAuthEntry,
+  type PublicAuthEntry,
+  type InternalAuthBearerEntry
 } from 'multiverse/next-auth';
 
 import AuthUnbanEndpoint, {
@@ -21,8 +23,6 @@ import AuthUnbanEndpoint, {
 } from 'universe/pages/api/sys/auth/unban';
 
 import type { NextApiHandlerMixin } from 'testverse/fixtures';
-import type { InternalAuthBearerEntry } from 'multiverse/next-auth';
-import type { Collection, Db } from 'mongodb';
 import type { InternalLimitedLogEntry } from 'multiverse/next-limit';
 
 setupMemoryServerOverride();
@@ -262,7 +262,9 @@ describe('api/sys/auth', () => {
 
           expect(json).toStrictEqual({
             success: true,
-            entries: expect.arrayContaining(dummyRootData.auth.map(toPublicAuthEntry))
+            entries: expect.arrayContaining(
+              dummyRootData.auth.map((authEntry) => toPublicAuthEntry(authEntry))
+            )
           });
 
           expect(res.status).toBe(200);

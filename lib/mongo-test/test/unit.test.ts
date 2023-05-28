@@ -10,16 +10,21 @@ import { toss } from 'toss-expression';
 jest.mock('mongodb');
 jest.mock('mongodb-memory-server');
 
-jest.mock('multiverse/mongo-schema', () => {
-  if (mockedMongoSchema) {
-    return mockedMongoSchema;
-  } else {
-    return jest.requireActual('multiverse/mongo-schema');
-  }
+jest.mock('multiverse/mongo-schema', (): typeof import('multiverse/mongo-schema') => {
+  return mockedMongoSchema ?? jest.requireActual('multiverse/mongo-schema');
 });
 
-jest.mock('configverse/get-schema-config', () => mockedMongoCustomizations);
-jest.mock('configverse/get-dummy-data', () => mockedMongoCustomizations);
+jest.mock(
+  'configverse/get-schema-config',
+  (): typeof import('configverse/get-schema-config') =>
+    mockedMongoCustomizations as unknown as typeof import('configverse/get-schema-config')
+);
+
+jest.mock(
+  'configverse/get-dummy-data',
+  (): typeof import('configverse/get-dummy-data') =>
+    mockedMongoCustomizations as unknown as typeof import('configverse/get-dummy-data')
+);
 
 const now = Date.now();
 const withMockedEnv = mockEnvFactory({ NODE_ENV: 'test' });

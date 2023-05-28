@@ -346,18 +346,18 @@ export async function jsonFetch<
   };
 
   // ? A case-insensitive check since unfetch doesn't use a Headers instance
-  const hasJsonContentType = !!Object.entries(parsedOptions.headers || {}).find(
+  const hasJsonContentType = !!Object.entries(parsedOptions.headers || {}).some(
     ([k, v]) => k.toLowerCase() == 'content-type' && v == JsonContentType
   );
 
   if (hasJsonContentType) {
     try {
       parsedOptions.body = JSON.stringify(parsedOptions.body);
-    } catch (e) {
+    } catch (error) {
       throw new JsonUnfetchError(
         undefined,
         undefined,
-        `failed to stringify request body: ${isError(e) ? e.message : e}`
+        `failed to stringify request body: ${isError(error) ? error.message : error}`
       );
     }
   }
@@ -371,8 +371,8 @@ export async function jsonFetch<
 
   try {
     json = await res.json();
-  } catch (e) {
-    parseError = `${isError(e) ? e.message : e}`;
+  } catch (error) {
+    parseError = `${isError(error) ? error.message : error}`;
   }
 
   if (!res.ok && (parsedOptions.rejectIfNotOk || parsedOptions.swr)) {

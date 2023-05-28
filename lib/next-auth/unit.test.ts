@@ -67,7 +67,7 @@ afterEach(() => {
 
 test('ensure authSchemes contains only lowercase alphanumeric strings', () => {
   expect.hasAssertions();
-  const isLowercaseAlphanumeric = /^[a-z0-9]+$/;
+  const isLowercaseAlphanumeric = /^[\da-z]+$/;
 
   expect(
     authSchemes.every(
@@ -903,16 +903,18 @@ describe('::getOwnersEntries', () => {
     expect.hasAssertions();
 
     await expect(getOwnersEntries({ owners: [] })).resolves.toStrictEqual(
-      dummyRootData.auth.map(toPublicAuthEntry)
+      dummyRootData.auth.map((entry) => toPublicAuthEntry(entry))
     );
 
     await expect(getOwnersEntries({ owners: [undefined] })).resolves.toStrictEqual(
-      dummyRootData.auth.map(toPublicAuthEntry)
+      dummyRootData.auth.map((entry) => toPublicAuthEntry(entry))
     );
 
     await expect(
       getOwnersEntries({ owners: [undefined, undefined] })
-    ).resolves.toStrictEqual(dummyRootData.auth.map(toPublicAuthEntry));
+    ).resolves.toStrictEqual(
+      dummyRootData.auth.map((entry) => toPublicAuthEntry(entry))
+    );
   });
 
   it('rejects if passed invalid data', async () => {
@@ -1189,8 +1191,7 @@ it('allows multiple different auth entries of various schemes to coexist', async
   const uuid = randomUUID();
   const authDb = (await getDb({ name: 'root' })).collection('auth');
 
-  mutableAuthSchemes.push('new-scheme-1');
-  mutableAuthSchemes.push('new-scheme-2');
+  mutableAuthSchemes.push('new-scheme-1', 'new-scheme-2');
 
   const newEntryRed: WithoutId<InternalAuthEntry> = {
     attributes: {
@@ -1223,13 +1224,13 @@ it('allows multiple different auth entries of various schemes to coexist', async
       authString?: string;
       authData?: TargetToken;
     }): Promise<NextAuthSpyTarget.Token> {
-      let ret: NextAuthSpyTarget.Token | undefined;
+      let returnValue: NextAuthSpyTarget.Token | undefined;
 
       if (
         authString?.startsWith('new-scheme-1') ||
         authData?.scheme?.startsWith('new-scheme-1')
       ) {
-        ret = {
+        returnValue = {
           scheme: 'new-scheme-1' as AuthScheme,
           token: { id1: uuid.slice(0, 32), id2: uuid.slice(32) }
         };
@@ -1237,7 +1238,7 @@ it('allows multiple different auth entries of various schemes to coexist', async
         authString?.startsWith('new-scheme-2') ||
         authData?.scheme?.startsWith('new-scheme-2')
       ) {
-        ret = {
+        returnValue = {
           scheme: 'new-scheme-2' as AuthScheme,
           token: {
             uuid,
@@ -1247,10 +1248,10 @@ it('allows multiple different auth entries of various schemes to coexist', async
         };
       } else {
         // eslint-disable-next-line prefer-rest-params
-        ret = await actual_deriveSchemeAndToken(arguments[0]);
+        returnValue = await actual_deriveSchemeAndToken(arguments[0]);
       }
 
-      return Promise.resolve(ret);
+      return returnValue;
     } as typeof deriveSchemeAndToken);
 
   jest.spyOn(NextAuthSpyTarget, 'isTokenAttributes').mockReturnValue(true);

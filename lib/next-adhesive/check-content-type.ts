@@ -1,5 +1,4 @@
 import { debugFactory } from 'multiverse/debug-extended';
-import { ValidHttpMethod } from '@xunnamius/types';
 import { InvalidAppConfigurationError } from 'named-app-errors';
 import { toss } from 'toss-expression';
 
@@ -8,6 +7,7 @@ import {
   sendHttpBadRequest
 } from 'multiverse/next-api-respond';
 
+import type { ValidHttpMethod } from '@xunnamius/types';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import type { MiddlewareContext } from 'multiverse/next-api-glue';
 

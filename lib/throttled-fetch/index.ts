@@ -32,8 +32,8 @@ type ExtendedFetchParams = [
  * `prependRequestToQueue` calls with the response data.
  */
 type RequestQueueCallback = {
-  (err: null, retval: unknown): void;
-  (err: Error, retval?: undefined): void;
+  (error: null, returnValue: unknown): void;
+  (error: Error, returnValue?: undefined): void;
 };
 
 /**
@@ -104,8 +104,8 @@ export const defaultResponseInspector: ResponseInspector = ({ response: res }) =
  * The default `FetchErrorInspector` used by each `RequestQueue` instance unless
  * otherwise configured. Re-throws the `FetchError` instance.
  */
-export const defaultFetchErrorInspector: FetchErrorInspector = ({ error: e }) => {
-  throw e;
+export const defaultFetchErrorInspector: FetchErrorInspector = ({ error }) => {
+  throw error;
 };
 
 /**
@@ -621,26 +621,28 @@ export class RequestQueue<T = any> {
                 );
 
                 reqDebug('response received');
-              } catch (e) {
+              } catch (error) {
                 reqDebug.error(
-                  `triggering error inspector for in-flight request error: ${e}`
+                  `triggering error inspector for in-flight request error: ${error}`
                 );
 
                 try {
                   res = await this.fetchErrorInspector({
-                    error: e,
+                    error: error,
                     queue: this,
                     requestInfo: inspectorParams.requestInfo,
                     requestInit: inspectorParams.requestInit,
                     state: inspectorParams.state
                   });
-                } catch (e) {
-                  reqDebug.error(`unhandled error during in-flight request: ${e}`);
+                } catch (error) {
+                  reqDebug.error(
+                    `unhandled error during in-flight request: ${error}`
+                  );
                   callback(
-                    e instanceof Error
-                      ? e
+                    error instanceof Error
+                      ? error
                       : /* istanbul ignore next */
-                        new HttpError(res as Response, String(e))
+                        new HttpError(res as Response, String(error))
                   );
                   return;
                 }
@@ -671,13 +673,13 @@ export class RequestQueue<T = any> {
               );
 
               reqDebug('finished processing request');
-            } catch (e) {
-              reqDebug.error(`unhandled error during response inspection: ${e}`);
-              callback(e instanceof Error ? e : new HttpError(String(e)));
+            } catch (error) {
+              reqDebug.error(`unhandled error during response inspection: ${error}`);
+              callback(error instanceof Error ? error : new HttpError(String(error)));
             }
-          } catch (e) {
-            reqDebug.error(`unhandled error during request inspection: ${e}`);
-            callback(e instanceof Error ? e : new HttpError(String(e)));
+          } catch (error) {
+            reqDebug.error(`unhandled error during request inspection: ${error}`);
+            callback(error instanceof Error ? error : new HttpError(String(error)));
           }
         })();
       }
@@ -720,8 +722,8 @@ export class RequestQueue<T = any> {
     return new Promise((resolve, reject) => {
       this.#requestQueue.push([
         [params[0], params[1]],
-        (err, retval) => {
-          err ? reject(err) : resolve(retval as TT);
+        (error, returnValue) => {
+          error ? reject(error) : resolve(returnValue as TT);
         },
         params[2] || {}
       ]);
@@ -743,8 +745,8 @@ export class RequestQueue<T = any> {
     return new Promise((resolve, reject) => {
       this.#requestQueue.unshift([
         [params[0], params[1]],
-        (err, retval) => {
-          err ? reject(err) : resolve(retval as TT);
+        (error, returnValue) => {
+          error ? reject(error) : resolve(returnValue as TT);
         },
         params[2] || {}
       ]);
@@ -883,7 +885,7 @@ export class RequestQueue<T = any> {
     const count = this.#requestQueue.length;
     debug(`clearing request queue (${count} requests will reject)`);
 
-    for (let i = 0; i < count; ++i) {
+    for (let index = 0; index < count; ++index) {
       const [, callback] =
         this.#requestQueue.shift() ||
         /* istanbul ignore next */

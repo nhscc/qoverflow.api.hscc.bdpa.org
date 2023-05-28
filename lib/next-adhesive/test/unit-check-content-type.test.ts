@@ -4,7 +4,7 @@ import { withMiddleware } from 'multiverse/next-api-glue';
 import randomizeCase from 'random-case';
 
 import checkContentType, {
-  Options
+  type Options
 } from 'multiverse/next-adhesive/check-content-type';
 
 it('sends 415 by default for POST, PUT, and PATCH requests with or without a Content-Type header', async () => {

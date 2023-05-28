@@ -3,7 +3,7 @@ import { asMockedFunction } from '@xunnamius/jest-types';
 import { authenticateHeader, authorizeHeader } from 'multiverse/next-auth';
 import { noopHandler, wrapHandler } from 'testverse/setup';
 import { withMiddleware } from 'multiverse/next-api-glue';
-import authRequest, { Options } from 'multiverse/next-adhesive/auth-request';
+import authRequest, { type Options } from 'multiverse/next-adhesive/auth-request';
 
 jest.mock('multiverse/next-auth');
 
@@ -25,8 +25,8 @@ it('throws if missing requiresAuth option', async () => {
         descriptor: '/fake',
         use: [authRequest],
         useOnError: [
-          (_, res, ctx) => {
-            expect(ctx.runtime.error).toMatchObject({
+          (_, res, context) => {
+            expect(context.runtime.error).toMatchObject({
               message: expect.stringContaining(
                 'a valid "requiresAuth" option is missing from middleware configuration'
               )
@@ -46,8 +46,8 @@ it('throws if missing requiresAuth option', async () => {
         descriptor: '/fake',
         use: [authRequest],
         useOnError: [
-          (_, res, ctx) => {
-            expect(ctx.runtime.error).toMatchObject({
+          (_, res, context) => {
+            expect(context.runtime.error).toMatchObject({
               message: expect.stringContaining(
                 'a valid "requiresAuth" option is missing from middleware configuration'
               )

@@ -55,7 +55,7 @@ const users: InternalUser[] = [
     salt: '12ef85b518da764294abf0a2095bb5ec',
     key: 'e745893e064e26d4349b1639b1596c14bc9b5d050b56bf31ff3ef0dfce6f959aef8a3722a35bc35b2d142169e75ca3e1967cd6ee4818af0813d8396a724fdd22',
     email: 'user3@fake-email.com',
-    points: 100000,
+    points: 100_000,
     questionIds: [],
     answerIds: []
   },
@@ -74,7 +74,7 @@ const users: InternalUser[] = [
 const mail: InternalMail[] = [
   {
     _id: new ObjectId(),
-    createdAt: mockDateNowMs - 10000,
+    createdAt: mockDateNowMs - 10_000,
     receiver: 'User1',
     sender: 'User2',
     subject: "You've got mail!",
@@ -90,7 +90,7 @@ const mail: InternalMail[] = [
   },
   {
     _id: new ObjectId(),
-    createdAt: mockDateNowMs - 100000,
+    createdAt: mockDateNowMs - 100_000,
     receiver: 'User2',
     sender: 'User3',
     subject: 'Use snail mail lately?',
@@ -104,7 +104,7 @@ const questions: InternalQuestion[] = [
     creator: 'User1',
     title: 'What is the best server-side language in 2022?',
     'title-lowercase': 'what is the best server-side language in 2022?',
-    createdAt: mockDateNowMs - 123456,
+    createdAt: mockDateNowMs - 123_456,
     text: 'There are a lot of popular server-side languages these days. Which one is the best do you think?',
     status: 'open',
     hasAcceptedAnswer: false,
@@ -118,7 +118,7 @@ const questions: InternalQuestion[] = [
       {
         _id: new ObjectId(),
         creator: 'User2',
-        createdAt: mockDateNowMs - 109584,
+        createdAt: mockDateNowMs - 109_584,
         text: 'It has got to be Java.',
         accepted: false,
         upvotes: 4,
@@ -129,7 +129,7 @@ const questions: InternalQuestion[] = [
           {
             _id: new ObjectId(),
             creator: 'User1',
-            createdAt: mockDateNowMs - 108584,
+            createdAt: mockDateNowMs - 108_584,
             text: "It's been around forever though!",
             upvotes: 0,
             upvoterUsernames: [],
@@ -141,7 +141,7 @@ const questions: InternalQuestion[] = [
       {
         _id: new ObjectId(),
         creator: 'User3',
-        createdAt: mockDateNowMs - 107584,
+        createdAt: mockDateNowMs - 107_584,
         text: '**Fullstack JavaScript** is da way.',
         accepted: false,
         upvotes: 14,
@@ -152,7 +152,7 @@ const questions: InternalQuestion[] = [
           {
             _id: new ObjectId(),
             creator: 'User1',
-            createdAt: mockDateNowMs - 106584,
+            createdAt: mockDateNowMs - 106_584,
             text: 'This was going to be my answer',
             upvotes: 1,
             upvoterUsernames: [users[1].username],
@@ -162,7 +162,7 @@ const questions: InternalQuestion[] = [
           {
             _id: new ObjectId(),
             creator: 'User2',
-            createdAt: mockDateNowMs - 105584,
+            createdAt: mockDateNowMs - 105_584,
             text: 'JavaScript is just Java + carpet tho',
             upvotes: 0,
             upvoterUsernames: [],
@@ -172,7 +172,7 @@ const questions: InternalQuestion[] = [
           {
             _id: new ObjectId(),
             creator: 'User1',
-            createdAt: mockDateNowMs - 104584,
+            createdAt: mockDateNowMs - 104_584,
             text: "@User2 You mean they're not related?",
             upvotes: 0,
             upvoterUsernames: [users[0].username],
@@ -184,7 +184,7 @@ const questions: InternalQuestion[] = [
       {
         _id: new ObjectId(),
         creator: 'User1',
-        createdAt: mockDateNowMs - 19999,
+        createdAt: mockDateNowMs - 19_999,
         text: 'Just to provide a potential answer to my own question here:\n\nRust, maybe? Or perhaps I should give Python or Ruby a shot. C# is pretty nice too.',
         accepted: false,
         upvotes: 0,
@@ -199,7 +199,7 @@ const questions: InternalQuestion[] = [
       {
         _id: new ObjectId(),
         creator: 'User3',
-        createdAt: mockDateNowMs - 103584,
+        createdAt: mockDateNowMs - 103_584,
         text: 'Hmm. I might abuse my points powers and close this question as off topic.',
         upvotes: 0,
         upvoterUsernames: [],
@@ -209,7 +209,7 @@ const questions: InternalQuestion[] = [
       {
         _id: new ObjectId(),
         creator: 'User1',
-        createdAt: mockDateNowMs - 102584,
+        createdAt: mockDateNowMs - 102_584,
         text: 'Please do not close my question :(',
         upvotes: 0,
         upvoterUsernames: [],
@@ -227,7 +227,7 @@ const questions: InternalQuestion[] = [
     creator: 'User1',
     title: 'How do you (as a team) register for the conference?',
     'title-lowercase': 'how do you (as a team) register for the conference?',
-    createdAt: mockDateNowMs - 98765,
+    createdAt: mockDateNowMs - 98_765,
     text: 'Hello. I am trying to register for the conference but I am not sure where exactly to go (on the web) or who to talk to. So: how do you register for the conference?',
     status: 'protected',
     hasAcceptedAnswer: true,
@@ -241,7 +241,7 @@ const questions: InternalQuestion[] = [
       {
         _id: new ObjectId(),
         creator: 'User2',
-        createdAt: mockDateNowMs - 96765,
+        createdAt: mockDateNowMs - 96_765,
         text: 'Follow [this link](https://bdpa.org/event/bdpacon2022) to the BDPA conference website and you should see all the information you need to register. Is there anything else you were looking for specifically?',
         accepted: true,
         upvotes: 0,
@@ -256,7 +256,7 @@ const questions: InternalQuestion[] = [
       {
         _id: new ObjectId(),
         creator: 'User2',
-        createdAt: mockDateNowMs - 97765,
+        createdAt: mockDateNowMs - 97_765,
         text: "Make sure to pay attention at the next coordinator's meeting!",
         upvotes: 2,
         upvoterUsernames: [users[2].username],
@@ -265,8 +265,8 @@ const questions: InternalQuestion[] = [
       }
     ],
     sorter: {
-      uvc: 10697,
-      uvac: 10698
+      uvc: 10_697,
+      uvac: 10_698
     }
   },
   {
@@ -297,7 +297,7 @@ const questions: InternalQuestion[] = [
     creator: 'User3',
     title: 'Am I in the future?',
     'title-lowercase': 'am I in the future?',
-    createdAt: mockDateNowMs + 60000,
+    createdAt: mockDateNowMs + 60_000,
     text: `For some reason I've created this question a few seconds from now. How is that possible? **HELP ME!**`,
     status: 'closed',
     hasAcceptedAnswer: false,
@@ -320,7 +320,7 @@ const questions: InternalQuestion[] = [
     creator: 'User3',
     title: 'Am I still in the future?',
     'title-lowercase': 'am I still in the future?',
-    createdAt: mockDateNowMs + 1234567,
+    createdAt: mockDateNowMs + 1_234_567,
     text: `### HELP ME I CAN'T GET BACK!`,
     status: 'open',
     hasAcceptedAnswer: true,
@@ -379,7 +379,7 @@ const questions: InternalQuestion[] = [
     creator: 'User2',
     title: 'How to export functions from a custom hook',
     'title-lowercase': 'how to export functions from a custom hook',
-    createdAt: mockDateNowMs + 65432,
+    createdAt: mockDateNowMs + 65_432,
     text: 'When running `yarn build`, I am faced with this error:\n\n`Objects are not valid as a React child (found: object with keys {func1, func2, func3}). If you meant to render a collection of children, use an array instead.`\n\nMy attempt at solving this was to export my custom hook functions in an array, as the error seemed to suggest.',
     status: 'open',
     hasAcceptedAnswer: false,

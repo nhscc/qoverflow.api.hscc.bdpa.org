@@ -1,7 +1,7 @@
 import { testApiHandler } from 'next-test-api-route-handler';
 import { isolatedImport, wrapHandler, noopHandler } from 'testverse/setup';
 import { withMiddleware } from 'multiverse/next-api-glue';
-import useCors, { Options } from 'multiverse/next-adhesive/use-cors';
+import useCors, { type Options } from 'multiverse/next-adhesive/use-cors';
 
 afterEach(() => {
   jest.dontMock('cors');
@@ -50,9 +50,11 @@ it('handles cors package errors gracefully', async () => {
 
   jest.doMock(
     'cors',
-    () => () => (_req: unknown, _res: unknown, cb: (e: Error) => void) => {
-      return cb(new Error('fake error'));
-    }
+    (): typeof import('cors') =>
+      () =>
+      (_req: unknown, _res: unknown, callback: (error: Error) => void) => {
+        return callback(new Error('fake error'));
+      }
   );
 
   await testApiHandler({
@@ -65,8 +67,8 @@ it('handles cors package errors gracefully', async () => {
           })
         ],
         useOnError: [
-          (_req, res, ctx) => {
-            expect(ctx.runtime.error).toMatchObject({ message: 'fake error' });
+          (_req, res, context) => {
+            expect(context.runtime.error).toMatchObject({ message: 'fake error' });
             res.status(555).end();
           }
         ]

@@ -1,6 +1,6 @@
 /* eslint-disable jest/require-hook */
 import { testApiHandler } from 'next-test-api-route-handler';
-import { get as dotPath } from 'dot-prop';
+import { getProperty as dotPath } from 'dot-prop';
 import { toss } from 'toss-expression';
 import { GuruMeditationError } from 'universe/error';
 import { mockEnvFactory } from 'testverse/setup';
@@ -24,7 +24,7 @@ const withMockedEnv = mockEnvFactory(
 
 // ? Memory of the results of past fixture runs.
 const memory: TestResultset = [
-  { status: Infinity, json: {} }
+  { status: Number.POSITIVE_INFINITY, json: {} }
 ] as unknown as TestResultset;
 
 memory.latest = memory[0];
@@ -134,6 +134,7 @@ describe('> fable integration tests', () => {
             return;
           }
 
+          // eslint-disable-next-line jest/no-standalone-expect
           expect.hasAssertions();
           lastRunSuccess = false;
 
@@ -146,11 +147,17 @@ describe('> fable integration tests', () => {
                 ? memory.idMap[index]
                 : memory[index + (index < 0 ? displayIndex : 1)];
 
-            const retval = prop ? dotPath<T>(result?.json, prop) : result;
-
             if (!result) {
               throw new GuruMeditationError(`no result at index "${index}"`);
-            } else if (retval === undefined) {
+            }
+
+            const returnValue = prop
+              ? result.json === undefined
+                ? undefined
+                : (dotPath(result.json, prop) as T)
+              : result;
+
+            if (returnValue === undefined) {
               throw new GuruMeditationError(
                 `${
                   prop ? 'prop path "' + prop + '" ' : ''
@@ -158,7 +165,7 @@ describe('> fable integration tests', () => {
               );
             }
 
-            return retval;
+            return returnValue;
           };
 
           const requestParams =

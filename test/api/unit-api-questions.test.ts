@@ -3,16 +3,19 @@ import { testApiHandler } from 'next-test-api-route-handler';
 import { api, setupMockBackend } from 'testverse/fixtures';
 
 jest.mock('universe/backend');
-jest.mock('universe/backend/middleware', () => {
-  const { middlewareFactory } = require('multiverse/next-api-glue');
-  const { default: handleError } = require('multiverse/next-adhesive/handle-error');
+jest.mock(
+  'universe/backend/middleware',
+  (): typeof import('universe/backend/middleware') => {
+    const { middlewareFactory } = require('multiverse/next-api-glue');
+    const { default: handleError } = require('multiverse/next-adhesive/handle-error');
 
-  return {
-    withMiddleware: jest
-      .fn()
-      .mockImplementation(middlewareFactory({ use: [], useOnError: [handleError] }))
-  };
-});
+    return {
+      withMiddleware: jest
+        .fn()
+        .mockImplementation(middlewareFactory({ use: [], useOnError: [handleError] }))
+    } as unknown as typeof import('universe/backend/middleware');
+  }
+);
 
 const { mockedGetHowUserVoted } = setupMockBackend();
 

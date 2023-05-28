@@ -76,15 +76,15 @@ import { itemExists, itemToObjectId } from 'multiverse/mongo-item';
 
 import type { Document } from 'mongodb';
 
-const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
-const usernameRegex = /^[a-zA-Z0-9_-]+$/;
-const hexadecimalRegex = /^[a-fA-F0-9]+$/;
+const emailRegex = /^[\w%+.-]+@[\d.a-z-]+\.[a-z]{2,}$/i;
+const usernameRegex = /^[\w-]+$/;
+const hexadecimalRegex = /^[\dA-Fa-f]+$/;
 
 /**
  * Question properties that can be matched against with `searchQuestions()`
  * matchers. Proxied properties should be listed in their final form.
  */
-const matchableStrings = [
+const matchableStrings = new Set([
   'creator',
   'title-lowercase', // * Proxied from title
   'createdAt',
@@ -96,31 +96,31 @@ const matchableStrings = [
   'answers',
   'views',
   'comments'
-];
+]);
 
 /**
  * Question properties that can be matched against with `searchQuestions()`
  * regexMatchers. Must be string fields. Proxied properties should be listed in
  * their final form.
  */
-const regexMatchableStrings = [
+const regexMatchableStrings = new Set([
   'creator',
   'title-lowercase', // * Proxied from title
   'text',
   'status'
-];
+]);
 
 /**
  * Whitelisted MongoDB sub-matchers that can be used with `searchQuestions()`,
  * not including the special "$or" sub-matcher.
  */
-const matchableSubStrings = ['$gt', '$lt', '$gte', '$lte'];
+const matchableSubStrings = new Set(['$gt', '$lt', '$gte', '$lte']);
 
 /**
  * Whitelisted MongoDB-esque sub-specifiers that can be used with
  * `searchQuestions()` via the "$or" sub-matcher.
  */
-type SubSpecifierObject = {
+export type SubSpecifierObject = {
   [subspecifier in '$gt' | '$lt' | '$gte' | '$lte']?: number;
 };
 
@@ -129,7 +129,7 @@ type SubSpecifierObject = {
  * directly to MongoDB. Used for complex updates involving the `sorter.uvc` and
  * `sorter.uvac` fields.
  */
-type SorterUpdateAggregationOp = {
+export type SorterUpdateAggregationOp = {
   $add: [
     original: string,
     nUpdate: number,
@@ -249,18 +249,18 @@ function validateQuestionData(
   }
 
   const {
-    MAX_QUESTION_TITLE_LENGTH: maxTitleLen,
-    MAX_QUESTION_BODY_LENGTH_BYTES: maxBodyLen
+    MAX_QUESTION_TITLE_LENGTH: maxTitleLength,
+    MAX_QUESTION_BODY_LENGTH_BYTES: maxBodyLength
   } = getEnv();
 
   if (
     (required || (!required && data.title !== undefined)) &&
     (typeof data.title != 'string' ||
       data.title.length < 1 ||
-      data.title.length > maxTitleLen)
+      data.title.length > maxTitleLength)
   ) {
     throw new ValidationError(
-      ErrorMessage.InvalidStringLength('title', 1, maxTitleLen, 'string')
+      ErrorMessage.InvalidStringLength('title', 1, maxTitleLength, 'string')
     );
   }
 
@@ -268,10 +268,10 @@ function validateQuestionData(
     (required || (!required && data.text !== undefined)) &&
     (typeof data.text != 'string' ||
       data.text.length < 1 ||
-      data.text.length > maxBodyLen)
+      data.text.length > maxBodyLength)
   ) {
     throw new ValidationError(
-      ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+      ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
     );
   }
 }
@@ -287,16 +287,16 @@ function validateAnswerData(
     throw new ValidationError(ErrorMessage.InvalidJSON());
   }
 
-  const { MAX_ANSWER_BODY_LENGTH_BYTES: maxBodyLen } = getEnv();
+  const { MAX_ANSWER_BODY_LENGTH_BYTES: maxBodyLength } = getEnv();
 
   if (
     (required || (!required && data.text !== undefined)) &&
     (typeof data.text != 'string' ||
       data.text.length < 1 ||
-      data.text.length > maxBodyLen)
+      data.text.length > maxBodyLength)
   ) {
     throw new ValidationError(
-      ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+      ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
     );
   }
 }
@@ -314,13 +314,16 @@ export async function getAllUsers({
     throw new ItemNotFoundError(after_id, 'user_id');
   }
 
-  return userDb
-    .find<PublicUser>(afterId ? { _id: { $lt: afterId } } : {}, {
-      projection: publicUserProjection,
-      limit: getEnv().RESULTS_PER_PAGE,
-      sort: { _id: -1 }
-    })
-    .toArray();
+  return (
+    userDb
+      // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument
+      .find<PublicUser>(afterId ? { _id: { $lt: afterId } } : {}, {
+        projection: publicUserProjection,
+        limit: getEnv().RESULTS_PER_PAGE,
+        sort: { _id: -1 }
+      })
+      .toArray()
+  );
 }
 
 export async function getUser({
@@ -476,7 +479,7 @@ export async function createUser({
   const db = await getDb({ name: 'app' });
   const userDb = db.collection<InternalUser>('users');
 
-  const newUser = {
+  const latestUser = {
     _id: new ObjectId(),
     username,
     email,
@@ -490,25 +493,25 @@ export async function createUser({
   // * At this point, we can finally trust this data is not malicious, but not
   // * necessarily valid...
   try {
-    await userDb.insertOne(newUser);
-  } catch (e) {
+    await userDb.insertOne(latestUser);
+  } catch (error) {
     /* istanbul ignore else */
-    if (e instanceof MongoServerError && e.code == 11000) {
-      if (e.keyPattern?.username !== undefined) {
+    if (error instanceof MongoServerError && error.code == 11_000) {
+      if (error.keyPattern?.username !== undefined) {
         throw new ValidationError(ErrorMessage.DuplicateFieldValue('username'));
       }
 
       /* istanbul ignore else */
-      if (e.keyPattern?.email !== undefined) {
+      if (error.keyPattern?.email !== undefined) {
         throw new ValidationError(ErrorMessage.DuplicateFieldValue('email'));
       }
     }
 
     /* istanbul ignore next */
-    throw e;
+    throw error;
   }
 
-  return toPublicUser(newUser);
+  return toPublicUser(latestUser);
 }
 
 export async function updateUser({
@@ -596,15 +599,16 @@ export async function updateUser({
     if (!result.matchedCount) {
       throw new ItemNotFoundError(username, 'user');
     }
-  } catch (e) {
-    if (e instanceof MongoServerError && e.code == 11000) {
-      /* istanbul ignore else */
-      if (e.keyPattern?.email !== undefined) {
-        throw new ValidationError(ErrorMessage.DuplicateFieldValue('email'));
-      }
+  } catch (error) {
+    if (
+      error instanceof MongoServerError &&
+      error.code == 11_000 &&
+      error.keyPattern?.email !== undefined
+    ) {
+      throw new ValidationError(ErrorMessage.DuplicateFieldValue('email'));
     }
 
-    throw e;
+    throw error;
   }
 }
 
@@ -705,19 +709,19 @@ export async function createMessage({
   }
 
   const {
-    MAX_MAIL_SUBJECT_LENGTH: maxSubjectLen,
-    MAX_MAIL_BODY_LENGTH_BYTES: maxBodyLen
+    MAX_MAIL_SUBJECT_LENGTH: maxSubjectLength,
+    MAX_MAIL_BODY_LENGTH_BYTES: maxBodyLength
   } = getEnv();
 
-  if (typeof subject != 'string' || !subject || subject.length > maxSubjectLen) {
+  if (typeof subject != 'string' || !subject || subject.length > maxSubjectLength) {
     throw new ValidationError(
-      ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLen, 'string')
+      ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLength, 'string')
     );
   }
 
-  if (typeof text != 'string' || !text || text.length > maxBodyLen) {
+  if (typeof text != 'string' || !text || text.length > maxBodyLength) {
     throw new ValidationError(
-      ErrorMessage.InvalidStringLength('text', 1, maxBodyLen, 'string')
+      ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
     );
   }
 
@@ -733,7 +737,7 @@ export async function createMessage({
     throw new ItemNotFoundError(sender, 'user');
   }
 
-  const newMail: InternalMail = {
+  const latestMail: InternalMail = {
     _id: new ObjectId(),
     createdAt: Date.now(),
     sender,
@@ -743,9 +747,9 @@ export async function createMessage({
   };
 
   // * At this point, we can finally trust this data is valid and not malicious
-  await mailDb.insertOne(newMail);
+  await mailDb.insertOne(latestMail);
 
-  return toPublicMail(newMail);
+  return toPublicMail(latestMail);
 }
 
 export async function deleteMessage({
@@ -843,7 +847,7 @@ export async function searchQuestions({
 
   // ? Validate the match object
   for (const [key, val] of Object.entries(match)) {
-    if (!matchableStrings.includes(key)) {
+    if (!matchableStrings.has(key)) {
       throw new ValidationError(ErrorMessage.UnknownSpecifier(key));
     }
 
@@ -874,7 +878,7 @@ export async function searchQuestions({
               }
 
               entries.forEach(([k, v]) => {
-                if (!matchableSubStrings.includes(k)) {
+                if (!matchableSubStrings.has(k)) {
                   throw new ValidationError(
                     ErrorMessage.InvalidOrSpecifierInvalidKey(ndx, k)
                   );
@@ -894,7 +898,7 @@ export async function searchQuestions({
           }
         } else {
           valNotEmpty = true;
-          if (!matchableSubStrings.includes(subkey)) {
+          if (!matchableSubStrings.has(subkey)) {
             throw new ValidationError(ErrorMessage.UnknownSpecifier(subkey, true));
           }
 
@@ -925,7 +929,7 @@ export async function searchQuestions({
 
   // ? Validate the regexMatch object
   for (const [key, val] of Object.entries(regexMatch)) {
-    if (!regexMatchableStrings.includes(key)) {
+    if (!regexMatchableStrings.has(key)) {
       throw new ValidationError(ErrorMessage.UnknownSpecifier(key));
     }
 
@@ -936,10 +940,11 @@ export async function searchQuestions({
 
   // ? Construct aggregation primitives
 
-  const finalRegexMatch = Object.entries(regexMatch).reduce((obj, [spec, val]) => {
-    obj[spec] = { $regex: val, $options: 'mi' };
-    return obj;
-  }, {} as Record<string, unknown>);
+  const finalRegexMatch = Object.fromEntries(
+    Object.entries(regexMatch).map(([spec, val]) => {
+      return [spec, { $regex: val, $options: 'mi' }];
+    })
+  );
 
   const orMatcher: { [key: string]: SubSpecifierObject }[] = [];
 
@@ -1059,7 +1064,7 @@ export async function createQuestion({
     throw new ItemNotFoundError(creator, 'user');
   }
 
-  const newQuestion: InternalQuestion = {
+  const latestQuestion: InternalQuestion = {
     _id: new ObjectId(),
     creator,
     title,
@@ -1083,14 +1088,14 @@ export async function createQuestion({
   // * At this point, we can finally trust this data is not malicious, but not
   // * necessarily valid...
 
-  await questionDb.insertOne(newQuestion);
+  await questionDb.insertOne(latestQuestion);
 
   await userDb.updateOne(
     { username: creator },
-    { $push: { questionIds: newQuestion._id } }
+    { $push: { questionIds: latestQuestion._id } }
   );
 
-  return toPublicQuestion(newQuestion);
+  return toPublicQuestion(latestQuestion);
 }
 
 export async function updateQuestion({
@@ -1270,13 +1275,13 @@ export async function getAnswers({
         answerId: afterId,
         projection: vacuousProjection
       }));
-    } catch (e) {
-      if (e instanceof MongoServerError) {
+    } catch (error) {
+      if (error instanceof MongoServerError) {
         throw new ItemNotFoundError(afterId, 'answer_id');
       }
 
       /* istanbul ignore next */
-      throw e;
+      throw error;
     }
   }
 
@@ -1360,13 +1365,13 @@ export async function createAnswer({
     ) {
       throw new ClientValidationError(ErrorMessage.UserAlreadyAnswered());
     }
-  } catch (e) {
-    if (e instanceof ClientValidationError) {
-      throw e;
+  } catch (error) {
+    if (error instanceof ClientValidationError) {
+      throw error;
     }
   }
 
-  const newAnswer: InternalAnswer = {
+  const latestAnswer: InternalAnswer = {
     _id: new ObjectId(),
     creator,
     createdAt: Date.now(),
@@ -1382,7 +1387,10 @@ export async function createAnswer({
   // * At this point, we can finally trust this data is not malicious, but not
   // * necessarily valid...
 
-  const result = await addAnswerToDb({ questionId: questionId, answer: newAnswer });
+  const result = await addAnswerToDb({
+    questionId: questionId,
+    answer: latestAnswer
+  });
 
   if (!result.matchedCount) {
     throw new ItemNotFoundError(question_id, 'question');
@@ -1390,10 +1398,10 @@ export async function createAnswer({
 
   await userDb.updateOne(
     { username: creator },
-    { $push: { answerIds: [questionId, newAnswer._id] } }
+    { $push: { answerIds: [questionId, latestAnswer._id] } }
   );
 
-  return toPublicAnswer(newAnswer, questionId);
+  return toPublicAnswer(latestAnswer, questionId);
 }
 
 export async function updateAnswer({
@@ -1466,13 +1474,13 @@ export async function updateAnswer({
       answerId: answerId,
       projection: vacuousProjection
     }));
-  } catch (e) {
-    if (e instanceof MongoServerError) {
+  } catch (error) {
+    if (error instanceof MongoServerError) {
       throw new ItemNotFoundError(answerId, 'answer');
     }
 
     /* istanbul ignore next */
-    throw e;
+    throw error;
   }
 
   const result = await patchAnswerInDb({
@@ -1529,13 +1537,13 @@ export async function deleteAnswer({
       });
 
       return result || { creator: null };
-    } catch (e) {
-      if (e instanceof MongoServerError) {
+    } catch (error) {
+      if (error instanceof MongoServerError) {
         throw new ItemNotFoundError(answerId, 'answer');
       }
 
       /* istanbul ignore next */
-      throw e;
+      throw error;
     }
   })();
 
@@ -1580,13 +1588,13 @@ export async function getComments({
         answerId: answerId,
         projection: vacuousProjection
       }));
-    } catch (e) {
-      if (e instanceof MongoServerError) {
+    } catch (error) {
+      if (error instanceof MongoServerError) {
         throw new ItemNotFoundError(answerId, 'answer');
       }
 
       /* istanbul ignore next */
-      throw e;
+      throw error;
     }
   }
 
@@ -1599,13 +1607,13 @@ export async function getComments({
         commentId: afterId,
         projection: vacuousProjection
       });
-    } catch (e) {
-      if (e instanceof MongoServerError) {
+    } catch (error) {
+      if (error instanceof MongoServerError) {
         throw new ItemNotFoundError(afterId, 'comment_id');
       }
 
       /* istanbul ignore next */
-      throw e;
+      throw error;
     }
   }
 
@@ -1692,11 +1700,11 @@ export async function createComment({
     throw new ValidationError(ErrorMessage.InvalidFieldValue('creator'));
   }
 
-  const { MAX_COMMENT_LENGTH: maxTextLen } = getEnv();
+  const { MAX_COMMENT_LENGTH: maxTextLength } = getEnv();
 
-  if (typeof text != 'string' || !text || text.length > maxTextLen) {
+  if (typeof text != 'string' || !text || text.length > maxTextLength) {
     throw new ValidationError(
-      ErrorMessage.InvalidStringLength('text', 1, maxTextLen, 'string')
+      ErrorMessage.InvalidStringLength('text', 1, maxTextLength, 'string')
     );
   }
 
@@ -1716,17 +1724,17 @@ export async function createComment({
         answerId: answerId,
         projection: vacuousProjection
       });
-    } catch (e) {
-      if (e instanceof MongoServerError) {
+    } catch (error) {
+      if (error instanceof MongoServerError) {
         throw new ItemNotFoundError(answerId, 'answer');
       }
 
       /* istanbul ignore next */
-      throw e;
+      throw error;
     }
   }
 
-  const newComment: InternalComment = {
+  const latestComment: InternalComment = {
     _id: new ObjectId(),
     creator,
     createdAt: Date.now(),
@@ -1743,14 +1751,14 @@ export async function createComment({
   const result = await addCommentToDb({
     questionId: questionId,
     ...(answerId ? { answerId: answerId } : {}),
-    comment: newComment
+    comment: latestComment
   });
 
   if (!result.matchedCount) {
     throw new ItemNotFoundError(question_id, 'question');
   }
 
-  return toPublicComment(newComment);
+  return toPublicComment(latestComment);
 }
 
 export async function deleteComment({
@@ -1781,13 +1789,13 @@ export async function deleteComment({
         answerId: answerId,
         projection: vacuousProjection
       }));
-    } catch (e) {
-      if (e instanceof MongoServerError) {
+    } catch (error) {
+      if (error instanceof MongoServerError) {
         throw new ItemNotFoundError(answerId, 'answer');
       }
 
       /* istanbul ignore next */
-      throw e;
+      throw error;
     }
   }
 
@@ -1798,13 +1806,13 @@ export async function deleteComment({
       commentId: commentId,
       projection: vacuousProjection
     }));
-  } catch (e) {
-    if (e instanceof MongoServerError) {
+  } catch (error) {
+    if (error instanceof MongoServerError) {
       throw new ItemNotFoundError(commentId, 'comment');
     }
 
     /* istanbul ignore next */
-    throw e;
+    throw error;
   }
 
   const result = await removeCommentFromDb({
@@ -1865,12 +1873,12 @@ export async function getHowUserVoted({
       if (!commentId) {
         return result.voterStatus;
       }
-    } catch (e) {
-      if (e instanceof MongoServerError) {
+    } catch (error) {
+      if (error instanceof MongoServerError) {
         throw new ItemNotFoundError(answerId, 'answer');
       }
 
-      throw e;
+      throw error;
     }
   }
 
@@ -1888,12 +1896,12 @@ export async function getHowUserVoted({
       }
 
       return result.voterStatus;
-    } catch (e) {
-      if (e instanceof MongoServerError) {
+    } catch (error) {
+      if (error instanceof MongoServerError) {
         throw new ItemNotFoundError(commentId, 'comment');
       }
 
-      throw e;
+      throw error;
     }
   }
 
@@ -2031,12 +2039,12 @@ export async function applyVotesUpdateOperation({
           updateOps: calculateUpdateOps({ includeSorter: false })
         }));
       }
-    } catch (e) {
-      if (e instanceof MongoServerError) {
+    } catch (error) {
+      if (error instanceof MongoServerError) {
         throw new ItemNotFoundError(answerId, 'answer');
       }
 
-      throw e;
+      throw error;
     }
   }
 
@@ -2058,12 +2066,12 @@ export async function applyVotesUpdateOperation({
         commentId: commentId,
         updateOps: calculateUpdateOps({ includeSorter: false })
       }));
-    } catch (e) {
-      if (e instanceof MongoServerError) {
+    } catch (error) {
+      if (error instanceof MongoServerError) {
         throw new ItemNotFoundError(commentId, 'comment');
       }
 
-      throw e;
+      throw error;
     }
   }
 

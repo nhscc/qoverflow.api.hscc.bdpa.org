@@ -40,17 +40,17 @@ const useFakeTimers = () =>
 const mockSetTimeout = asMockedFunction(setTimeout);
 
 const server = setupServer(
-  rest.all('*', async (req, res, ctx) => {
+  rest.all('*', async (req, res, context) => {
     const { method, headers, params } = req;
     const body = await req.text();
 
     return res(
-      ctx.status(
+      context.status(
         body.startsWith('status=')
           ? Number.parseInt(body.split('status=').at(-1) || '200')
           : 200
       ),
-      ctx.json({ method, headers: headers.raw(), params, body })
+      context.json({ method, headers: headers.raw(), params, body })
     );
   })
 );
@@ -66,7 +66,7 @@ const promiseSettledSentinel = () => {
   return [
     (newThreshold: number) => (threshold = newThreshold),
     {
-      resolve(count = Infinity) {
+      resolve(count = Number.POSITIVE_INFINITY) {
         return <T>(result: T) => {
           if (count > threshold) {
             throw new TrialError(
@@ -77,7 +77,7 @@ const promiseSettledSentinel = () => {
         };
       },
 
-      reject(count = Infinity) {
+      reject(count = Number.POSITIVE_INFINITY) {
         return <T>(result: T) => {
           if (count > threshold) {
             throw new TrialError(
@@ -368,7 +368,7 @@ describe('RequestQueue::delayRequestProcessingByMs', () => {
 
     expect(delayPromiseResolver).toBeDefined();
 
-    queue.delayRequestProcessingByMs(10000);
+    queue.delayRequestProcessingByMs(10_000);
     delayPromiseResolver?.();
 
     await expect(pRes1).resolves.toBeInstanceOf(Response);
@@ -602,11 +602,11 @@ describe('RequestQueue::beginProcessingRequestQueue', () => {
       maxRequestsPerInterval: 1
     });
 
-    const { beginProcessingRequestQueue } = queue;
+    const { beginProcessingRequestQueue, intervalPeriodMs } = queue;
     const pRes = queue.addRequestToQueue('https://fake-url', { method: 'GET' });
 
     beginProcessingRequestQueue();
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    jest.advanceTimersByTime(intervalPeriodMs);
     await expect(pRes).resolves.toBeInstanceOf(Response);
   });
 });
@@ -688,10 +688,10 @@ describe('RequestQueue::gracefullyStopProcessingRequestQueue', () => {
       maxRequestsPerInterval: 1
     });
 
-    const { gracefullyStopProcessingRequestQueue } = queue;
+    const { gracefullyStopProcessingRequestQueue, intervalPeriodMs } = queue;
 
     queue.beginProcessingRequestQueue();
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    jest.advanceTimersByTime(intervalPeriodMs);
     gracefullyStopProcessingRequestQueue();
 
     assertRequestQueueProcessingStopped(queue);
@@ -811,7 +811,7 @@ describe('RequestQueue::immediatelyStopProcessingRequestQueue', () => {
       maxRequestsPerInterval: 1
     });
 
-    const { immediatelyStopProcessingRequestQueue } = queue;
+    const { immediatelyStopProcessingRequestQueue, intervalPeriodMs } = queue;
 
     queue.beginProcessingRequestQueue();
 
@@ -820,7 +820,7 @@ describe('RequestQueue::immediatelyStopProcessingRequestQueue', () => {
       .addRequestToQueue('https://fake-url')
       .then(sentinel.resolve(), sentinel.reject(1));
 
-    jest.advanceTimersByTime(queue.intervalPeriodMs);
+    jest.advanceTimersByTime(intervalPeriodMs);
     immediatelyStopProcessingRequestQueue();
 
     setThreshold(1);
@@ -902,14 +902,14 @@ describe('RequestQueue::waitForQueueProcessingToStop', () => {
       maxRequestsPerInterval: 1
     });
 
-    const { waitForQueueProcessingToStop } = queue;
+    const { waitForQueueProcessingToStop, intervalPeriodMs } = queue;
 
     queue.beginProcessingRequestQueue();
     queue.gracefullyStopProcessingRequestQueue();
 
     const pReq1 = queue.addRequestToQueue('https://fake-url');
 
-    jest.advanceTimersByTime(2 * queue.intervalPeriodMs);
+    jest.advanceTimersByTime(2 * intervalPeriodMs);
 
     await expect(pReq1).resolves.toBeInstanceOf(Response);
     await expect(waitForQueueProcessingToStop()).resolves.toBeUndefined();
@@ -1515,7 +1515,7 @@ describe('RequestQueue::intervalPeriodMs', () => {
     expect.hasAssertions();
 
     const queue = new RequestQueue<Response>({
-      intervalPeriodMs: 10000,
+      intervalPeriodMs: 10_000,
       maxRequestsPerInterval: 1
     });
 
@@ -1532,7 +1532,7 @@ describe('RequestQueue::intervalPeriodMs', () => {
       sentinel.resolve(0)
     );
 
-    jest.advanceTimersByTime(10000);
+    jest.advanceTimersByTime(10_000);
     expect(mockSetTimeout).toBeCalledTimes(1);
 
     void queue.addRequestToQueue('https://fake-url');

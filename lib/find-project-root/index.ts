@@ -1,7 +1,7 @@
+import { dirname } from 'node:path';
 import { sync as findUpSync } from 'find-up';
 import { GuruMeditationError } from 'named-app-errors';
 import { toss } from 'toss-expression';
-import { dirname } from 'path';
 
 const memory = { rootPath: null } as { rootPath: string | null };
 
