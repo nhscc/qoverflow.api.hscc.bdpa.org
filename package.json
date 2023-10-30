@@ -93,7 +93,7 @@
     "@babel/eslint-parser": "^7.21.8",
     "@commitlint/cli": "^17.6.3",
     "@commitlint/config-conventional": "^17.6.3",
-    "@next/eslint-plugin-next": "^13.4.4",
+    "@next/eslint-plugin-next": "^14.0.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/exec": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
