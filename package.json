@@ -34,11 +34,11 @@
   },
   "dependencies": {
     "@-xun/api": "^1.0.2",
+    "@-xun/env": "^1.1.0",
     "@-xun/jest": "^2.2.5",
     "@-xun/js": "^2.0.0",
     "@-xun/mongo-schema": "^1.1.5",
     "@-xun/mongo-test": "^1.1.5",
-    "@-xun/next-env": "^1.1.0",
     "@-xun/symbiote": "^4.6.1",
     "@-xun/types": "^1.1.0",
     "@testing-library/jest-dom": "^6.6.3",
