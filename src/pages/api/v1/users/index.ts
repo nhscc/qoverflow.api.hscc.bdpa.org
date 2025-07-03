@@ -1,17 +1,18 @@
-import { withMiddleware } from 'universe/backend/middleware';
-import { createUser, getAllUsers } from 'universe/backend';
-import { sendHttpOk } from 'multiverse/next-api-respond';
+import { sendHttpOk } from '@-xun/respond';
 
-// ? This is a NextJS special "config" export
+import { createUser, getAllUsers } from 'universe/backend';
+import { withMiddleware } from 'universe/backend/middleware';
+
 export { defaultConfig as config } from 'universe/backend/api';
 
 export const metadata = {
-  descriptor: '/users'
+  descriptor: '/v1/users',
+  apiVersion: '1'
 };
 
 export default withMiddleware(
   async (req, res) => {
-    if (req.method == 'GET') {
+    if (req.method === 'GET') {
       sendHttpOk(res, {
         users: await getAllUsers({ after_id: req.query.after?.toString() })
       });
@@ -20,6 +21,10 @@ export default withMiddleware(
   },
   {
     descriptor: metadata.descriptor,
-    options: { allowedMethods: ['GET', 'POST'], apiVersion: '1' }
+    options: {
+      requiresAuth: true,
+      allowedMethods: ['GET', 'POST'],
+      apiVersion: metadata.apiVersion
+    }
   }
 );

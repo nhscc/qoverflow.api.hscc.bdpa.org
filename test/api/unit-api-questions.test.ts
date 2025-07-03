@@ -1,18 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { testApiHandler } from 'next-test-api-route-handler';
+
 import { api, setupMockBackend } from 'testverse/fixtures';
 
 jest.mock('universe/backend');
-jest.mock(
+jest.mock<typeof import('universe/backend/middleware')>(
   'universe/backend/middleware',
-  (): typeof import('universe/backend/middleware') => {
-    const { middlewareFactory } = require('multiverse/next-api-glue');
-    const { default: handleError } = require('multiverse/next-adhesive/handle-error');
+  () => {
+    const { middlewareFactory } = require('@-xun/api') as typeof import('@-xun/api');
+    const { makeMiddleware: makeErrorHandlingMiddleware } =
+      require('@-xun/api/middleware/handle-error') as typeof import('@-xun/api/middleware/handle-error');
 
     return {
-      withMiddleware: jest
-        .fn()
-        .mockImplementation(middlewareFactory({ use: [], useOnError: [handleError] }))
+      withMiddleware: jest.fn().mockImplementation(
+        middlewareFactory({
+          use: [],
+          useOnError: [makeErrorHandlingMiddleware()],
+          options: { legacyMode: true }
+        })
+      )
     } as unknown as typeof import('universe/backend/middleware');
   }
 );
@@ -25,7 +31,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questions,
+        pagesHandler: api.v1.questions,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'POST' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -45,7 +51,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsSearch,
+        pagesHandler: api.v1.questionsSearch,
         params: { username: 'User1' },
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'GET' }).then(
@@ -60,7 +66,7 @@ describe('api/v1/questions', () => {
       });
 
       await testApiHandler({
-        handler: api.v1.questionsSearch,
+        pagesHandler: api.v1.questionsSearch,
         params: {
           username: 'User1',
           after: 'id',
@@ -80,7 +86,7 @@ describe('api/v1/questions', () => {
       });
 
       await testApiHandler({
-        handler: api.v1.questionsSearch,
+        pagesHandler: api.v1.questionsSearch,
         params: { username: 'User1', match: 'x' },
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'GET' }).then(
@@ -95,7 +101,7 @@ describe('api/v1/questions', () => {
       });
 
       await testApiHandler({
-        handler: api.v1.questionsSearch,
+        pagesHandler: api.v1.questionsSearch,
         params: { username: 'User1', regexMatch: 'x' },
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'GET' }).then(
@@ -116,7 +122,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionId,
+        pagesHandler: api.v1.questionsQuestionId,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'GET' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -136,7 +142,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionId,
+        pagesHandler: api.v1.questionsQuestionId,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'PATCH' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -155,7 +161,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdVoteUsername,
+        pagesHandler: api.v1.questionsQuestionIdVoteUsername,
         test: async ({ fetch }) => {
           mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve(null));
           mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve('upvoted'));
@@ -187,7 +193,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdVoteUsername,
+        pagesHandler: api.v1.questionsQuestionIdVoteUsername,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'PATCH' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -206,7 +212,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdComments,
+        pagesHandler: api.v1.questionsQuestionIdComments,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'GET' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -226,7 +232,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdComments,
+        pagesHandler: api.v1.questionsQuestionIdComments,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'POST' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -246,7 +252,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdCommentsCommentId,
+        pagesHandler: api.v1.questionsQuestionIdCommentsCommentId,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'DELETE' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -265,7 +271,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdCommentsCommentIdVoteUsername,
+        pagesHandler: api.v1.questionsQuestionIdCommentsCommentIdVoteUsername,
         test: async ({ fetch }) => {
           mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve(null));
           mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve('upvoted'));
@@ -297,7 +303,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdCommentsCommentIdVoteUsername,
+        pagesHandler: api.v1.questionsQuestionIdCommentsCommentIdVoteUsername,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'PATCH' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -316,7 +322,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdAnswers,
+        pagesHandler: api.v1.questionsQuestionIdAnswers,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'GET' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -336,7 +342,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdAnswers,
+        pagesHandler: api.v1.questionsQuestionIdAnswers,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'POST' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -356,7 +362,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdAnswersAnswerId,
+        pagesHandler: api.v1.questionsQuestionIdAnswersAnswerId,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'PATCH' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -375,7 +381,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdAnswersAnswerIdVoteUsername,
+        pagesHandler: api.v1.questionsQuestionIdAnswersAnswerIdVoteUsername,
         test: async ({ fetch }) => {
           mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve(null));
           mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve('upvoted'));
@@ -407,7 +413,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdAnswersAnswerIdVoteUsername,
+        pagesHandler: api.v1.questionsQuestionIdAnswersAnswerIdVoteUsername,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'PATCH' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -426,7 +432,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdAnswersAnswerIdComments,
+        pagesHandler: api.v1.questionsQuestionIdAnswersAnswerIdComments,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'GET' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -446,7 +452,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdAnswersAnswerIdComments,
+        pagesHandler: api.v1.questionsQuestionIdAnswersAnswerIdComments,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'POST' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -466,7 +472,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler: api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentId,
+        pagesHandler: api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentId,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'DELETE' }).then(
             async (r) => [r.status, await r.json()] as [status: number, json: any]
@@ -485,7 +491,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler:
+        pagesHandler:
           api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername,
         test: async ({ fetch }) => {
           mockedGetHowUserVoted.mockReturnValueOnce(Promise.resolve(null));
@@ -518,7 +524,7 @@ describe('api/v1/questions', () => {
       expect.hasAssertions();
 
       await testApiHandler({
-        handler:
+        pagesHandler:
           api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername,
         test: async ({ fetch }) => {
           const [status, json] = await fetch({ method: 'PATCH' }).then(

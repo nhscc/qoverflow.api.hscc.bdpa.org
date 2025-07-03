@@ -1,12 +1,13 @@
-import { withMiddleware } from 'universe/backend/middleware';
-import { sendHttpOk } from 'multiverse/next-api-respond';
-import { createMessage } from 'universe/backend';
+import { sendHttpOk } from '@-xun/respond';
 
-// ? This is a NextJS special "config" export
+import { createMessage } from 'universe/backend';
+import { withMiddleware } from 'universe/backend/middleware';
+
 export { defaultConfig as config } from 'universe/backend/api';
 
 export const metadata = {
-  descriptor: '/mail'
+  descriptor: '/v1/mail',
+  apiVersion: '1'
 };
 
 export default withMiddleware(
@@ -20,6 +21,10 @@ export default withMiddleware(
   },
   {
     descriptor: metadata.descriptor,
-    options: { allowedMethods: ['POST'], apiVersion: '1' }
+    options: {
+      requiresAuth: true,
+      allowedMethods: ['POST'],
+      apiVersion: metadata.apiVersion
+    }
   }
 );

@@ -11,3 +11,10 @@ docs
 CHANGELOG.md
 bundle-stats.ignore.json
 external-scripts/*.json
+/build
+/.next
+/external-scripts/bin
+/node_modules
+/dist
+/coverage
+/package-lock.json

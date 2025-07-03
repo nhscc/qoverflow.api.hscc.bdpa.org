@@ -1,17 +1,18 @@
-import { withMiddleware } from 'universe/backend/middleware';
-import { sendHttpOk } from 'multiverse/next-api-respond';
-import { createComment, getComments } from 'universe/backend';
+import { sendHttpOk } from '@-xun/respond';
 
-// ? This is a NextJS special "config" export
+import { createComment, getComments } from 'universe/backend';
+import { withMiddleware } from 'universe/backend/middleware';
+
 export { defaultConfig as config } from 'universe/backend/api';
 
 export const metadata = {
-  descriptor: '/questions/:question_id/comments'
+  descriptor: '/v1/questions/:question_id/comments',
+  apiVersion: '1'
 };
 
 export default withMiddleware(
   async (req, res) => {
-    if (req.method == 'GET') {
+    if (req.method === 'GET') {
       sendHttpOk(res, {
         comments: await getComments({
           question_id: req.query.question_id?.toString(),
@@ -33,8 +34,9 @@ export default withMiddleware(
   {
     descriptor: metadata.descriptor,
     options: {
+      requiresAuth: true,
       allowedMethods: ['GET', 'POST'],
-      apiVersion: '1'
+      apiVersion: metadata.apiVersion
     }
   }
 );

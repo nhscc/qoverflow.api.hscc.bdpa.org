@@ -1,10 +1,10 @@
-import { GuruMeditationError } from 'named-app-errors';
+/* eslint-disable @typescript-eslint/no-empty-object-type */
+import { getCommonSchemaConfig } from '@-xun/api-strategy/mongo';
+import { getDb } from '@-xun/mongo-schema';
 
-import { getCommonSchemaConfig } from 'multiverse/mongo-common';
-import { type DbSchema, getDb } from 'multiverse/mongo-schema';
-
+import type { DbSchema } from '@-xun/mongo-schema';
+import type { UnixEpochMs } from '@-xun/types';
 import type { Document, ObjectId, WithId, WithoutId } from 'mongodb';
-import type { UnixEpochMs } from '@xunnamius/types';
 
 /**
  * A generic projection specification.
@@ -79,15 +79,15 @@ export function getSchemaConfig(): DbSchema {
 }
 
 export type Username = string;
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+
 export interface UserId extends ObjectId {}
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+
 export interface MailId extends ObjectId {}
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+
 export interface QuestionId extends ObjectId {}
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+
 export interface AnswerId extends ObjectId {}
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+
 export interface CommentId extends ObjectId {}
 
 /**
@@ -148,10 +148,7 @@ export type NewUser = Partial<
  * The shape of a patch application user.
  */
 export type PatchUser = Partial<
-  Omit<
-    WithoutId<InternalUser>,
-    'username' | 'questionIds' | 'answerIds' | 'points'
-  > & {
+  Omit<WithoutId<InternalUser>, 'username' | 'questionIds' | 'answerIds' | 'points'> & {
     points:
       | InternalUser['points']
       | {
@@ -238,7 +235,6 @@ export type NewQuestion = Omit<
   WithoutId<InternalQuestion>,
   | 'createdAt'
   | 'title-lowercase'
-  | 'createdAt'
   | 'status'
   | 'hasAcceptedAnswer'
   | 'upvotes'
@@ -321,11 +317,7 @@ export type NewAnswer = Omit<
 export type PatchAnswer = Partial<
   Omit<
     WithoutId<InternalAnswer>,
-    | 'creator'
-    | 'createdAt'
-    | 'upvoterUsernames'
-    | 'downvoterUsernames'
-    | 'commentItems'
+    'creator' | 'createdAt' | 'upvoterUsernames' | 'downvoterUsernames' | 'commentItems'
   >
 >;
 
@@ -507,7 +499,7 @@ export const publicAnswerProjection = (questionId: QuestionId) =>
     upvotes: true,
     downvotes: true,
     comments: { $size: '$commentItems' }
-  } as const);
+  }) as const;
 
 /**
  * A MongoDB aggregation expression that maps an internal answer into a public
@@ -524,7 +516,7 @@ export const publicAnswerMap = (variable: string, questionId: QuestionId) =>
     upvotes: `$$${variable}.upvotes`,
     downvotes: `$$${variable}.downvotes`,
     comments: { $size: `$$${variable}.commentItems` }
-  } as const);
+  }) as const;
 
 /**
  * A MongoDB cursor projection that transforms an internal comment into a public
@@ -552,7 +544,7 @@ export const publicCommentMap = (variable: string) =>
     text: `$$${variable}.text`,
     upvotes: `$$${variable}.upvotes`,
     downvotes: `$$${variable}.downvotes`
-  } as const);
+  }) as const;
 
 /**
  * A meaningless MongoDB cursor projection used for existence checking without
@@ -635,7 +627,7 @@ async function genericSelectAggregation<T>({
 }): Promise<T> {
   /* istanbul ignore next */
   if ((!answerId && !answer_creator && !commentId) || (answerId && answer_creator)) {
-    throw new GuruMeditationError('illegal parameter combination');
+    throw new Error('illegal parameter combination');
   }
 
   return (await getDb({ name: 'app' }))

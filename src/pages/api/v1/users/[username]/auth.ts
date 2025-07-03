@@ -1,12 +1,13 @@
-import { withMiddleware } from 'universe/backend/middleware';
-import { authAppUser } from 'universe/backend';
-import { sendHttpOk, sendHttpUnauthorized } from 'multiverse/next-api-respond';
+import { sendHttpOk, sendHttpUnauthorized } from '@-xun/respond';
 
-// ? This is a NextJS special "config" export
+import { authAppUser } from 'universe/backend';
+import { withMiddleware } from 'universe/backend/middleware';
+
 export { defaultConfig as config } from 'universe/backend/api';
 
 export const metadata = {
-  descriptor: '/users/:username/auth'
+  descriptor: '/v1/users/:username/auth',
+  apiVersion: '1'
 };
 
 // * The next version of this should use GET and POST as follows:
@@ -23,16 +24,29 @@ export const metadata = {
 
 export default withMiddleware(
   async (req, res) => {
-    // * POST
-    (await authAppUser({
-      username: req.query.username?.toString(),
-      key: req.body?.key
-    }))
-      ? sendHttpOk(res)
-      : sendHttpUnauthorized(res);
+    switch (req.method) {
+      case 'POST': {
+        const authorized = await authAppUser({
+          username: req.query.username?.toString(),
+          key: req.body?.key
+        });
+
+        if (authorized) {
+          sendHttpOk(res);
+        } else {
+          sendHttpUnauthorized(res);
+        }
+
+        break;
+      }
+    }
   },
   {
     descriptor: metadata.descriptor,
-    options: { allowedMethods: ['POST'], apiVersion: '1' }
+    options: {
+      requiresAuth: true,
+      allowedMethods: ['POST'],
+      apiVersion: metadata.apiVersion
+    }
   }
 );

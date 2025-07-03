@@ -1,14 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-await-in-loop */
+import { itemToObjectId, itemToStringId } from '@-xun/mongo-item';
+import { getDb } from '@-xun/mongo-schema';
+import { setupMemoryServerOverride } from '@-xun/mongo-test';
 import { ObjectId } from 'mongodb';
 import randomCase from 'random-case';
 import { toss } from 'toss-expression';
 
 import * as Backend from 'universe/backend';
-import { getEnv } from 'universe/backend/env';
-import { ErrorMessage, GuruMeditationError } from 'universe/error';
 
 import {
+  getSchemaConfig,
   patchAnswerInDb,
   patchCommentInDb,
   questionStatuses,
@@ -18,36 +20,40 @@ import {
   toPublicComment,
   toPublicMail,
   toPublicQuestion,
-  toPublicUser,
-  type InternalQuestion,
-  type InternalUser,
-  type NewAnswer,
-  type NewComment,
-  type NewMail,
-  type NewQuestion,
-  type PatchAnswer,
-  type PatchQuestion,
-  type PointsUpdateOperation,
-  type PublicAnswer,
-  type PublicComment,
-  type PublicMail,
-  type PublicQuestion,
-  type InternalMail,
-  type PublicUser,
-  type NewUser,
-  type PatchUser
+  toPublicUser
 } from 'universe/backend/db';
 
-import { useMockDateNow } from 'multiverse/mongo-common';
-import { getDb } from 'multiverse/mongo-schema';
-import { setupMemoryServerOverride } from 'multiverse/mongo-test';
-import { itemToObjectId, itemToStringId } from 'multiverse/mongo-item';
+import { getEnv } from 'universe/backend/env';
+import { ErrorMessage, SanityError } from 'universe/error';
 
-import { dummyAppData } from 'testverse/db';
-import { mockEnvFactory } from 'testverse/setup';
+import { dummyAppData, getDummyData } from 'testverse/db';
+import { mockEnvFactory, useMockDateNow } from 'testverse/util';
 
-setupMemoryServerOverride();
+import type {
+  InternalMail,
+  InternalQuestion,
+  InternalUser,
+  NewAnswer,
+  NewComment,
+  NewMail,
+  NewQuestion,
+  NewUser,
+  PatchAnswer,
+  PatchQuestion,
+  PatchUser,
+  PointsUpdateOperation,
+  PublicAnswer,
+  PublicComment,
+  PublicMail,
+  PublicQuestion,
+  PublicUser
+} from 'universe/backend/db';
+
 useMockDateNow();
+setupMemoryServerOverride({
+  schema: getSchemaConfig(),
+  data: getDummyData()
+});
 
 const withMockedEnv = mockEnvFactory({ NODE_ENV: 'test' });
 const sortedUsers = dummyAppData.users.slice().reverse();
@@ -58,13 +64,13 @@ const sortByFieldAndId = (
   field: 'upvotes' | 'uvc' | 'uvac'
 ) => {
   const getField = (question: InternalQuestion) => {
-    return field == 'upvotes'
+    return field === 'upvotes'
       ? question.upvotes
-      : field == 'uvc'
-      ? question.sorter.uvc
-      : field == 'uvac'
-      ? question.sorter.uvac
-      : toss(new GuruMeditationError('unknown sort field'));
+      : field === 'uvc'
+        ? question.sorter.uvc
+        : (field as string) === 'uvac'
+          ? question.sorter.uvac
+          : toss(new SanityError('unknown sort field'));
   };
 
   const sortedQuestions = questions
@@ -129,9 +135,9 @@ describe('::getAllUsers', () => {
   it('rejects if after_id is not a valid ObjectId (undefined is okay)', async () => {
     expect.hasAssertions();
 
-    await expect(Backend.getAllUsers({ after_id: 'fake-oid' })).rejects.toMatchObject(
-      { message: ErrorMessage.InvalidObjectId('fake-oid') }
-    );
+    await expect(Backend.getAllUsers({ after_id: 'fake-oid' })).rejects.toMatchObject({
+      message: ErrorMessage.InvalidObjectId('fake-oid')
+    });
   });
 
   it('rejects if after_id not found', async () => {
@@ -150,8 +156,8 @@ describe('::getUser', () => {
     expect.hasAssertions();
 
     await expect(
-      Backend.getUser({ username: dummyAppData.users[0].username })
-    ).resolves.toStrictEqual(toPublicUser(dummyAppData.users[0]));
+      Backend.getUser({ username: dummyAppData.users[0]!.username })
+    ).resolves.toStrictEqual(toPublicUser(dummyAppData.users[0]!));
   });
 
   it('rejects if username missing or not found', async () => {
@@ -174,12 +180,12 @@ describe('::getUserQuestions', () => {
 
     await expect(
       Backend.getUserQuestions({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         after_id: undefined
       })
     ).resolves.toStrictEqual([
-      toPublicQuestion(dummyAppData.questions[1]),
-      toPublicQuestion(dummyAppData.questions[0])
+      toPublicQuestion(dummyAppData.questions[1]!),
+      toPublicQuestion(dummyAppData.questions[0]!)
     ]);
   });
 
@@ -190,20 +196,20 @@ describe('::getUserQuestions', () => {
       async () => {
         expect([
           await Backend.getUserQuestions({
-            username: dummyAppData.users[0].username,
+            username: dummyAppData.users[0]!.username,
             after_id: undefined
           }),
           await Backend.getUserQuestions({
-            username: dummyAppData.users[0].username,
-            after_id: dummyAppData.users[0].questionIds[1].toString()
+            username: dummyAppData.users[0]!.username,
+            after_id: dummyAppData.users[0]!.questionIds[1]!.toString()
           }),
           await Backend.getUserQuestions({
-            username: dummyAppData.users[0].username,
-            after_id: dummyAppData.users[0].questionIds[0].toString()
+            username: dummyAppData.users[0]!.username,
+            after_id: dummyAppData.users[0]!.questionIds[0]!.toString()
           })
         ]).toStrictEqual([
-          [toPublicQuestion(dummyAppData.questions[1])],
-          [toPublicQuestion(dummyAppData.questions[0])],
+          [toPublicQuestion(dummyAppData.questions[1]!)],
+          [toPublicQuestion(dummyAppData.questions[0]!)],
           []
         ]);
       },
@@ -216,7 +222,7 @@ describe('::getUserQuestions', () => {
 
     await expect(
       Backend.getUserQuestions({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         after_id: 'fake-oid'
       })
     ).rejects.toMatchObject({
@@ -230,7 +236,7 @@ describe('::getUserQuestions', () => {
     const after_id = new ObjectId().toString();
 
     await expect(
-      Backend.getUserQuestions({ username: dummyAppData.users[0].username, after_id })
+      Backend.getUserQuestions({ username: dummyAppData.users[0]!.username, after_id })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound(after_id, 'question_id')
     });
@@ -260,21 +266,21 @@ describe('::getUserAnswers', () => {
 
     await expect(
       Backend.getUserAnswers({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         after_id: undefined
       })
     ).resolves.toStrictEqual([
       toPublicAnswer(
-        dummyAppData.questions[4].answerItems[0],
-        dummyAppData.questions[4]._id
+        dummyAppData.questions[4]!.answerItems[0]!,
+        dummyAppData.questions[4]!._id
       ),
       toPublicAnswer(
-        dummyAppData.questions[1].answerItems[0],
-        dummyAppData.questions[1]._id
+        dummyAppData.questions[1]!.answerItems[0]!,
+        dummyAppData.questions[1]!._id
       ),
       toPublicAnswer(
-        dummyAppData.questions[0].answerItems[0],
-        dummyAppData.questions[0]._id
+        dummyAppData.questions[0]!.answerItems[0]!,
+        dummyAppData.questions[0]!._id
       )
     ]);
   });
@@ -286,38 +292,38 @@ describe('::getUserAnswers', () => {
       async () => {
         expect([
           await Backend.getUserAnswers({
-            username: dummyAppData.users[1].username,
+            username: dummyAppData.users[1]!.username,
             after_id: undefined
           }),
           await Backend.getUserAnswers({
-            username: dummyAppData.users[1].username,
-            after_id: dummyAppData.users[1].answerIds[2][1].toString()
+            username: dummyAppData.users[1]!.username,
+            after_id: dummyAppData.users[1]!.answerIds[2]![1].toString()
           }),
           await Backend.getUserAnswers({
-            username: dummyAppData.users[1].username,
-            after_id: dummyAppData.users[1].answerIds[1][1].toString()
+            username: dummyAppData.users[1]!.username,
+            after_id: dummyAppData.users[1]!.answerIds[1]![1].toString()
           }),
           await Backend.getUserAnswers({
-            username: dummyAppData.users[1].username,
-            after_id: dummyAppData.users[1].answerIds[0][1].toString()
+            username: dummyAppData.users[1]!.username,
+            after_id: dummyAppData.users[1]!.answerIds[0]![1].toString()
           })
         ]).toStrictEqual([
           [
             toPublicAnswer(
-              dummyAppData.questions[4].answerItems[0],
-              dummyAppData.questions[4]._id
+              dummyAppData.questions[4]!.answerItems[0]!,
+              dummyAppData.questions[4]!._id
             )
           ],
           [
             toPublicAnswer(
-              dummyAppData.questions[1].answerItems[0],
-              dummyAppData.questions[1]._id
+              dummyAppData.questions[1]!.answerItems[0]!,
+              dummyAppData.questions[1]!._id
             )
           ],
           [
             toPublicAnswer(
-              dummyAppData.questions[0].answerItems[0],
-              dummyAppData.questions[0]._id
+              dummyAppData.questions[0]!.answerItems[0]!,
+              dummyAppData.questions[0]!._id
             )
           ],
           []
@@ -332,7 +338,7 @@ describe('::getUserAnswers', () => {
 
     await expect(
       Backend.getUserAnswers({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         after_id: 'fake-oid'
       })
     ).rejects.toMatchObject({
@@ -346,7 +352,7 @@ describe('::getUserAnswers', () => {
     const after_id = new ObjectId().toString();
 
     await expect(
-      Backend.getUserAnswers({ username: dummyAppData.users[1].username, after_id })
+      Backend.getUserAnswers({ username: dummyAppData.users[1]!.username, after_id })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound(after_id, 'answer_id')
     });
@@ -406,7 +412,7 @@ describe('::createUser', () => {
     await expect(
       Backend.createUser({
         data: {
-          username: dummyAppData.users[0].username,
+          username: dummyAppData.users[0]!.username,
           email: 'new-user@email.com',
           key: '0'.repeat(getEnv().USER_KEY_LENGTH),
           salt: '0'.repeat(getEnv().USER_SALT_LENGTH)
@@ -420,7 +426,7 @@ describe('::createUser', () => {
       Backend.createUser({
         data: {
           username: 'new-user',
-          email: dummyAppData.users[0].email,
+          email: dummyAppData.users[0]!.email,
           key: '0'.repeat(getEnv().USER_KEY_LENGTH),
           salt: '0'.repeat(getEnv().USER_SALT_LENGTH)
         }
@@ -624,21 +630,21 @@ describe('::updateUser', () => {
 
     await expect(
       usersDb.countDocuments({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         ...patchUser
       })
     ).resolves.toBe(0);
 
     await expect(
       Backend.updateUser({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         data: patchUser
       })
     ).resolves.toBeUndefined();
 
     await expect(
       usersDb.countDocuments({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         ...patchUser
       })
     ).resolves.toBe(1);
@@ -651,57 +657,57 @@ describe('::updateUser', () => {
 
     await expect(
       usersDb.countDocuments({
-        username: dummyAppData.users[0].username,
-        points: dummyAppData.users[0].points + 1000
+        username: dummyAppData.users[0]!.username,
+        points: dummyAppData.users[0]!.points + 1000
       })
     ).resolves.toBe(0);
 
     await expect(
       usersDb.countDocuments({
-        username: dummyAppData.users[0].username,
-        points: dummyAppData.users[0].points + 1000 - 456
+        username: dummyAppData.users[0]!.username,
+        points: dummyAppData.users[0]!.points + 1000 - 456
       })
     ).resolves.toBe(0);
 
     await expect(
       usersDb.countDocuments({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         points: 0
       })
     ).resolves.toBe(0);
 
     await Backend.updateUser({
-      username: dummyAppData.users[0].username,
+      username: dummyAppData.users[0]!.username,
       data: { points: { op: 'increment', amount: 1000 } }
     });
 
     await expect(
       usersDb.countDocuments({
-        username: dummyAppData.users[0].username,
-        points: dummyAppData.users[0].points + 1000
+        username: dummyAppData.users[0]!.username,
+        points: dummyAppData.users[0]!.points + 1000
       })
     ).resolves.toBe(1);
 
     await Backend.updateUser({
-      username: dummyAppData.users[0].username,
+      username: dummyAppData.users[0]!.username,
       data: { points: { op: 'decrement', amount: 456 } }
     });
 
     await expect(
       usersDb.countDocuments({
-        username: dummyAppData.users[0].username,
-        points: dummyAppData.users[0].points + 1000 - 456
+        username: dummyAppData.users[0]!.username,
+        points: dummyAppData.users[0]!.points + 1000 - 456
       })
     ).resolves.toBe(1);
 
     await Backend.updateUser({
-      username: dummyAppData.users[0].username,
+      username: dummyAppData.users[0]!.username,
       data: { points: 0 }
     });
 
     await expect(
       usersDb.countDocuments({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         points: 0
       })
     ).resolves.toBe(1);
@@ -712,8 +718,8 @@ describe('::updateUser', () => {
 
     await expect(
       Backend.updateUser({
-        username: dummyAppData.users[0].username,
-        data: { salt: dummyAppData.users[0].salt }
+        username: dummyAppData.users[0]!.username,
+        data: { salt: dummyAppData.users[0]!.salt }
       })
     ).resolves.toBeUndefined();
   });
@@ -764,9 +770,9 @@ describe('::updateUser', () => {
 
     await expect(
       Backend.updateUser({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         data: {
-          email: dummyAppData.users[0].email
+          email: dummyAppData.users[0]!.email
         }
       })
     ).rejects.toMatchObject({ message: ErrorMessage.DuplicateFieldValue('email') });
@@ -866,10 +872,7 @@ describe('::updateUser', () => {
         {
           points: { amount: 5, op: 'nope' } as unknown as PointsUpdateOperation
         },
-        ErrorMessage.InvalidFieldValue('operation', 'nope', [
-          'increment',
-          'decrement'
-        ])
+        ErrorMessage.InvalidFieldValue('operation', 'nope', ['increment', 'decrement'])
       ],
       [
         {
@@ -907,7 +910,7 @@ describe('::updateUser', () => {
     await Promise.all(
       patchUsers.map(([data, message]) =>
         expect(
-          Backend.updateUser({ username: dummyAppData.users[0].username, data })
+          Backend.updateUser({ username: dummyAppData.users[0]!.username, data })
         ).rejects.toMatchObject({ message })
       )
     );
@@ -925,7 +928,7 @@ describe('::deleteUser', () => {
     ).resolves.toBe(1);
 
     await expect(
-      Backend.deleteUser({ username: dummyAppData.users[0].username })
+      Backend.deleteUser({ username: dummyAppData.users[0]!.username })
     ).resolves.toBeUndefined();
 
     await expect(
@@ -953,7 +956,7 @@ describe('::authAppUser', () => {
     expect.hasAssertions();
 
     await expect(
-      Backend.authAppUser({ username: 'User1', key: dummyAppData.users[0].key })
+      Backend.authAppUser({ username: 'User1', key: dummyAppData.users[0]!.key })
     ).resolves.toBeTrue();
 
     await expect(
@@ -984,12 +987,12 @@ describe('::getUserMessages', () => {
 
     await expect(
       Backend.getUserMessages({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         after_id: undefined
       })
     ).resolves.toStrictEqual([
-      toPublicMail(dummyAppData.mail[1]),
-      toPublicMail(dummyAppData.mail[0])
+      toPublicMail(dummyAppData.mail[1]!),
+      toPublicMail(dummyAppData.mail[0]!)
     ]);
   });
 
@@ -1000,20 +1003,20 @@ describe('::getUserMessages', () => {
       async () => {
         expect([
           await Backend.getUserMessages({
-            username: dummyAppData.users[0].username,
+            username: dummyAppData.users[0]!.username,
             after_id: undefined
           }),
           await Backend.getUserMessages({
-            username: dummyAppData.users[0].username,
+            username: dummyAppData.users[0]!.username,
             after_id: itemToStringId(dummyAppData.mail[1])
           }),
           await Backend.getUserMessages({
-            username: dummyAppData.users[0].username,
+            username: dummyAppData.users[0]!.username,
             after_id: itemToStringId(dummyAppData.mail[0])
           })
         ]).toStrictEqual([
-          [toPublicMail(dummyAppData.mail[1])],
-          [toPublicMail(dummyAppData.mail[0])],
+          [toPublicMail(dummyAppData.mail[1]!)],
+          [toPublicMail(dummyAppData.mail[0]!)],
           []
         ]);
       },
@@ -1026,7 +1029,7 @@ describe('::getUserMessages', () => {
 
     await expect(
       Backend.getUserMessages({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         after_id: 'fake-oid'
       })
     ).rejects.toMatchObject({
@@ -1040,7 +1043,7 @@ describe('::getUserMessages', () => {
     const after_id = new ObjectId().toString();
 
     await expect(
-      Backend.getUserMessages({ username: dummyAppData.users[0].username, after_id })
+      Backend.getUserMessages({ username: dummyAppData.users[0]!.username, after_id })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound(after_id, 'mail_id')
     });
@@ -1069,8 +1072,8 @@ describe('::createMessage', () => {
     expect.hasAssertions();
 
     const latestMessage: Required<NewMail> = {
-      receiver: dummyAppData.users[2].username,
-      sender: dummyAppData.users[1].username,
+      receiver: dummyAppData.users[2]!.username,
+      sender: dummyAppData.users[1]!.username,
       subject: 'You have got mail!',
       text: 'World, hello!'
     };
@@ -1105,7 +1108,7 @@ describe('::createMessage', () => {
     await expect(
       Backend.createMessage({
         data: {
-          receiver: dummyAppData.users[0].username,
+          receiver: dummyAppData.users[0]!.username,
           sender: 'does-not-exist',
           subject: 'You have got mail!',
           text: 'World, hello!'
@@ -1119,7 +1122,7 @@ describe('::createMessage', () => {
       Backend.createMessage({
         data: {
           receiver: 'does-not-exist',
-          sender: dummyAppData.users[0].username,
+          sender: dummyAppData.users[0]!.username,
           subject: 'You have got mail!',
           text: 'World, hello!'
         }
@@ -1132,7 +1135,7 @@ describe('::createMessage', () => {
       Backend.createMessage({
         data: {
           receiver: undefined,
-          sender: dummyAppData.users[0].username,
+          sender: dummyAppData.users[0]!.username,
           subject: 'You have got mail!',
           text: 'World, hello!'
         }
@@ -1144,7 +1147,7 @@ describe('::createMessage', () => {
     await expect(
       Backend.createMessage({
         data: {
-          receiver: dummyAppData.users[0].username,
+          receiver: dummyAppData.users[0]!.username,
           sender: undefined,
           subject: 'You have got mail!',
           text: 'World, hello!'
@@ -1168,44 +1171,44 @@ describe('::createMessage', () => {
       ['string data' as unknown as NewMail, ErrorMessage.InvalidJSON()],
       [{} as NewMail, ErrorMessage.InvalidFieldValue('receiver')],
       [
-        { receiver: dummyAppData.users[0].username } as NewMail,
+        { receiver: dummyAppData.users[0]!.username } as NewMail,
         ErrorMessage.InvalidFieldValue('sender')
       ],
       [
         {
-          receiver: dummyAppData.users[0].username,
-          sender: dummyAppData.users[0].username
+          receiver: dummyAppData.users[0]!.username,
+          sender: dummyAppData.users[0]!.username
         } as NewMail,
         ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLength, 'string')
       ],
       [
         {
-          receiver: dummyAppData.users[0].username,
-          sender: dummyAppData.users[0].username,
+          receiver: dummyAppData.users[0]!.username,
+          sender: dummyAppData.users[0]!.username,
           subject: ''
         } as NewMail,
         ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLength, 'string')
       ],
       [
         {
-          receiver: dummyAppData.users[0].username,
-          sender: dummyAppData.users[0].username,
+          receiver: dummyAppData.users[0]!.username,
+          sender: dummyAppData.users[0]!.username,
           subject: 'x'.repeat(maxSubjectLength + 1)
         } as NewMail,
         ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLength, 'string')
       ],
       [
         {
-          receiver: dummyAppData.users[0].username,
-          sender: dummyAppData.users[0].username,
+          receiver: dummyAppData.users[0]!.username,
+          sender: dummyAppData.users[0]!.username,
           subject: 'x'
         } as NewMail,
         ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
-          receiver: dummyAppData.users[0].username,
-          sender: dummyAppData.users[0].username,
+          receiver: dummyAppData.users[0]!.username,
+          sender: dummyAppData.users[0]!.username,
           subject: 'x',
           text: ''
         } as NewMail,
@@ -1213,8 +1216,8 @@ describe('::createMessage', () => {
       ],
       [
         {
-          receiver: dummyAppData.users[0].username,
-          sender: dummyAppData.users[0].username,
+          receiver: dummyAppData.users[0]!.username,
+          sender: dummyAppData.users[0]!.username,
           subject: 'x',
           text: 'x'.repeat(maxBodyLength + 1)
         } as NewMail,
@@ -1222,8 +1225,8 @@ describe('::createMessage', () => {
       ],
       [
         {
-          receiver: dummyAppData.users[0].username,
-          sender: dummyAppData.users[0].username,
+          receiver: dummyAppData.users[0]!.username,
+          sender: dummyAppData.users[0]!.username,
           subject: 'x',
           text: 'x',
           createdAt: Date.now()
@@ -1241,7 +1244,7 @@ describe('::createMessage', () => {
       ],
       [
         {
-          receiver: dummyAppData.users[0].username,
+          receiver: dummyAppData.users[0]!.username,
           sender: 'does-not-exist',
           subject: 'x',
           text: 'x'
@@ -1290,11 +1293,9 @@ describe('::deleteMessage', () => {
       message: ErrorMessage.ItemNotFound(mail_id, 'mail message')
     });
 
-    await expect(Backend.deleteMessage({ mail_id: undefined })).rejects.toMatchObject(
-      {
-        message: ErrorMessage.InvalidItem('mail_id', 'parameter')
-      }
-    );
+    await expect(Backend.deleteMessage({ mail_id: undefined })).rejects.toMatchObject({
+      message: ErrorMessage.InvalidItem('mail_id', 'parameter')
+    });
   });
 });
 
@@ -1403,7 +1404,7 @@ describe('::searchQuestions', () => {
       })
     ).resolves.toStrictEqual(
       reversedInternalQuestions
-        .filter((q) => q['title-lowercase'] == 'where is the nhscc github page?')
+        .filter((q) => q['title-lowercase'] === 'where is the nhscc github page?')
         .map((internalQuestion) => toPublicQuestion(internalQuestion))
     );
   });
@@ -1497,7 +1498,6 @@ describe('::searchQuestions', () => {
   it('supports multi-line case-insensitive regex matching of text via regexMatch', async () => {
     expect.hasAssertions();
 
-    // eslint-disable-next-line unicorn/better-regex
     const regex = /^alsO:.*$/im;
 
     await expect(
@@ -1507,9 +1507,7 @@ describe('::searchQuestions', () => {
         regexMatch: { text: '^alsO:.*$' },
         sort: undefined
       })
-    ).resolves.toStrictEqual(
-      reversedPublicQuestions.filter((q) => regex.test(q.text))
-    );
+    ).resolves.toStrictEqual(reversedPublicQuestions.filter((q) => regex.test(q.text)));
   });
 
   it('supports sorting results by upvotes, upvotes+views+comments, and upvotes+views+answers+comments (highest first)', async () => {
@@ -1592,15 +1590,10 @@ describe('::searchQuestions', () => {
       async () => {
         let previousQuestion: InternalQuestion | null = null;
 
-        for (const question of sortByFieldAndId(
-          reversedInternalQuestions,
-          'upvotes'
-        )) {
+        for (const question of sortByFieldAndId(reversedInternalQuestions, 'upvotes')) {
           await expect(
             Backend.searchQuestions({
-              after_id: previousQuestion
-                ? previousQuestion._id.toString()
-                : undefined,
+              after_id: previousQuestion ? previousQuestion._id.toString() : undefined,
               match: {},
               regexMatch: {},
               sort: 'u'
@@ -1767,30 +1760,20 @@ describe('::searchQuestions', () => {
     expect.hasAssertions();
 
     const matchers: [
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       matcher: any,
       errors: [matchError: string, regexMatchError: string]
     ][] = [
       [
         'wtf',
-        [
-          ErrorMessage.InvalidMatcher('match'),
-          ErrorMessage.InvalidMatcher('regexMatch')
-        ]
+        [ErrorMessage.InvalidMatcher('match'), ErrorMessage.InvalidMatcher('regexMatch')]
       ],
       [
         null,
-        [
-          ErrorMessage.InvalidMatcher('match'),
-          ErrorMessage.InvalidMatcher('regexMatch')
-        ]
+        [ErrorMessage.InvalidMatcher('match'), ErrorMessage.InvalidMatcher('regexMatch')]
       ],
       [
         undefined,
-        [
-          ErrorMessage.InvalidMatcher('match'),
-          ErrorMessage.InvalidMatcher('regexMatch')
-        ]
+        [ErrorMessage.InvalidMatcher('match'), ErrorMessage.InvalidMatcher('regexMatch')]
       ],
       [
         { bad: 'super-bad' },
@@ -1940,7 +1923,7 @@ describe('::getQuestion', () => {
 
     await expect(
       Backend.getQuestion({ question_id: itemToStringId(dummyAppData.questions[1]) })
-    ).resolves.toStrictEqual(toPublicQuestion(dummyAppData.questions[1]));
+    ).resolves.toStrictEqual(toPublicQuestion(dummyAppData.questions[1]!));
   });
 
   it('rejects if question_id is not a valid ObjectId', async () => {
@@ -1952,9 +1935,7 @@ describe('::getQuestion', () => {
       message: ErrorMessage.InvalidObjectId('does-not-exist')
     });
 
-    await expect(
-      Backend.getQuestion({ question_id: undefined })
-    ).rejects.toMatchObject({
+    await expect(Backend.getQuestion({ question_id: undefined })).rejects.toMatchObject({
       message: ErrorMessage.InvalidItem('question_id', 'parameter')
     });
   });
@@ -1974,7 +1955,7 @@ describe('::createQuestion', () => {
     expect.hasAssertions();
 
     const latestQuestion: Required<NewQuestion> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       title: 'Title',
       text: 'Text'
     };
@@ -1989,7 +1970,7 @@ describe('::createQuestion', () => {
       Backend.createQuestion({ data: latestQuestion })
     ).resolves.toStrictEqual<PublicQuestion>({
       question_id: expect.any(String),
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       createdAt: Date.now(),
       hasAcceptedAnswer: false,
       title: 'Title',
@@ -2014,7 +1995,7 @@ describe('::createQuestion', () => {
 
     const latestQuestion = await Backend.createQuestion({
       data: {
-        creator: dummyAppData.users[0].username,
+        creator: dummyAppData.users[0]!.username,
         title: 'Title',
         text: 'Text'
       }
@@ -2024,13 +2005,11 @@ describe('::createQuestion', () => {
       (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
-          { username: dummyAppData.users[0].username },
+          { username: dummyAppData.users[0]!.username },
           { projection: { _id: false, questionIds: true } }
         )
     ).resolves.toStrictEqual({
-      questionIds: expect.arrayContaining([
-        itemToObjectId(latestQuestion.question_id)
-      ])
+      questionIds: expect.arrayContaining([itemToObjectId(latestQuestion.question_id)])
     });
   });
 
@@ -2079,28 +2058,28 @@ describe('::createQuestion', () => {
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           title: ''
         } as NewQuestion,
         ErrorMessage.InvalidStringLength('title', 1, maxTitleLength, 'string')
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           title: 'x'.repeat(maxTitleLength + 1)
         } as NewQuestion,
         ErrorMessage.InvalidStringLength('title', 1, maxTitleLength, 'string')
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           title: 'x'
         } as NewQuestion,
         ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           title: 'x',
           text: ''
         } as NewQuestion,
@@ -2108,7 +2087,7 @@ describe('::createQuestion', () => {
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           title: 'x',
           text: 'x'.repeat(maxBodyLength + 1)
         } as NewQuestion,
@@ -2120,7 +2099,7 @@ describe('::createQuestion', () => {
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           title: 'x',
           text: 'x',
           hasAcceptedAnswer: true
@@ -2185,7 +2164,7 @@ describe('::updateQuestion', () => {
     await expect(
       questionsDb.countDocuments({
         _id: itemToObjectId(dummyAppData.questions[0]),
-        views: dummyAppData.questions[0].views + 1
+        views: dummyAppData.questions[0]!.views + 1
       })
     ).resolves.toBe(0);
 
@@ -2205,7 +2184,7 @@ describe('::updateQuestion', () => {
       questionsDb.findOne({
         _id: itemToObjectId(dummyAppData.questions[0])
       })
-    ).resolves.toMatchObject({ views: dummyAppData.questions[0].views + 1 });
+    ).resolves.toMatchObject({ views: dummyAppData.questions[0]!.views + 1 });
 
     await Backend.updateQuestion({
       question_id: itemToStringId(dummyAppData.questions[0]),
@@ -2228,7 +2207,7 @@ describe('::updateQuestion', () => {
       sorter: { uvc, uvac },
       views,
       upvotes
-    } = dummyAppData.questions[0];
+    } = dummyAppData.questions[0]!;
 
     await Backend.updateQuestion({
       question_id: itemToStringId(dummyAppData.questions[0]),
@@ -2493,7 +2472,7 @@ describe('::deleteQuestion', () => {
       (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
-          { username: dummyAppData.users[0].username },
+          { username: dummyAppData.users[0]!.username },
           { projection: { _id: false, questionIds: true } }
         )
     ).resolves.toStrictEqual({
@@ -2508,7 +2487,7 @@ describe('::deleteQuestion', () => {
       (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
-          { username: dummyAppData.users[0].username },
+          { username: dummyAppData.users[0]!.username },
           { projection: { _id: false, questionIds: true } }
         )
     ).resolves.toStrictEqual({
@@ -2522,9 +2501,7 @@ describe('::deleteQuestion', () => {
     expect.hasAssertions();
 
     await expect(
-      (
-        await getDb({ name: 'app' })
-      )
+      (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .find(
           { username: { $in: ['User1', 'User2', 'User3'] } },
@@ -2532,9 +2509,9 @@ describe('::deleteQuestion', () => {
         )
         .toArray()
     ).resolves.toStrictEqual([
-      { username: 'User1', answerIds: dummyAppData.users[0].answerIds },
-      { username: 'User2', answerIds: dummyAppData.users[1].answerIds },
-      { username: 'User3', answerIds: dummyAppData.users[2].answerIds }
+      { username: 'User1', answerIds: dummyAppData.users[0]!.answerIds },
+      { username: 'User2', answerIds: dummyAppData.users[1]!.answerIds },
+      { username: 'User3', answerIds: dummyAppData.users[2]!.answerIds }
     ]);
 
     await Backend.deleteQuestion({
@@ -2542,9 +2519,7 @@ describe('::deleteQuestion', () => {
     });
 
     await expect(
-      (
-        await getDb({ name: 'app' })
-      )
+      (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .find(
           { username: { $in: ['User1', 'User2', 'User3'] } },
@@ -2554,19 +2529,19 @@ describe('::deleteQuestion', () => {
     ).resolves.toStrictEqual([
       {
         username: 'User1',
-        answerIds: dummyAppData.users[0].answerIds.filter(
+        answerIds: dummyAppData.users[0]!.answerIds.filter(
           ([qid]) => !qid.equals(itemToObjectId(dummyAppData.questions[0]))
         )
       },
       {
         username: 'User2',
-        answerIds: dummyAppData.users[1].answerIds.filter(
+        answerIds: dummyAppData.users[1]!.answerIds.filter(
           ([qid]) => !qid.equals(itemToObjectId(dummyAppData.questions[0]))
         )
       },
       {
         username: 'User3',
-        answerIds: dummyAppData.users[2].answerIds.filter(
+        answerIds: dummyAppData.users[2]!.answerIds.filter(
           ([qid]) => !qid.equals(itemToObjectId(dummyAppData.questions[0]))
         )
       }
@@ -2611,16 +2586,16 @@ describe('::getAnswers', () => {
       })
     ).resolves.toStrictEqual([
       toPublicAnswer(
-        dummyAppData.questions[0].answerItems[0],
-        dummyAppData.questions[0]._id
+        dummyAppData.questions[0]!.answerItems[0]!,
+        dummyAppData.questions[0]!._id
       ),
       toPublicAnswer(
-        dummyAppData.questions[0].answerItems[1],
-        dummyAppData.questions[0]._id
+        dummyAppData.questions[0]!.answerItems[1]!,
+        dummyAppData.questions[0]!._id
       ),
       toPublicAnswer(
-        dummyAppData.questions[0].answerItems[2],
-        dummyAppData.questions[0]._id
+        dummyAppData.questions[0]!.answerItems[2]!,
+        dummyAppData.questions[0]!._id
       )
     ]);
   });
@@ -2648,33 +2623,33 @@ describe('::getAnswers', () => {
           }),
           await Backend.getAnswers({
             question_id: itemToStringId(dummyAppData.questions[0]),
-            after_id: itemToStringId(dummyAppData.questions[0].answerItems[0])
+            after_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0])
           }),
           await Backend.getAnswers({
             question_id: itemToStringId(dummyAppData.questions[0]),
-            after_id: itemToStringId(dummyAppData.questions[0].answerItems[1])
+            after_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1])
           }),
           await Backend.getAnswers({
             question_id: itemToStringId(dummyAppData.questions[0]),
-            after_id: itemToStringId(dummyAppData.questions[0].answerItems[2])
+            after_id: itemToStringId(dummyAppData.questions[0]!.answerItems[2])
           })
         ]).toStrictEqual([
           [
             toPublicAnswer(
-              dummyAppData.questions[0].answerItems[0],
-              dummyAppData.questions[0]._id
+              dummyAppData.questions[0]!.answerItems[0]!,
+              dummyAppData.questions[0]!._id
             )
           ],
           [
             toPublicAnswer(
-              dummyAppData.questions[0].answerItems[1],
-              dummyAppData.questions[0]._id
+              dummyAppData.questions[0]!.answerItems[1]!,
+              dummyAppData.questions[0]!._id
             )
           ],
           [
             toPublicAnswer(
-              dummyAppData.questions[0].answerItems[2],
-              dummyAppData.questions[0]._id
+              dummyAppData.questions[0]!.answerItems[2]!,
+              dummyAppData.questions[0]!._id
             )
           ],
           []
@@ -2745,7 +2720,7 @@ describe('::createAnswer', () => {
     expect.hasAssertions();
 
     const latestAnswer: Required<NewAnswer> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Text!'
     };
 
@@ -2768,7 +2743,7 @@ describe('::createAnswer', () => {
     ).resolves.toStrictEqual<PublicAnswer>({
       answer_id: expect.any(String),
       question_id,
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       createdAt: Date.now(),
       text: 'Text!',
       accepted: false,
@@ -2791,7 +2766,7 @@ describe('::createAnswer', () => {
     expect.hasAssertions();
 
     const latestAnswer: Required<NewAnswer> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Comment.'
     };
 
@@ -2825,7 +2800,7 @@ describe('::createAnswer', () => {
     const latestAnswer = await Backend.createAnswer({
       question_id: itemToStringId(dummyAppData.questions[1]),
       data: {
-        creator: dummyAppData.users[0].username,
+        creator: dummyAppData.users[0]!.username,
         text: 'Text'
       }
     });
@@ -2834,12 +2809,12 @@ describe('::createAnswer', () => {
       (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
-          { username: dummyAppData.users[0].username },
+          { username: dummyAppData.users[0]!.username },
           { projection: { _id: false, answerIds: true } }
         )
     ).resolves.toStrictEqual({
       answerIds: expect.arrayContaining([
-        ...dummyAppData.users[0].answerIds,
+        ...dummyAppData.users[0]!.answerIds,
         [
           itemToObjectId(dummyAppData.questions[1]),
           itemToObjectId(latestAnswer.answer_id)
@@ -2852,7 +2827,7 @@ describe('::createAnswer', () => {
     expect.hasAssertions();
 
     const latestAnswer: Required<NewAnswer> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Text!'
     };
 
@@ -2860,7 +2835,7 @@ describe('::createAnswer', () => {
 
     const {
       sorter: { uvc, uvac }
-    } = dummyAppData.questions[1];
+    } = dummyAppData.questions[1]!;
 
     await Backend.createAnswer({
       question_id: itemToStringId(dummyAppData.questions[1]),
@@ -2880,7 +2855,7 @@ describe('::createAnswer', () => {
 
     const question_id = 'does-not-exist';
     const latestAnswer: Required<NewAnswer> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Text!'
     };
 
@@ -2902,7 +2877,7 @@ describe('::createAnswer', () => {
 
     const question_id = new ObjectId().toString();
     const latestAnswer: Required<NewAnswer> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Text!'
     };
 
@@ -2945,7 +2920,7 @@ describe('::createAnswer', () => {
     expect.hasAssertions();
 
     const latestAnswer: Required<NewAnswer> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Text!'
     };
 
@@ -2971,14 +2946,14 @@ describe('::createAnswer', () => {
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           text: ''
         } as NewAnswer,
         ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           text: 'x'.repeat(maxBodyLength + 1)
         } as NewAnswer,
         ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
@@ -2989,7 +2964,7 @@ describe('::createAnswer', () => {
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           text: 'x',
           accepted: true
         } as NewAnswer,
@@ -3024,7 +2999,7 @@ describe('::updateAnswer', () => {
     await expect(
       selectAnswerFromDb({
         questionId: itemToObjectId(dummyAppData.questions[0]),
-        answerId: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+        answerId: itemToObjectId(dummyAppData.questions[0]!.answerItems[0]),
         projection: { _id: false }
       })
     ).resolves.not.toMatchObject(patchAnswer);
@@ -3032,7 +3007,7 @@ describe('::updateAnswer', () => {
     await expect(
       Backend.updateAnswer({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         data: patchAnswer
       })
     ).resolves.toBeUndefined();
@@ -3040,7 +3015,7 @@ describe('::updateAnswer', () => {
     await expect(
       selectAnswerFromDb({
         questionId: itemToObjectId(dummyAppData.questions[0]),
-        answerId: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+        answerId: itemToObjectId(dummyAppData.questions[0]!.answerItems[0]),
         projection: { _id: false }
       })
     ).resolves.toMatchObject(patchAnswer);
@@ -3052,7 +3027,7 @@ describe('::updateAnswer', () => {
     await expect(
       Backend.updateAnswer({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         data: {}
       })
     ).resolves.toBeUndefined();
@@ -3074,7 +3049,7 @@ describe('::updateAnswer', () => {
 
     await Backend.updateAnswer({
       question_id: itemToStringId(dummyAppData.questions[0]),
-      answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+      answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
       data: patchAnswer
     });
 
@@ -3103,7 +3078,7 @@ describe('::updateAnswer', () => {
     await expect(
       Backend.updateAnswer({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         data: patchAnswer
       })
     ).rejects.toMatchObject({
@@ -3119,7 +3094,7 @@ describe('::updateAnswer', () => {
     await expect(
       Backend.updateAnswer({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         data: patchAnswer
       })
     ).rejects.toMatchObject({
@@ -3274,7 +3249,7 @@ describe('::updateAnswer', () => {
         expect(
           Backend.updateAnswer({
             question_id: itemToStringId(dummyAppData.questions[2]),
-            answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+            answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
             data
           })
         ).rejects.toMatchObject({ message })
@@ -3299,7 +3274,7 @@ describe('::deleteAnswer', () => {
     await expect(
       Backend.deleteAnswer({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0])
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0])
       })
     ).resolves.toBeUndefined();
 
@@ -3327,7 +3302,7 @@ describe('::deleteAnswer', () => {
 
     await Backend.deleteAnswer({
       question_id: itemToStringId(dummyAppData.questions[0]),
-      answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0])
+      answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0])
     });
 
     await expect(
@@ -3344,20 +3319,20 @@ describe('::deleteAnswer', () => {
     expect.hasAssertions();
 
     const question_id = itemToStringId(dummyAppData.questions[0]);
-    const answer_id = itemToStringId(dummyAppData.questions[0].answerItems[0]);
+    const answer_id = itemToStringId(dummyAppData.questions[0]!.answerItems[0]);
 
     await expect(
       (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
-          { username: dummyAppData.users[1].username },
+          { username: dummyAppData.users[1]!.username },
           { projection: { _id: false, answerIds: true } }
         )
     ).resolves.toStrictEqual({
       answerIds: expect.arrayContaining([
         [
           itemToObjectId(dummyAppData.questions[0]),
-          itemToObjectId(dummyAppData.questions[0].answerItems[0])
+          itemToObjectId(dummyAppData.questions[0]!.answerItems[0])
         ]
       ])
     });
@@ -3371,14 +3346,14 @@ describe('::deleteAnswer', () => {
       (await getDb({ name: 'app' }))
         .collection<InternalUser>('users')
         .findOne(
-          { username: dummyAppData.users[1].username },
+          { username: dummyAppData.users[1]!.username },
           { projection: { _id: false, answerIds: true } }
         )
     ).resolves.toStrictEqual({
       answerIds: expect.not.arrayContaining([
         [
           itemToObjectId(dummyAppData.questions[0]),
-          itemToObjectId(dummyAppData.questions[0].answerItems[0])
+          itemToObjectId(dummyAppData.questions[0]!.answerItems[0])
         ]
       ])
     });
@@ -3391,11 +3366,11 @@ describe('::deleteAnswer', () => {
 
     const {
       sorter: { uvc, uvac }
-    } = dummyAppData.questions[0];
+    } = dummyAppData.questions[0]!;
 
     await Backend.deleteAnswer({
       question_id: itemToStringId(dummyAppData.questions[0]),
-      answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0])
+      answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0])
     });
 
     await expect(
@@ -3414,7 +3389,7 @@ describe('::deleteAnswer', () => {
     await expect(
       Backend.deleteAnswer({
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0])
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0])
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidObjectId(question_id)
@@ -3423,7 +3398,7 @@ describe('::deleteAnswer', () => {
     await expect(
       Backend.deleteAnswer({
         question_id: undefined,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0])
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0])
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.InvalidItem('question_id', 'parameter')
@@ -3462,7 +3437,7 @@ describe('::deleteAnswer', () => {
     await expect(
       Backend.deleteAnswer({
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0])
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0])
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound(question_id, 'question')
@@ -3496,8 +3471,8 @@ describe('::getComments', () => {
         after_id: undefined
       })
     ).resolves.toStrictEqual([
-      toPublicComment(dummyAppData.questions[0].commentItems[0]),
-      toPublicComment(dummyAppData.questions[0].commentItems[1])
+      toPublicComment(dummyAppData.questions[0]!.commentItems[0]!),
+      toPublicComment(dummyAppData.questions[0]!.commentItems[1]!)
     ]);
   });
 
@@ -3507,13 +3482,13 @@ describe('::getComments', () => {
     await expect(
       Backend.getComments({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
         after_id: undefined
       })
     ).resolves.toStrictEqual([
-      toPublicComment(dummyAppData.questions[0].answerItems[1].commentItems[0]),
-      toPublicComment(dummyAppData.questions[0].answerItems[1].commentItems[1]),
-      toPublicComment(dummyAppData.questions[0].answerItems[1].commentItems[2])
+      toPublicComment(dummyAppData.questions[0]!.answerItems[1]!.commentItems[0]!),
+      toPublicComment(dummyAppData.questions[0]!.answerItems[1]!.commentItems[1]!),
+      toPublicComment(dummyAppData.questions[0]!.answerItems[1]!.commentItems[2]!)
     ]);
   });
 
@@ -3531,7 +3506,7 @@ describe('::getComments', () => {
     await expect(
       Backend.getComments({
         question_id: itemToStringId(dummyAppData.questions[1]),
-        answer_id: itemToStringId(dummyAppData.questions[1].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[1]!.answerItems[0]),
         after_id: undefined
       })
     ).resolves.toStrictEqual([]);
@@ -3551,16 +3526,16 @@ describe('::getComments', () => {
           await Backend.getComments({
             question_id: itemToStringId(dummyAppData.questions[0]),
             answer_id: undefined,
-            after_id: itemToStringId(dummyAppData.questions[0].commentItems[0])
+            after_id: itemToStringId(dummyAppData.questions[0]!.commentItems[0])
           }),
           await Backend.getComments({
             question_id: itemToStringId(dummyAppData.questions[0]),
             answer_id: undefined,
-            after_id: itemToStringId(dummyAppData.questions[0].commentItems[1])
+            after_id: itemToStringId(dummyAppData.questions[0]!.commentItems[1])
           })
         ]).toStrictEqual([
-          [toPublicComment(dummyAppData.questions[0].commentItems[0])],
-          [toPublicComment(dummyAppData.questions[0].commentItems[1])],
+          [toPublicComment(dummyAppData.questions[0]!.commentItems[0]!)],
+          [toPublicComment(dummyAppData.questions[0]!.commentItems[1]!)],
           []
         ]);
       },
@@ -3572,34 +3547,34 @@ describe('::getComments', () => {
         expect([
           await Backend.getComments({
             question_id: itemToStringId(dummyAppData.questions[0]),
-            answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+            answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
             after_id: undefined
           }),
           await Backend.getComments({
             question_id: itemToStringId(dummyAppData.questions[0]),
-            answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+            answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
             after_id: itemToStringId(
-              dummyAppData.questions[0].answerItems[1].commentItems[0]
+              dummyAppData.questions[0]!.answerItems[1]!.commentItems[0]
             )
           }),
           await Backend.getComments({
             question_id: itemToStringId(dummyAppData.questions[0]),
-            answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+            answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
             after_id: itemToStringId(
-              dummyAppData.questions[0].answerItems[1].commentItems[1]
+              dummyAppData.questions[0]!.answerItems[1]!.commentItems[1]
             )
           }),
           await Backend.getComments({
             question_id: itemToStringId(dummyAppData.questions[0]),
-            answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+            answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
             after_id: itemToStringId(
-              dummyAppData.questions[0].answerItems[1].commentItems[2]
+              dummyAppData.questions[0]!.answerItems[1]!.commentItems[2]
             )
           })
         ]).toStrictEqual([
-          [toPublicComment(dummyAppData.questions[0].answerItems[1].commentItems[0])],
-          [toPublicComment(dummyAppData.questions[0].answerItems[1].commentItems[1])],
-          [toPublicComment(dummyAppData.questions[0].answerItems[1].commentItems[2])],
+          [toPublicComment(dummyAppData.questions[0]!.answerItems[1]!.commentItems[0]!)],
+          [toPublicComment(dummyAppData.questions[0]!.answerItems[1]!.commentItems[1]!)],
+          [toPublicComment(dummyAppData.questions[0]!.answerItems[1]!.commentItems[2]!)],
           []
         ]);
       },
@@ -3623,7 +3598,7 @@ describe('::getComments', () => {
     await expect(
       Backend.getComments({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
         after_id: 'fake-oid'
       })
     ).rejects.toMatchObject({
@@ -3649,7 +3624,7 @@ describe('::getComments', () => {
     await expect(
       Backend.getComments({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
         after_id
       })
     ).rejects.toMatchObject({
@@ -3736,7 +3711,7 @@ describe('::getComments', () => {
       Backend.getComments({
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
-        after_id: itemToStringId(dummyAppData.questions[0].commentItems[0])
+        after_id: itemToStringId(dummyAppData.questions[0]!.commentItems[0])
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound(answer_id, 'answer')
@@ -3749,7 +3724,7 @@ describe('::createComment', () => {
     expect.hasAssertions();
 
     const latestComment: Required<NewComment> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Comment.'
     };
 
@@ -3770,7 +3745,7 @@ describe('::createComment', () => {
       })
     ).resolves.toStrictEqual<PublicComment>({
       comment_id: expect.any(String),
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       createdAt: Date.now(),
       text: 'Comment.',
       upvotes: 0,
@@ -3791,7 +3766,7 @@ describe('::createComment', () => {
     expect.hasAssertions();
 
     const latestComment: Required<NewComment> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Comment.'
     };
 
@@ -3810,12 +3785,12 @@ describe('::createComment', () => {
     await expect(
       Backend.createComment({
         question_id: itemToStringId(dummyAppData.questions[1]),
-        answer_id: itemToStringId(dummyAppData.questions[1].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[1]!.answerItems[0]),
         data: latestComment
       })
     ).resolves.toStrictEqual<PublicComment>({
       comment_id: expect.any(String),
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       createdAt: Date.now(),
       text: 'Comment.',
       upvotes: 0,
@@ -3839,7 +3814,7 @@ describe('::createComment', () => {
     expect.hasAssertions();
 
     const latestComment: Required<NewComment> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Comment.'
     };
 
@@ -3875,10 +3850,10 @@ describe('::createComment', () => {
 
     const {
       sorter: { uvc, uvac }
-    } = dummyAppData.questions[1];
+    } = dummyAppData.questions[1]!;
 
     const latestComment: Required<NewComment> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Comment.'
     };
 
@@ -3901,14 +3876,14 @@ describe('::createComment', () => {
 
     const question_id = 'does-not-exist';
     const latestComment: Required<NewComment> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Text!'
     };
 
     await expect(
       Backend.createComment({
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         data: latestComment
       })
     ).rejects.toMatchObject({
@@ -3918,7 +3893,7 @@ describe('::createComment', () => {
     await expect(
       Backend.createComment({
         question_id: undefined,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         data: latestComment
       })
     ).rejects.toMatchObject({
@@ -3931,7 +3906,7 @@ describe('::createComment', () => {
 
     const answer_id = 'does-not-exist';
     const latestComment: Required<NewComment> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Text!'
     };
 
@@ -3951,14 +3926,14 @@ describe('::createComment', () => {
 
     const question_id = new ObjectId().toString();
     const latestComment: Required<NewComment> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Text!'
     };
 
     await expect(
       Backend.createComment({
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         data: latestComment
       })
     ).rejects.toMatchObject({
@@ -3981,7 +3956,7 @@ describe('::createComment', () => {
 
     const answer_id = new ObjectId().toString();
     const latestComment: Required<NewComment> = {
-      creator: dummyAppData.users[0].username,
+      creator: dummyAppData.users[0]!.username,
       text: 'Text!'
     };
 
@@ -4037,20 +4012,20 @@ describe('::createComment', () => {
       [{} as NewComment, ErrorMessage.InvalidFieldValue('creator')],
       [
         {
-          creator: dummyAppData.users[0].username
+          creator: dummyAppData.users[0]!.username
         } as NewComment,
         ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           text: ''
         } as NewComment,
         ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           text: 'x'.repeat(maxBodyLength + 1)
         } as NewComment,
         ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
@@ -4064,7 +4039,7 @@ describe('::createComment', () => {
       ],
       [
         {
-          creator: dummyAppData.users[0].username,
+          creator: dummyAppData.users[0]!.username,
           text: 'x',
           createdAt: Date.now()
         } as NewComment,
@@ -4103,7 +4078,7 @@ describe('::deleteComment', () => {
       Backend.deleteComment({
         question_id: itemToStringId(dummyAppData.questions[1]),
         answer_id: undefined,
-        comment_id: itemToStringId(dummyAppData.questions[1].commentItems[0])
+        comment_id: itemToStringId(dummyAppData.questions[1]!.commentItems[0])
       })
     ).resolves.toBeUndefined();
 
@@ -4135,9 +4110,9 @@ describe('::deleteComment', () => {
     await expect(
       Backend.deleteComment({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[0].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
         )
       })
     ).resolves.toBeUndefined();
@@ -4170,7 +4145,7 @@ describe('::deleteComment', () => {
     await Backend.deleteComment({
       question_id: itemToStringId(dummyAppData.questions[1]),
       answer_id: undefined,
-      comment_id: itemToStringId(dummyAppData.questions[1].commentItems[0])
+      comment_id: itemToStringId(dummyAppData.questions[1]!.commentItems[0])
     });
 
     await expect(
@@ -4190,12 +4165,12 @@ describe('::deleteComment', () => {
 
     const {
       sorter: { uvc, uvac }
-    } = dummyAppData.questions[1];
+    } = dummyAppData.questions[1]!;
 
     await Backend.deleteComment({
       question_id: itemToStringId(dummyAppData.questions[1]),
       answer_id: undefined,
-      comment_id: itemToStringId(dummyAppData.questions[1].commentItems[0])
+      comment_id: itemToStringId(dummyAppData.questions[1]!.commentItems[0])
     });
 
     await expect(
@@ -4214,7 +4189,7 @@ describe('::deleteComment', () => {
     await expect(
       Backend.deleteComment({
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -4224,7 +4199,7 @@ describe('::deleteComment', () => {
     await expect(
       Backend.deleteComment({
         question_id: undefined,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -4256,7 +4231,7 @@ describe('::deleteComment', () => {
     await expect(
       Backend.deleteComment({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id
       })
     ).rejects.toMatchObject({
@@ -4266,7 +4241,7 @@ describe('::deleteComment', () => {
     await expect(
       Backend.deleteComment({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: undefined
       })
     ).rejects.toMatchObject({
@@ -4282,7 +4257,7 @@ describe('::deleteComment', () => {
     await expect(
       Backend.deleteComment({
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -4309,7 +4284,7 @@ describe('::deleteComment', () => {
       Backend.deleteComment({
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
-        comment_id: itemToStringId(dummyAppData.questions[0].commentItems[0])
+        comment_id: itemToStringId(dummyAppData.questions[0]!.commentItems[0])
       })
     ).rejects.toMatchObject({
       message: ErrorMessage.ItemNotFound(answer_id, 'answer')
@@ -4324,7 +4299,7 @@ describe('::deleteComment', () => {
     await expect(
       Backend.deleteComment({
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id
       })
     ).rejects.toMatchObject({
@@ -4339,7 +4314,7 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined
@@ -4348,7 +4323,7 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined
@@ -4357,7 +4332,7 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined
@@ -4370,36 +4345,36 @@ describe('::getHowUserVoted', () => {
 
     await patchAnswerInDb({
       questionId: itemToObjectId(dummyAppData.questions[0]),
-      answerId: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+      answerId: itemToObjectId(dummyAppData.questions[0]!.answerItems[0]),
       updateOps: {
         $inc: { downvotes: 1 },
-        $push: { downvoterUsernames: dummyAppData.users[2].username }
+        $push: { downvoterUsernames: dummyAppData.users[2]!.username }
       }
     });
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: undefined
       })
     ).resolves.toBeNull();
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: undefined
       })
     ).resolves.toBe('upvoted');
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: undefined
       })
     ).resolves.toBe('downvoted');
@@ -4411,37 +4386,37 @@ describe('::getHowUserVoted', () => {
     await patchCommentInDb({
       questionId: itemToObjectId(dummyAppData.questions[0]),
       answerId: undefined,
-      commentId: itemToObjectId(dummyAppData.questions[0].commentItems[0]),
+      commentId: itemToObjectId(dummyAppData.questions[0]!.commentItems[0]),
       updateOps: {
         $inc: { upvotes: 1 },
-        $push: { upvoterUsernames: dummyAppData.users[1].username }
+        $push: { upvoterUsernames: dummyAppData.users[1]!.username }
       }
     });
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
-        comment_id: itemToStringId(dummyAppData.questions[0].commentItems[0])
+        comment_id: itemToStringId(dummyAppData.questions[0]!.commentItems[0])
       })
     ).resolves.toBeNull();
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
-        comment_id: itemToStringId(dummyAppData.questions[0].commentItems[0])
+        comment_id: itemToStringId(dummyAppData.questions[0]!.commentItems[0])
       })
     ).resolves.toBe('upvoted');
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
-        comment_id: itemToStringId(dummyAppData.questions[0].commentItems[0])
+        comment_id: itemToStringId(dummyAppData.questions[0]!.commentItems[0])
       })
     ).resolves.toBe('downvoted');
   });
@@ -4451,48 +4426,48 @@ describe('::getHowUserVoted', () => {
 
     await patchCommentInDb({
       questionId: itemToObjectId(dummyAppData.questions[0]),
-      answerId: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+      answerId: itemToObjectId(dummyAppData.questions[0]!.answerItems[0]),
       commentId: itemToObjectId(
-        dummyAppData.questions[0].answerItems[0].commentItems[0]
+        dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
       ),
       updateOps: {
         $inc: { upvotes: 1, downvotes: 1 },
         $push: {
-          upvoterUsernames: dummyAppData.users[1].username,
-          downvoterUsernames: dummyAppData.users[2].username
+          upvoterUsernames: dummyAppData.users[1]!.username,
+          downvoterUsernames: dummyAppData.users[2]!.username
         }
       }
     });
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[0].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
         )
       })
     ).resolves.toBeNull();
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[0].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
         )
       })
     ).resolves.toBe('upvoted');
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[0].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
         )
       })
     ).resolves.toBe('downvoted');
@@ -4505,9 +4480,9 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -4516,7 +4491,7 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
         answer_id: undefined,
         comment_id: new ObjectId().toString()
@@ -4527,7 +4502,7 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
         answer_id: new ObjectId().toString(),
         comment_id: undefined
@@ -4538,7 +4513,7 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
         answer_id: undefined,
         comment_id: undefined
@@ -4549,9 +4524,9 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: undefined,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -4566,7 +4541,7 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         comment_id: new ObjectId().toString()
@@ -4583,9 +4558,9 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id
       })
     ).rejects.toMatchObject({
@@ -4600,9 +4575,9 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: new ObjectId().toString()
       })
     ).rejects.toMatchObject({
@@ -4611,7 +4586,7 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
         answer_id: undefined,
         comment_id: new ObjectId().toString()
@@ -4622,9 +4597,9 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: undefined
       })
     ).rejects.toMatchObject({
@@ -4633,7 +4608,7 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
         answer_id: undefined,
         comment_id: undefined
@@ -4650,7 +4625,7 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         comment_id: new ObjectId().toString()
@@ -4667,9 +4642,9 @@ describe('::getHowUserVoted', () => {
 
     await expect(
       Backend.getHowUserVoted({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id
       })
     ).rejects.toMatchObject({
@@ -4684,9 +4659,9 @@ describe('::getHowUserVoted', () => {
       Backend.getHowUserVoted({
         username: 'does-not-exist',
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[0].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
         )
       })
     ).rejects.toMatchObject({
@@ -4697,9 +4672,9 @@ describe('::getHowUserVoted', () => {
       Backend.getHowUserVoted({
         username: undefined,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[0].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
         )
       })
     ).rejects.toMatchObject({
@@ -4715,9 +4690,9 @@ describe('::applyVotesUpdateOperation', () => {
     const questionsDb = (await getDb({ name: 'app' })).collection('questions');
 
     const { upvotes, downvotes, upvoterUsernames, downvoterUsernames } =
-      dummyAppData.questions[2];
+      dummyAppData.questions[2]!;
 
-    const username = dummyAppData.users[0].username;
+    const username = dummyAppData.users[0]!.username;
     const question_id = itemToStringId(dummyAppData.questions[2]);
     const answer_id = undefined;
     const comment_id = undefined;
@@ -4760,7 +4735,7 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({
       upvotes: upvotes + 1,
       downvotes,
-      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[0].username],
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[0]!.username],
       downvoterUsernames
     });
 
@@ -4805,7 +4780,7 @@ describe('::applyVotesUpdateOperation', () => {
       upvotes,
       downvotes: downvotes + 1,
       upvoterUsernames,
-      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[0].username]
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[0]!.username]
     });
 
     await expect(
@@ -4835,10 +4810,10 @@ describe('::applyVotesUpdateOperation', () => {
     expect.hasAssertions();
 
     const { upvotes, downvotes, upvoterUsernames, downvoterUsernames } =
-      dummyAppData.questions[0].answerItems[0];
+      dummyAppData.questions[0]!.answerItems[0]!;
 
     const questionId = itemToObjectId(dummyAppData.questions[0]);
-    const answerId = itemToObjectId(dummyAppData.questions[0].answerItems[0]);
+    const answerId = itemToObjectId(dummyAppData.questions[0]!.answerItems[0]);
 
     const projection = {
       _id: false,
@@ -4859,7 +4834,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[3].username,
+        username: dummyAppData.users[3]!.username,
         question_id: itemToStringId(questionId),
         answer_id: itemToStringId(answerId),
         comment_id: undefined,
@@ -4872,13 +4847,13 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({
       upvotes: upvotes + 1,
       downvotes,
-      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[3].username],
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[3]!.username],
       downvoterUsernames
     });
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(questionId),
         answer_id: itemToStringId(answerId),
         comment_id: undefined,
@@ -4891,13 +4866,13 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({
       upvotes: upvotes + 1,
       downvotes: downvotes + 1,
-      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[3].username],
-      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[2].username]
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[3]!.username],
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[2]!.username]
     });
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[3].username,
+        username: dummyAppData.users[3]!.username,
         question_id: itemToStringId(questionId),
         answer_id: itemToStringId(answerId),
         comment_id: undefined,
@@ -4911,12 +4886,12 @@ describe('::applyVotesUpdateOperation', () => {
       upvotes: upvotes,
       downvotes: downvotes + 1,
       upvoterUsernames,
-      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[2].username]
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[2]!.username]
     });
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(questionId),
         answer_id: itemToStringId(answerId),
         comment_id: undefined,
@@ -4938,11 +4913,11 @@ describe('::applyVotesUpdateOperation', () => {
     expect.hasAssertions();
 
     const { upvotes, downvotes, upvoterUsernames, downvoterUsernames } =
-      dummyAppData.questions[0].commentItems[0];
+      dummyAppData.questions[0]!.commentItems[0]!;
 
     const questionId = itemToObjectId(dummyAppData.questions[0]);
     const answerId = undefined;
-    const commentId = itemToObjectId(dummyAppData.questions[0].commentItems[0]);
+    const commentId = itemToObjectId(dummyAppData.questions[0]!.commentItems[0]);
 
     const projection = {
       _id: false,
@@ -4968,7 +4943,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(questionId),
         answer_id: answerId,
         comment_id: itemToStringId(commentId),
@@ -4986,13 +4961,13 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({
       upvotes: upvotes + 1,
       downvotes,
-      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1].username],
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1]!.username],
       downvoterUsernames
     });
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[3].username,
+        username: dummyAppData.users[3]!.username,
         question_id: itemToStringId(questionId),
         answer_id: answerId,
         comment_id: itemToStringId(commentId),
@@ -5010,13 +4985,13 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({
       upvotes: upvotes + 1,
       downvotes: downvotes + 1,
-      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1].username],
-      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[3].username]
+      upvoterUsernames: [...upvoterUsernames, dummyAppData.users[1]!.username],
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[3]!.username]
     });
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(questionId),
         answer_id: answerId,
         comment_id: itemToStringId(commentId),
@@ -5035,12 +5010,12 @@ describe('::applyVotesUpdateOperation', () => {
       upvotes,
       downvotes: downvotes + 1,
       upvoterUsernames,
-      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[3].username]
+      downvoterUsernames: [...downvoterUsernames, dummyAppData.users[3]!.username]
     });
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[3].username,
+        username: dummyAppData.users[3]!.username,
         question_id: itemToStringId(questionId),
         answer_id: answerId,
         comment_id: itemToStringId(commentId),
@@ -5067,13 +5042,13 @@ describe('::applyVotesUpdateOperation', () => {
     expect.hasAssertions();
 
     const { upvotes, downvotes, upvoterUsernames, downvoterUsernames } =
-      dummyAppData.questions[0].answerItems[0].commentItems[0];
+      dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]!;
 
-    const username = dummyAppData.users[3].username;
+    const username = dummyAppData.users[3]!.username;
     const questionId = itemToObjectId(dummyAppData.questions[0]);
-    const answerId = itemToObjectId(dummyAppData.questions[0].answerItems[0]);
+    const answerId = itemToObjectId(dummyAppData.questions[0]!.answerItems[0]);
     const commentId = itemToObjectId(
-      dummyAppData.questions[0].answerItems[0].commentItems[0]
+      dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
     );
 
     const projection = {
@@ -5202,10 +5177,10 @@ describe('::applyVotesUpdateOperation', () => {
 
     const {
       sorter: { uvc, uvac }
-    } = dummyAppData.questions[0];
+    } = dummyAppData.questions[0]!;
 
     await Backend.applyVotesUpdateOperation({
-      username: dummyAppData.users[3].username,
+      username: dummyAppData.users[3]!.username,
       question_id: itemToStringId(dummyAppData.questions[0]),
       answer_id: undefined,
       comment_id: undefined,
@@ -5220,7 +5195,7 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({ uvc: uvc + 1, uvac: uvac + 1 });
 
     await Backend.applyVotesUpdateOperation({
-      username: dummyAppData.users[3].username,
+      username: dummyAppData.users[3]!.username,
       question_id: itemToStringId(dummyAppData.questions[0]),
       answer_id: undefined,
       comment_id: undefined,
@@ -5235,7 +5210,7 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({ uvc, uvac });
 
     await Backend.applyVotesUpdateOperation({
-      username: dummyAppData.users[3].username,
+      username: dummyAppData.users[3]!.username,
       question_id: itemToStringId(dummyAppData.questions[0]),
       answer_id: undefined,
       comment_id: undefined,
@@ -5250,7 +5225,7 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({ uvc, uvac });
 
     await Backend.applyVotesUpdateOperation({
-      username: dummyAppData.users[3].username,
+      username: dummyAppData.users[3]!.username,
       question_id: itemToStringId(dummyAppData.questions[0]),
       answer_id: undefined,
       comment_id: undefined,
@@ -5265,9 +5240,9 @@ describe('::applyVotesUpdateOperation', () => {
     ).resolves.toStrictEqual({ uvc, uvac });
 
     await Backend.applyVotesUpdateOperation({
-      username: dummyAppData.users[3].username,
+      username: dummyAppData.users[3]!.username,
       question_id: itemToStringId(dummyAppData.questions[0]),
-      answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+      answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
       comment_id: undefined,
       operation: { op: 'increment', target: 'upvotes' }
     });
@@ -5275,20 +5250,20 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       selectAnswerFromDb({
         questionId: itemToObjectId(dummyAppData.questions[0]),
-        answerId: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+        answerId: itemToObjectId(dummyAppData.questions[0]!.answerItems[0]),
         projection: { _id: false, upvotes: true, sorter: true }
       })
     ).resolves.toStrictEqual({
-      upvotes: dummyAppData.questions[0].answerItems[0].upvotes + 1
+      upvotes: dummyAppData.questions[0]!.answerItems[0]!.upvotes + 1
       // * No "sorter"!
     });
 
     await Backend.applyVotesUpdateOperation({
-      username: dummyAppData.users[3].username,
+      username: dummyAppData.users[3]!.username,
       question_id: itemToStringId(dummyAppData.questions[0]),
-      answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+      answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
       comment_id: itemToStringId(
-        dummyAppData.questions[0].answerItems[0].commentItems[0]
+        dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
       ),
       operation: { op: 'increment', target: 'upvotes' }
     });
@@ -5296,22 +5271,22 @@ describe('::applyVotesUpdateOperation', () => {
     await expect(
       selectCommentFromDb({
         questionId: itemToObjectId(dummyAppData.questions[0]),
-        answerId: itemToObjectId(dummyAppData.questions[0].answerItems[0]),
+        answerId: itemToObjectId(dummyAppData.questions[0]!.answerItems[0]),
         commentId: itemToObjectId(
-          dummyAppData.questions[0].answerItems[0].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
         ),
         projection: { _id: false, upvotes: true, sorter: true }
       })
     ).resolves.toStrictEqual({
-      upvotes: dummyAppData.questions[0].answerItems[0].commentItems[0].upvotes + 1
+      upvotes: dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]!.upvotes + 1
       // * No "sorter"!
     });
 
     await Backend.applyVotesUpdateOperation({
-      username: dummyAppData.users[3].username,
+      username: dummyAppData.users[3]!.username,
       question_id: itemToStringId(dummyAppData.questions[0]),
       answer_id: undefined,
-      comment_id: itemToStringId(dummyAppData.questions[0].commentItems[0]),
+      comment_id: itemToStringId(dummyAppData.questions[0]!.commentItems[0]),
       operation: { op: 'increment', target: 'upvotes' }
     });
 
@@ -5319,11 +5294,11 @@ describe('::applyVotesUpdateOperation', () => {
       selectCommentFromDb({
         questionId: itemToObjectId(dummyAppData.questions[0]),
         answerId: undefined,
-        commentId: itemToObjectId(dummyAppData.questions[0].commentItems[0]),
+        commentId: itemToObjectId(dummyAppData.questions[0]!.commentItems[0]),
         projection: { _id: false, upvotes: true, sorter: true }
       })
     ).resolves.toStrictEqual({
-      upvotes: dummyAppData.questions[0].commentItems[0].upvotes + 1
+      upvotes: dummyAppData.questions[0]!.commentItems[0]!.upvotes + 1
       // * No "sorter"!
     });
   });
@@ -5333,7 +5308,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined,
@@ -5343,7 +5318,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined,
@@ -5353,7 +5328,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined,
@@ -5363,11 +5338,11 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[1].commentItems[1]
+          dummyAppData.questions[0]!.answerItems[1]!.commentItems[1]
         ),
         operation: { op: 'increment', target: 'downvotes' }
       })
@@ -5375,11 +5350,11 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[1].commentItems[1]
+          dummyAppData.questions[0]!.answerItems[1]!.commentItems[1]
         ),
         operation: { op: 'decrement', target: 'downvotes' }
       })
@@ -5387,11 +5362,11 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[1].commentItems[1]
+          dummyAppData.questions[0]!.answerItems[1]!.commentItems[1]
         ),
         operation: { op: 'increment', target: 'downvotes' }
       })
@@ -5403,7 +5378,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined,
@@ -5413,9 +5388,9 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: undefined,
         operation: { op: 'increment', target: 'upvotes' }
       })
@@ -5423,11 +5398,11 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[1].commentItems[1]
+          dummyAppData.questions[0]!.answerItems[1]!.commentItems[1]
         ),
         operation: { op: 'increment', target: 'downvotes' }
       })
@@ -5435,10 +5410,10 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[1]),
         answer_id: undefined,
-        comment_id: itemToStringId(dummyAppData.questions[1].commentItems[0]),
+        comment_id: itemToStringId(dummyAppData.questions[1]!.commentItems[0]),
         operation: { op: 'increment', target: 'upvotes' }
       })
     ).rejects.toMatchObject({ message: ErrorMessage.DuplicateIncrementOperation() });
@@ -5449,9 +5424,9 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: undefined,
         operation: { op: 'decrement', target: 'upvotes' }
       })
@@ -5459,11 +5434,11 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[0].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
         ),
         operation: { op: 'decrement', target: 'downvotes' }
       })
@@ -5475,7 +5450,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined,
@@ -5485,7 +5460,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[1].username,
+        username: dummyAppData.users[1]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined,
@@ -5499,7 +5474,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[2].username,
+        username: dummyAppData.users[2]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined,
@@ -5509,9 +5484,9 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: undefined,
         operation: { op: 'increment', target: 'downvotes' }
       })
@@ -5523,7 +5498,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
         comment_id: undefined,
@@ -5533,9 +5508,9 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[2]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[2]),
         comment_id: undefined,
         operation: { op: 'increment', target: 'upvotes' }
       })
@@ -5543,11 +5518,11 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[1]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[1]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[1].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[1]!.commentItems[0]
         ),
         operation: { op: 'increment', target: 'downvotes' }
       })
@@ -5555,10 +5530,10 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id: undefined,
-        comment_id: itemToStringId(dummyAppData.questions[0].commentItems[1]),
+        comment_id: itemToStringId(dummyAppData.questions[0]!.commentItems[1]),
         operation: { op: 'decrement', target: 'downvotes' }
       })
     ).rejects.toMatchObject({ message: ErrorMessage.IllegalOperation() });
@@ -5571,9 +5546,9 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: new ObjectId().toString(),
         operation: { op: 'increment', target: 'upvotes' }
       })
@@ -5583,9 +5558,9 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: undefined,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: new ObjectId().toString(),
         operation: { op: 'increment', target: 'downvotes' }
       })
@@ -5601,7 +5576,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         comment_id: new ObjectId().toString(),
@@ -5619,9 +5594,9 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id,
         operation: { op: 'decrement', target: 'downvotes' }
       })
@@ -5637,9 +5612,9 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: new ObjectId().toString(),
         operation: { op: 'increment', target: 'upvotes' }
       })
@@ -5649,7 +5624,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
         answer_id: undefined,
         comment_id: new ObjectId().toString(),
@@ -5661,9 +5636,9 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: undefined,
         operation: { op: 'increment', target: 'upvotes' }
       })
@@ -5673,7 +5648,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id,
         answer_id: undefined,
         comment_id: undefined,
@@ -5691,7 +5666,7 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
         answer_id,
         comment_id: new ObjectId().toString(),
@@ -5709,9 +5684,9 @@ describe('::applyVotesUpdateOperation', () => {
 
     await expect(
       Backend.applyVotesUpdateOperation({
-        username: dummyAppData.users[0].username,
+        username: dummyAppData.users[0]!.username,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id,
         operation: { op: 'increment', target: 'upvotes' }
       })
@@ -5727,9 +5702,9 @@ describe('::applyVotesUpdateOperation', () => {
       Backend.applyVotesUpdateOperation({
         username: 'does-not-exist',
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[0].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
         ),
         operation: { op: 'increment', target: 'upvotes' }
       })
@@ -5741,9 +5716,9 @@ describe('::applyVotesUpdateOperation', () => {
       Backend.applyVotesUpdateOperation({
         username: undefined,
         question_id: itemToStringId(dummyAppData.questions[0]),
-        answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+        answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
         comment_id: itemToStringId(
-          dummyAppData.questions[0].answerItems[0].commentItems[0]
+          dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
         ),
         operation: { op: 'decrement', target: 'upvotes' }
       })
@@ -5756,11 +5731,11 @@ describe('::applyVotesUpdateOperation', () => {
     expect.hasAssertions();
 
     const parameters = {
-      username: dummyAppData.users[0].username,
+      username: dummyAppData.users[0]!.username,
       question_id: itemToStringId(dummyAppData.questions[0]),
-      answer_id: itemToStringId(dummyAppData.questions[0].answerItems[0]),
+      answer_id: itemToStringId(dummyAppData.questions[0]!.answerItems[0]),
       comment_id: itemToStringId(
-        dummyAppData.questions[0].answerItems[0].commentItems[0]
+        dummyAppData.questions[0]!.answerItems[0]!.commentItems[0]
       )
     };
 
@@ -5797,10 +5772,7 @@ describe('::applyVotesUpdateOperation', () => {
       ],
       [
         { op: 'fake' } as unknown as Op,
-        ErrorMessage.InvalidFieldValue('operation', 'fake', [
-          'increment',
-          'decrement'
-        ])
+        ErrorMessage.InvalidFieldValue('operation', 'fake', ['increment', 'decrement'])
       ],
       [
         { op: 'increment' } as unknown as Op,
@@ -5812,10 +5784,7 @@ describe('::applyVotesUpdateOperation', () => {
       ],
       [
         { op: 'increment', target: null } as unknown as Op,
-        ErrorMessage.InvalidFieldValue('target', null as any, [
-          'upvotes',
-          'downvotes'
-        ])
+        ErrorMessage.InvalidFieldValue('target', null as any, ['upvotes', 'downvotes'])
       ],
       [
         { op: 'increment', target: 'nope' } as unknown as Op,

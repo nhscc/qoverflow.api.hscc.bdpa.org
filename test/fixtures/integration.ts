@@ -1,19 +1,18 @@
-import { name as pkgName } from 'package';
-import { toss } from 'toss-expression';
+/* eslint-disable unicorn/no-array-callback-reference */
+import createDebugLogger from 'debug';
 import { ObjectId } from 'mongodb';
-import debugFactory from 'debug';
-
-import { GuruMeditationError } from 'universe/error';
-import { getEnv } from 'universe/backend/env';
+import { toss } from 'toss-expression';
 
 import { toPublicUser } from 'universe/backend/db';
+import { getEnv } from 'universe/backend/env';
+import { SanityError } from 'universe/error';
 
 import { dummyAppData } from 'testverse/db';
 
+import { name as packageName } from 'package';
+
 import type { Promisable } from 'type-fest';
-
 import type { NewUser, PatchUser, PublicUser } from 'universe/backend/db';
-
 import type { NextApiHandlerMixin } from 'testverse/fixtures';
 
 // TODO: XXX: turn a lot of this into some kind of package; needs to be generic
@@ -29,7 +28,7 @@ import type { NextApiHandlerMixin } from 'testverse/fixtures';
 // TODO: XXX: document functionality: RUN_ONLY='#, ##,###,...'
 // TODO: XXX: "fail fast" should be optional
 
-const debug = debugFactory(`${pkgName}:integration-fixtures`);
+const debug = createDebugLogger(`${packageName}:integration-fixtures`);
 
 /**
  * A single test result stored in `memory`.
@@ -64,10 +63,12 @@ export type TestResultset = TestResult[] & {
    *
    * @param index Specify a previous test result index starting at 1 (not zero!)
    */
-  getResultAt<T = unknown>(index: number): TestResult<T>;
-  getResultAt<T = unknown>(index: number, prop: string): T;
-  getResultAt<T = unknown>(index: string): TestResult<T>;
-  getResultAt<T = unknown>(index: string, prop: string): T;
+  getResultAt<T = unknown>(this: void, index: number): TestResult<T>;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+  getResultAt<T = unknown>(this: void, index: number, property: string): T;
+  getResultAt<T = unknown>(this: void, index: string): TestResult<T>;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+  getResultAt<T = unknown>(this: void, index: string, property: string): T;
 };
 
 /**
@@ -83,7 +84,7 @@ export type TestFixture = {
    */
   id?: string;
   /**
-   * If `invisible == true`, the test is not counted when generating positional
+   * If `invisible === true`, the test is not counted when generating positional
    * fixtures.
    *
    * @default false
@@ -101,7 +102,7 @@ export type TestFixture = {
   /**
    * The handler under test.
    */
-  handler?: NextApiHandlerMixin;
+  pagesHandler?: NextApiHandlerMixin;
   /**
    * The method of the mock request.
    */
@@ -111,19 +112,21 @@ export type TestFixture = {
    */
   params?:
     | Record<string, string | string[]>
-    | ((prevResults: TestResultset) => Promisable<Record<string, string | string[]>>);
+    | ((
+        previousResults: TestResultset
+      ) => Promisable<Record<string, string | string[]>>);
   /**
    * The body of the mock request. Automatically stringified.
    */
   body?:
     | Record<string, unknown>
-    | ((prevResults: TestResultset) => Promisable<Record<string, unknown>>);
+    | ((previousResults: TestResultset) => Promisable<Record<string, unknown>>);
   /**
    * The expected shape of the HTTP response.
    */
   response?: {
     /**
-     * The expected response status. If status != 200, we expect `json.success`
+     * The expected response status. If status !== 200, we expect `json.success`
      * to be `false`. Otherwise, we expect it to be `true`. All status-related
      * checks are skipped if a callback is provided that returns `undefined`.
      */
@@ -131,7 +134,7 @@ export type TestFixture = {
       | number
       | ((
           status: number,
-          prevResults: TestResultset
+          previousResults: TestResultset
         ) => Promisable<number | undefined>);
     /**
      * The expected JSON response body. No need to test for `success` as that is
@@ -145,10 +148,8 @@ export type TestFixture = {
       | jest.AsymmetricMatcher
       | ((
           json: Record<string, unknown> | undefined,
-          prevResults: TestResultset
-        ) => Promisable<
-          Record<string, unknown> | jest.AsymmetricMatcher | undefined
-        >);
+          previousResults: TestResultset
+        ) => Promisable<Record<string, unknown> | jest.AsymmetricMatcher | undefined>);
   };
 };
 
@@ -159,23 +160,23 @@ export function getFixtures(
     .flatMap((n) => {
       const range = n
         .split('-')
-        .map((m) => parseInt(m))
+        .map((m) => Number.parseInt(m))
         .filter((m) => !Number.isNaN(m));
 
       const min = Math.min(...range);
       const max = Math.max(...range);
 
-      debug(`min: ${min}`);
-      debug(`max: ${max}`);
-      debug(`range: ${range}`);
+      debug('min: %O', min);
+      debug('max: %O', max);
+      debug('range: %O', range);
 
       if (!(0 < min && min <= max && max < Infinity)) {
-        throw new GuruMeditationError(`invalid RUN_ONLY range "${min}-${max}"`);
+        throw new SanityError(`invalid RUN_ONLY range "${min}-${max}"`);
       } else {
         const finalRange = Array.from({ length: max - min + 1 }).map(
           (_, ndx) => min + ndx
         );
-        debug(`final range: ${finalRange}`);
+        debug('final range: %O', finalRange);
         return finalRange;
       }
     })
@@ -187,7 +188,7 @@ export function getFixtures(
     {
       id: 'user-hillary',
       subject: 'create new user "the-hill"',
-      handler: api.v1.users,
+      pagesHandler: api.v1.users,
       method: 'POST',
       body: {
         username: 'the-hill',
@@ -212,7 +213,7 @@ export function getFixtures(
     },
     {
       subject: 'verify user the-hill can be fetched',
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       params: { username: 'the-hill' },
       method: 'GET',
       response: {
@@ -224,7 +225,7 @@ export function getFixtures(
     },
     {
       subject: 'verify the-hill appears in LIFO list of all users',
-      handler: api.v1.users,
+      pagesHandler: api.v1.users,
       method: 'GET',
       response: {
         status: 200,
@@ -240,7 +241,7 @@ export function getFixtures(
     },
     {
       subject: 'update the-hill',
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'PATCH',
       params: { username: 'the-hill' },
       body: {
@@ -253,7 +254,7 @@ export function getFixtures(
     {
       id: 'updated-user-hillary',
       subject: 'verify the-hill was updated',
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       params: { username: 'the-hill' },
       method: 'GET',
       response: {
@@ -263,7 +264,7 @@ export function getFixtures(
     },
     {
       subject: 'authenticate the-hill',
-      handler: api.v1.usersUsernameAuth,
+      pagesHandler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'the-hill' },
       body: {
@@ -273,7 +274,7 @@ export function getFixtures(
     },
     {
       subject: 'authenticate the-hill case-insensitively',
-      handler: api.v1.usersUsernameAuth,
+      pagesHandler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'the-hill' },
       body: {
@@ -283,7 +284,7 @@ export function getFixtures(
     },
     {
       subject: 'attempt to authenticate the-hill with bad key',
-      handler: api.v1.usersUsernameAuth,
+      pagesHandler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'the-hill' },
       body: { key: 'x' },
@@ -291,21 +292,21 @@ export function getFixtures(
     },
     {
       subject: 'attempt to delete a non-existent user',
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'DELETE',
       params: { username: 'does-not-exist' },
       response: { status: 404 }
     },
     {
-      subject: `delete ${dummyAppData.users[0].username}`,
-      handler: api.v1.usersUsername,
+      subject: `delete ${dummyAppData.users[0]!.username}`,
+      pagesHandler: api.v1.usersUsername,
       method: 'DELETE',
-      params: { username: dummyAppData.users[0].username },
+      params: { username: dummyAppData.users[0]!.username },
       response: { status: 200 }
     },
     {
-      subject: `verify ${dummyAppData.users[0].username} is not present in LIFO list of all users`,
-      handler: api.v1.users,
+      subject: `verify ${dummyAppData.users[0]!.username} is not present in LIFO list of all users`,
+      pagesHandler: api.v1.users,
       method: 'GET',
       response: {
         status: 200,
@@ -320,16 +321,16 @@ export function getFixtures(
       }
     },
     {
-      subject: `verify ${dummyAppData.users[0].username} cannot be fetched`,
-      handler: api.v1.usersUsername,
-      params: { username: dummyAppData.users[0].username },
+      subject: `verify ${dummyAppData.users[0]!.username} cannot be fetched`,
+      pagesHandler: api.v1.usersUsername,
+      params: { username: dummyAppData.users[0]!.username },
       method: 'GET',
       response: { status: 404 }
     },
     {
       id: 'user-obama',
       subject: 'create new user "baracko"',
-      handler: api.v1.users,
+      pagesHandler: api.v1.users,
       method: 'POST',
       body: {
         username: 'baracko',
@@ -354,7 +355,7 @@ export function getFixtures(
     },
     {
       subject: 'attempt to create another user named "baracko"',
-      handler: api.v1.users,
+      pagesHandler: api.v1.users,
       method: 'POST',
       body: {
         username: 'baracko',
@@ -366,7 +367,7 @@ export function getFixtures(
     },
     {
       subject: 'attempt to create a user with a duplicate email',
-      handler: api.v1.users,
+      pagesHandler: api.v1.users,
       method: 'POST',
       body: {
         username: 'xyz-abc',
@@ -378,7 +379,7 @@ export function getFixtures(
     },
     {
       subject: 'verify baracko can be fetched',
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       params: { username: 'baracko' },
       method: 'GET',
       response: {
@@ -390,7 +391,7 @@ export function getFixtures(
     },
     {
       subject: 'verify baracko appears in LIFO list of all users',
-      handler: api.v1.users,
+      pagesHandler: api.v1.users,
       method: 'GET',
       response: {
         status: 200,
@@ -407,7 +408,7 @@ export function getFixtures(
     },
     {
       subject: 'attempt to update baracko with bad salt',
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'PATCH',
       params: { username: 'baracko' },
       body: {
@@ -418,7 +419,7 @@ export function getFixtures(
     },
     {
       subject: 'attempt to update baracko with bad key',
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'PATCH',
       params: { username: 'baracko' },
       body: {
@@ -429,7 +430,7 @@ export function getFixtures(
     },
     {
       subject: 'attempt to update baracko with no key',
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'PATCH',
       params: { username: 'baracko' },
       body: {
@@ -441,14 +442,14 @@ export function getFixtures(
     {
       id: 'updated-user-obama',
       subject: 'verify baracko was updated',
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       params: { username: 'baracko' },
       method: 'GET',
       response: { status: 200 }
     },
     {
       subject: 'authenticate baracko',
-      handler: api.v1.usersUsernameAuth,
+      pagesHandler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'baracko' },
       body: {
@@ -458,7 +459,7 @@ export function getFixtures(
     },
     {
       subject: 'attempt to authenticate baracko with no key',
-      handler: api.v1.usersUsernameAuth,
+      pagesHandler: api.v1.usersUsernameAuth,
       method: 'POST',
       params: { username: 'baracko' },
       body: { key: undefined },
@@ -466,69 +467,69 @@ export function getFixtures(
     },
     {
       subject: 'attempt to fetch all users in LIFO order using bad after_id',
-      handler: api.v1.users,
+      pagesHandler: api.v1.users,
       method: 'GET',
       params: { after: 'bad-id' },
       response: { status: 400 }
     },
     {
       subject: 'attempt to fetch all users in LIFO order using non-existent after_id',
-      handler: api.v1.users,
+      pagesHandler: api.v1.users,
       method: 'GET',
       params: { after: new ObjectId().toString() },
       response: { status: 404 }
     },
     {
-      subject: `attempt to update deleted ${dummyAppData.users[0].username}`,
-      handler: api.v1.usersUsername,
-      params: { username: dummyAppData.users[0].username },
+      subject: `attempt to update deleted ${dummyAppData.users[0]!.username}`,
+      pagesHandler: api.v1.usersUsername,
+      params: { username: dummyAppData.users[0]!.username },
       method: 'PATCH',
       body: { email: 'some@new.email' },
       response: { status: 404 }
     },
     {
-      subject: `attempt to update ${dummyAppData.users[2].username} using a bad email`,
-      handler: api.v1.usersUsername,
-      params: { username: dummyAppData.users[2].username },
+      subject: `attempt to update ${dummyAppData.users[2]!.username} using a bad email`,
+      pagesHandler: api.v1.usersUsername,
+      params: { username: dummyAppData.users[2]!.username },
       method: 'PATCH',
       body: { email: 'bad email address' },
       response: { status: 400 }
     },
     {
-      subject: `attempt to update ${dummyAppData.users[2].username} using a too-long email`,
-      handler: api.v1.usersUsername,
-      params: { username: dummyAppData.users[2].username },
+      subject: `attempt to update ${dummyAppData.users[2]!.username} using a too-long email`,
+      pagesHandler: api.v1.usersUsername,
+      params: { username: dummyAppData.users[2]!.username },
       method: 'PATCH',
       body: { email: 'x'.repeat(getEnv().MAX_USER_EMAIL_LENGTH) + '@aol.com' },
       response: { status: 400 }
     },
     {
-      subject: `attempt to update ${dummyAppData.users[2].username} using a short non-hex salt`,
-      handler: api.v1.usersUsername,
-      params: { username: dummyAppData.users[2].username },
+      subject: `attempt to update ${dummyAppData.users[2]!.username} using a short non-hex salt`,
+      pagesHandler: api.v1.usersUsername,
+      params: { username: dummyAppData.users[2]!.username },
       method: 'PATCH',
       body: { salt: 'xyz' },
       response: { status: 400 }
     },
     {
-      subject: `attempt to update ${dummyAppData.users[2].username} using a short non-hex key`,
-      handler: api.v1.usersUsername,
-      params: { username: dummyAppData.users[2].username },
+      subject: `attempt to update ${dummyAppData.users[2]!.username} using a short non-hex key`,
+      pagesHandler: api.v1.usersUsername,
+      params: { username: dummyAppData.users[2]!.username },
       method: 'PATCH',
       body: { key: 'xyz' },
       response: { status: 400 }
     },
     {
-      subject: `"update" ${dummyAppData.users[2].username} with a no-op`,
-      handler: api.v1.usersUsername,
-      params: { username: dummyAppData.users[2].username },
+      subject: `"update" ${dummyAppData.users[2]!.username} with a no-op`,
+      pagesHandler: api.v1.usersUsername,
+      params: { username: dummyAppData.users[2]!.username },
       method: 'PATCH',
       body: {},
       response: { status: 200 }
     },
     {
       subject: 'fetch all users in LIFO order using pagination',
-      handler: api.v1.users,
+      pagesHandler: api.v1.users,
       method: 'GET',
       params: ({ getResultAt }) => {
         return { after: getResultAt<string>('updated-user-hillary', 'user.user_id') };
@@ -540,7 +541,7 @@ export function getFixtures(
     },
     {
       subject: "fetch all of baracko's answers",
-      handler: api.v1.usersUsernameAnswers,
+      pagesHandler: api.v1.usersUsernameAnswers,
       method: 'GET',
       params: { username: 'baracko' },
       response: {
@@ -550,7 +551,7 @@ export function getFixtures(
     },
     {
       subject: "fetch all of baracko's questions",
-      handler: api.v1.usersUsernameQuestions,
+      pagesHandler: api.v1.usersUsernameQuestions,
       method: 'GET',
       params: { username: 'baracko' },
       response: {
@@ -562,7 +563,7 @@ export function getFixtures(
     // * Incrementing/updating user points
     {
       subject: "increment baracko's points",
-      handler: api.v1.usersUsernamePoints,
+      pagesHandler: api.v1.usersUsernamePoints,
       method: 'PATCH',
       params: { username: 'baracko' },
       body: {
@@ -573,7 +574,7 @@ export function getFixtures(
     },
     {
       subject: "verify baracko's points #1",
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'GET',
       params: { username: 'baracko' },
       response: {
@@ -583,7 +584,7 @@ export function getFixtures(
     },
     {
       subject: "increment baracko's points again",
-      handler: api.v1.usersUsernamePoints,
+      pagesHandler: api.v1.usersUsernamePoints,
       method: 'PATCH',
       params: { username: 'baracko' },
       body: {
@@ -594,7 +595,7 @@ export function getFixtures(
     },
     {
       subject: "verify baracko's points #2",
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'GET',
       params: { username: 'baracko' },
       response: {
@@ -604,7 +605,7 @@ export function getFixtures(
     },
     {
       subject: "decrement baracko's points",
-      handler: api.v1.usersUsernamePoints,
+      pagesHandler: api.v1.usersUsernamePoints,
       method: 'PATCH',
       params: { username: 'baracko' },
       body: {
@@ -615,7 +616,7 @@ export function getFixtures(
     },
     {
       subject: "verify baracko's points #3",
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'GET',
       params: { username: 'baracko' },
       response: {
@@ -625,18 +626,18 @@ export function getFixtures(
     },
     {
       subject: "decrement baracko's points greatly",
-      handler: api.v1.usersUsernamePoints,
+      pagesHandler: api.v1.usersUsernamePoints,
       method: 'PATCH',
       params: { username: 'baracko' },
       body: {
         operation: 'decrement',
-        amount: 10000
+        amount: 10_000
       },
       response: { status: 200 }
     },
     {
       subject: "verify baracko's points #4",
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'GET',
       params: { username: 'baracko' },
       response: {
@@ -646,7 +647,7 @@ export function getFixtures(
     },
     {
       subject: "set baracko's points",
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'PATCH',
       params: { username: 'baracko' },
       body: {
@@ -656,7 +657,7 @@ export function getFixtures(
     },
     {
       subject: "verify baracko's points #5",
-      handler: api.v1.usersUsername,
+      pagesHandler: api.v1.usersUsername,
       method: 'GET',
       params: { username: 'baracko' },
       response: {
@@ -884,8 +885,7 @@ export function getFixtures(
       subject: "verify the-hill's vote on baracko's question comment #2"
     },
     {
-      subject:
-        "attempt to undo upvote on baracko's question comment as the-hill again"
+      subject: "attempt to undo upvote on baracko's question comment as the-hill again"
     },
     {
       subject: "downvote baracko's question comment as the-hill"
@@ -912,8 +912,7 @@ export function getFixtures(
       subject: "verify the-hill's vote on baracko's question comment #4"
     },
     {
-      subject:
-        "attempt to undo downvote on baracko's question comment as the-hill again"
+      subject: "attempt to undo downvote on baracko's question comment as the-hill again"
     },
     {
       subject: "re-upvote baracko's question comment as the-hill"
@@ -972,8 +971,7 @@ export function getFixtures(
       subject: "verify the-hill's vote on baracko's answer comment #4"
     },
     {
-      subject:
-        "attempt to undo downvote on baracko's answer comment as the-hill again"
+      subject: "attempt to undo downvote on baracko's answer comment as the-hill again"
     },
     {
       subject: "re-upvote baracko's answer comment as the-hill"
@@ -1027,8 +1025,7 @@ export function getFixtures(
       subject: 'search for questions matching a title case-insensitively'
     },
     {
-      subject:
-        'search for questions regex-matching a text fragment case-insensitively'
+      subject: 'search for questions regex-matching a text fragment case-insensitively'
     },
     {
       subject: 'search for questions matching a specific creator'
@@ -1166,10 +1163,10 @@ export function getFixtures(
 
   // TODO: XXX: ability to specify "depends" via index or name/id
 
-  const willSkipFixture = (fixture: typeof fixtures[number]) => {
+  const willSkipFixture = (fixture: (typeof fixtures)[number]) => {
     const shouldSkip =
       !fixture.subject ||
-      !fixture.handler ||
+      !fixture.pagesHandler ||
       !fixture.method ||
       (!fixture.invisible &&
         (!fixture.response ||
@@ -1188,8 +1185,8 @@ export function getFixtures(
 
       (fixture as TestFixture).displayIndex = !runOnly
         ? displayIndex
-        : runOnly.shift() ??
-          toss(new GuruMeditationError('ran out of RUN_ONLY indices'));
+        : (runOnly.shift() ??
+          toss(new SanityError('ran out of RUN_ONLY indices')));
 
       return true;
     }
@@ -1204,21 +1201,22 @@ export function getFixtures(
   const reqPerContrived = getEnv().REQUESTS_PER_CONTRIVED_ERROR;
 
   if (reqPerContrived) {
-    for (let i = 0, noSkipCount = 0; i < filteredFixtures.length; i++) {
-      if (!willSkipFixture(filteredFixtures[i])) {
-        if (noSkipCount++ % reqPerContrived == 0) {
-          filteredFixtures.splice(i, 0, {
-            displayIndex: -1,
-            subject: 'handle contrived',
-            handler: api.v1.users,
-            method: 'POST',
-            body: {},
-            response: {
-              status: 555,
-              json: { error: expect.stringContaining('contrived') }
-            }
-          });
-        }
+    for (let index = 0, noSkipCount = 0; index < filteredFixtures.length; index++) {
+      if (
+        !willSkipFixture(filteredFixtures[index]!) &&
+        noSkipCount++ % reqPerContrived === 0
+      ) {
+        filteredFixtures.splice(index, 0, {
+          displayIndex: -1,
+          subject: 'handle contrived',
+          pagesHandler: api.v1.users,
+          method: 'POST',
+          body: {},
+          response: {
+            status: 555,
+            json: { error: expect.stringContaining('contrived') }
+          }
+        });
       }
     }
   }

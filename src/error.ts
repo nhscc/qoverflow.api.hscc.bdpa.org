@@ -1,13 +1,16 @@
-import { ErrorMessage as NamedErrorMessage } from 'named-app-errors';
+import { ErrorMessage as UpstreamErrorMessage } from '@-xun/api-strategy/error';
 
-export * from 'named-app-errors';
-
+/* eslint-disable @typescript-eslint/no-base-to-string */
 /**
  * A collection of possible error and warning messages.
  */
 /* istanbul ignore next */
 export const ErrorMessage = {
-  ...NamedErrorMessage,
+  GuruMeditation: UpstreamErrorMessage.GuruMeditation,
+  ItemNotFound: (item: unknown, itemName: string) =>
+    item ? `${itemName} "${String(item)}" was not found` : 'item was not found',
+  InvalidItem: (item: unknown, itemName: string) =>
+    `invalid ${itemName}${item !== undefined ? ` "${String(item)}"` : ''}`,
   DuplicateFieldValue: (property: string) =>
     `an item with that "${property}" already exists`,
   InvalidFieldValue: (
@@ -38,7 +41,8 @@ export const ErrorMessage = {
         ? `invalid or illegal value "${value}"`
         : 'a missing, invalid, or illegal value'
     }${validValues ? `. Valid values: ${validValues.join(', ')}` : ''}`,
-  InvalidJSON: () => 'encountered invalid JSON',
+  InvalidJSON: (property?: string) =>
+    'encountered invalid JSON' + (property ? ` in property \`${property}\`` : ''),
   InvalidNumberValue: (
     property: string,
     min: number | string,
@@ -48,7 +52,7 @@ export const ErrorMessage = {
     isArray = false
   ) =>
     `${isArray ? `each \`${property}\` element` : `\`${property}\``} must be a${
-      type == 'integer' ? 'n integer' : ' number'
+      type === 'integer' ? 'n integer' : ' number'
     } ${max ? `between ${min} and ${max} (inclusive)` : `>= ${min}`}${
       nullable ? ' or null' : ''
     }`,
@@ -61,19 +65,19 @@ export const ErrorMessage = {
     isArray = false
   ) =>
     `${isArray ? `each \`${property}\` element` : `\`${property}\``} must be a${
-      syntax == 'alphanumeric'
+      syntax === 'alphanumeric'
         ? 'n alphanumeric'
-        : syntax == 'hexadecimal'
-        ? ' hexadecimal'
-        : ''
+        : syntax === 'hexadecimal'
+          ? ' hexadecimal'
+          : ''
     } ${
       max
         ? `string between ${min} and ${max} ${
-            syntax == 'bytes' ? 'byte' : 'character'
+            syntax === 'bytes' ? 'byte' : 'character'
           }s (inclusive)`
-        : `${min} ${syntax == 'bytes' ? 'byte' : 'character'} string`
+        : `${min} ${syntax === 'bytes' ? 'byte' : 'character'} string`
     }${nullable ? ' or null' : ''}`,
-  InvalidObjectId: (id: string) => `invalid id "${id}"`,
+  InvalidObjectId: (id: string) => `invalid ObjectId "${id}"`,
   UnknownField: (property: string) =>
     `encountered unknown or illegal field \`${property}\``,
   UnknownSpecifier: (property: string, sub = false) =>
@@ -108,3 +112,14 @@ export const ErrorMessage = {
   IllegalOperation: () =>
     'this user is not authorized to execute operations on this item'
 };
+
+export {
+  ApiError,
+  AuthError,
+  ClientValidationError,
+  ForbiddenError,
+  NotFoundError,
+  NotImplementedError,
+  SanityError,
+  ServerValidationError
+} from '@-xun/api-strategy/error';

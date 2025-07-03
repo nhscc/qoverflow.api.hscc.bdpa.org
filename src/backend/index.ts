@@ -1,7 +1,9 @@
+import { itemExists, itemToObjectId } from '@-xun/mongo-item';
+import { getDb } from '@-xun/mongo-schema';
 import { MongoServerError, ObjectId } from 'mongodb';
 import { toss } from 'toss-expression';
 
-import { getEnv } from 'universe/backend/env';
+// TODO: replace validation logic with ArkType!
 
 import {
   addAnswerToDb,
@@ -29,14 +31,16 @@ import {
   voterStatusProjection
 } from 'universe/backend/db';
 
+import { getEnv } from 'universe/backend/env';
+
 import {
+  AuthError,
   ClientValidationError,
   ErrorMessage,
-  InvalidItemError,
-  ItemNotFoundError,
-  ValidationError,
-  NotAuthorizedError
+  NotFoundError
 } from 'universe/error';
+
+import type { Document } from 'mongodb';
 
 import type {
   AnswerId,
@@ -69,12 +73,6 @@ import type {
   VoterStatusResult,
   VotesUpdateOperation
 } from 'universe/backend/db';
-
-import { isPlainObject } from 'multiverse/is-plain-object';
-import { getDb } from 'multiverse/mongo-schema';
-import { itemExists, itemToObjectId } from 'multiverse/mongo-item';
-
-import type { Document } from 'mongodb';
 
 const emailRegex = /^[\w%+.-]+@[\d.a-z-]+\.[a-z]{2,}$/i;
 const usernameRegex = /^[\w-]+$/;
@@ -143,10 +141,10 @@ export type SorterUpdateAggregationOp = {
 function validateVotesUpdateOperation(
   operation: unknown
 ): asserts operation is VotesUpdateOperation {
-  const rawOperation = operation as VotesUpdateOperation;
+  const rawOperation = operation as Partial<VotesUpdateOperation>;
 
   if (!rawOperation.op || !['increment', 'decrement'].includes(rawOperation.op)) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidFieldValue('operation', rawOperation.op, [
         'increment',
         'decrement'
@@ -154,11 +152,8 @@ function validateVotesUpdateOperation(
     );
   }
 
-  if (
-    !rawOperation.target ||
-    !['upvotes', 'downvotes'].includes(rawOperation.target)
-  ) {
-    throw new ValidationError(
+  if (!rawOperation.target || !['upvotes', 'downvotes'].includes(rawOperation.target)) {
+    throw new ClientValidationError(
       ErrorMessage.InvalidFieldValue('target', rawOperation.target, [
         'upvotes',
         'downvotes'
@@ -172,7 +167,7 @@ function validateVotesUpdateOperation(
  */
 function validateUsername(username: unknown): username is Username {
   return (
-    typeof username == 'string' &&
+    typeof username === 'string' &&
     usernameRegex.test(username) &&
     username.length >= getEnv().MIN_USER_NAME_LENGTH &&
     username.length <= getEnv().MAX_USER_NAME_LENGTH
@@ -186,8 +181,8 @@ function validateUserData(
   data: NewUser | PatchUser | undefined,
   { required }: { required: boolean }
 ): asserts data is NewUser | PatchUser {
-  if (!isPlainObject(data)) {
-    throw new ValidationError(ErrorMessage.InvalidJSON());
+  if (!isRecord(data)) {
+    throw new ClientValidationError(ErrorMessage.InvalidJSON());
   }
 
   const {
@@ -198,13 +193,13 @@ function validateUserData(
   } = getEnv();
 
   if (
-    (required || (!required && data.email !== undefined)) &&
-    (typeof data.email != 'string' ||
+    (required || data.email !== undefined) &&
+    (typeof data.email !== 'string' ||
       !emailRegex.test(data.email) ||
       data.email.length < MIN_USER_EMAIL_LENGTH ||
       data.email.length > MAX_USER_EMAIL_LENGTH)
   ) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidStringLength(
         'email',
         MIN_USER_EMAIL_LENGTH,
@@ -215,23 +210,23 @@ function validateUserData(
   }
 
   if (
-    (required || (!required && data.salt !== undefined)) &&
-    (typeof data.salt != 'string' ||
+    (required || data.salt !== undefined) &&
+    (typeof data.salt !== 'string' ||
       !hexadecimalRegex.test(data.salt) ||
-      data.salt.length != USER_SALT_LENGTH)
+      data.salt.length !== USER_SALT_LENGTH)
   ) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidStringLength('salt', USER_SALT_LENGTH, null, 'hexadecimal')
     );
   }
 
   if (
-    (required || (!required && data.key !== undefined)) &&
-    (typeof data.key != 'string' ||
+    (required || data.key !== undefined) &&
+    (typeof data.key !== 'string' ||
       !hexadecimalRegex.test(data.key) ||
-      data.key.length != USER_KEY_LENGTH)
+      data.key.length !== USER_KEY_LENGTH)
   ) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidStringLength('key', USER_KEY_LENGTH, null, 'hexadecimal')
     );
   }
@@ -244,8 +239,8 @@ function validateQuestionData(
   data: NewQuestion | PatchQuestion | undefined,
   { required }: { required: boolean }
 ): asserts data is NewQuestion | PatchQuestion {
-  if (!isPlainObject(data)) {
-    throw new ValidationError(ErrorMessage.InvalidJSON());
+  if (!isRecord(data)) {
+    throw new ClientValidationError(ErrorMessage.InvalidJSON());
   }
 
   const {
@@ -254,23 +249,23 @@ function validateQuestionData(
   } = getEnv();
 
   if (
-    (required || (!required && data.title !== undefined)) &&
-    (typeof data.title != 'string' ||
+    (required || data.title !== undefined) &&
+    (typeof data.title !== 'string' ||
       data.title.length < 1 ||
       data.title.length > maxTitleLength)
   ) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidStringLength('title', 1, maxTitleLength, 'string')
     );
   }
 
   if (
-    (required || (!required && data.text !== undefined)) &&
-    (typeof data.text != 'string' ||
+    (required || data.text !== undefined) &&
+    (typeof data.text !== 'string' ||
       data.text.length < 1 ||
       data.text.length > maxBodyLength)
   ) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
     );
   }
@@ -283,19 +278,19 @@ function validateAnswerData(
   data: NewAnswer | PatchAnswer | undefined,
   { required }: { required: boolean }
 ): asserts data is NewAnswer | PatchAnswer {
-  if (!isPlainObject(data)) {
-    throw new ValidationError(ErrorMessage.InvalidJSON());
+  if (!isRecord(data)) {
+    throw new ClientValidationError(ErrorMessage.InvalidJSON());
   }
 
   const { MAX_ANSWER_BODY_LENGTH_BYTES: maxBodyLength } = getEnv();
 
   if (
-    (required || (!required && data.text !== undefined)) &&
-    (typeof data.text != 'string' ||
+    (required || data.text !== undefined) &&
+    (typeof data.text !== 'string' ||
       data.text.length < 1 ||
       data.text.length > maxBodyLength)
   ) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
     );
   }
@@ -311,12 +306,12 @@ export async function getAllUsers({
   const afterId = after_id ? itemToObjectId<UserId>(after_id) : undefined;
 
   if (afterId && !(await itemExists(userDb, afterId))) {
-    throw new ItemNotFoundError(after_id, 'user_id');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(after_id, 'user_id'));
   }
 
   return (
     userDb
-      // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument
+      // eslint-disable-next-line unicorn/no-array-method-this-argument
       .find<PublicUser>(afterId ? { _id: { $lt: afterId } } : {}, {
         projection: publicUserProjection,
         limit: getEnv().RESULTS_PER_PAGE,
@@ -332,7 +327,7 @@ export async function getUser({
   username: Username | undefined;
 }): Promise<PublicUser> {
   if (!username) {
-    throw new InvalidItemError('username', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('username', 'parameter'));
   }
 
   const db = await getDb({ name: 'app' });
@@ -341,7 +336,7 @@ export async function getUser({
   return (
     (await userDb
       .find<PublicUser>({ username }, { projection: publicUserProjection })
-      .next()) || toss(new ItemNotFoundError(username, 'user'))
+      .next()) || toss(new NotFoundError(ErrorMessage.ItemNotFound(username, 'user')))
   );
 }
 
@@ -353,7 +348,7 @@ export async function getUserQuestions({
   after_id: string | undefined;
 }): Promise<PublicQuestion[]> {
   if (!username) {
-    throw new InvalidItemError('username', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('username', 'parameter'));
   }
 
   const db = await getDb({ name: 'app' });
@@ -363,19 +358,18 @@ export async function getUserQuestions({
 
   const { questionIds } =
     (await userDb
-      .find<{ questionIds: InternalUser['questionIds'] }>(
-        { username },
-        { projection: { questionIds: true } }
-      )
-      .next()) || toss(new ItemNotFoundError(username, 'user'));
+      .find<{
+        questionIds: InternalUser['questionIds'];
+      }>({ username }, { projection: { questionIds: true } })
+      .next()) || toss(new NotFoundError(ErrorMessage.ItemNotFound(username, 'user')));
 
   let offset: number | null = null;
 
   if (afterId) {
     const afterIdIndex = questionIds.findIndex((q) => q.equals(afterId));
 
-    if (afterIdIndex < 0) {
-      throw new ItemNotFoundError(afterId, 'question_id');
+    if (afterIdIndex === -1) {
+      throw new NotFoundError(ErrorMessage.ItemNotFound(afterId, 'question_id'));
     }
 
     offset = afterIdIndex;
@@ -404,7 +398,7 @@ export async function getUserAnswers({
   after_id: string | undefined;
 }): Promise<PublicAnswer[]> {
   if (!username) {
-    throw new InvalidItemError('username', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('username', 'parameter'));
   }
 
   const db = await getDb({ name: 'app' });
@@ -413,19 +407,18 @@ export async function getUserAnswers({
 
   const { answerIds: answerIdTuples } =
     (await userDb
-      .find<{ answerIds: InternalUser['answerIds'] }>(
-        { username },
-        { projection: { answerIds: true } }
-      )
-      .next()) || toss(new ItemNotFoundError(username, 'user'));
+      .find<{
+        answerIds: InternalUser['answerIds'];
+      }>({ username }, { projection: { answerIds: true } })
+      .next()) || toss(new NotFoundError(ErrorMessage.ItemNotFound(username, 'user')));
 
   let offset: number | null = null;
 
   if (afterId) {
     const afterIdIndex = answerIdTuples.findIndex(([, a]) => a.equals(afterId));
 
-    if (afterIdIndex < 0) {
-      throw new ItemNotFoundError(afterId, 'answer_id');
+    if (afterIdIndex === -1) {
+      throw new NotFoundError(ErrorMessage.ItemNotFound(afterId, 'answer_id'));
     }
 
     offset = afterIdIndex;
@@ -459,7 +452,7 @@ export async function createUser({
   const { MAX_USER_NAME_LENGTH, MIN_USER_NAME_LENGTH } = getEnv();
 
   if (!validateUsername(data.username)) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidStringLength(
         'username',
         MIN_USER_NAME_LENGTH,
@@ -472,8 +465,8 @@ export async function createUser({
   const { email, username, key, salt, ...rest } = data as Required<NewUser>;
   const restKeys = Object.keys(rest);
 
-  if (restKeys.length != 0) {
-    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  if (restKeys.length !== 0) {
+    throw new ClientValidationError(ErrorMessage.UnknownField(restKeys[0]!));
   }
 
   const db = await getDb({ name: 'app' });
@@ -496,14 +489,14 @@ export async function createUser({
     await userDb.insertOne(latestUser);
   } catch (error) {
     /* istanbul ignore else */
-    if (error instanceof MongoServerError && error.code == 11_000) {
+    if (error instanceof MongoServerError && error.code === 11_000) {
       if (error.keyPattern?.username !== undefined) {
-        throw new ValidationError(ErrorMessage.DuplicateFieldValue('username'));
+        throw new ClientValidationError(ErrorMessage.DuplicateFieldValue('username'));
       }
 
       /* istanbul ignore else */
       if (error.keyPattern?.email !== undefined) {
-        throw new ValidationError(ErrorMessage.DuplicateFieldValue('email'));
+        throw new ClientValidationError(ErrorMessage.DuplicateFieldValue('email'));
       }
     }
 
@@ -522,7 +515,7 @@ export async function updateUser({
   data: PatchUser | undefined;
 }): Promise<void> {
   if (!username) {
-    throw new InvalidItemError('username', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('username', 'parameter'));
   }
 
   // ? Optimization
@@ -530,22 +523,22 @@ export async function updateUser({
 
   validateUserData(data, { required: false });
 
-  const { email, key, salt, points, ...rest } = data as Required<PatchUser>;
+  const { email, key, salt, points, ...rest } = data;
   const restKeys = Object.keys(rest);
   let pointsUpdateOp: PointsUpdateOperation | null = null;
 
-  if (restKeys.length != 0) {
-    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  if (restKeys.length !== 0) {
+    throw new ClientValidationError(ErrorMessage.UnknownField(restKeys[0]!));
   }
 
   if (points !== undefined) {
-    if (isPlainObject(points)) {
-      if (typeof points.amount != 'number' || points.amount < 0) {
-        throw new ValidationError(
+    if (isRecord(points)) {
+      if (typeof points.amount !== 'number' || points.amount < 0) {
+        throw new ClientValidationError(
           ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
         );
-      } else if (!['increment', 'decrement'].includes(points.op as string)) {
-        throw new ValidationError(
+      } else if (!['increment', 'decrement'].includes(points.op!)) {
+        throw new ClientValidationError(
           ErrorMessage.InvalidFieldValue('operation', points.op, [
             'increment',
             'decrement'
@@ -556,13 +549,13 @@ export async function updateUser({
       const { amount: _, op: __, ...restOp } = points;
       const restOpKeys = Object.keys(restOp);
 
-      if (restOpKeys.length != 0) {
-        throw new ValidationError(ErrorMessage.UnknownField(restOpKeys[0]));
+      if (restOpKeys.length !== 0) {
+        throw new ClientValidationError(ErrorMessage.UnknownField(restOpKeys[0]!));
       }
 
       pointsUpdateOp = points as PointsUpdateOperation;
-    } else if (typeof points != 'number' || points < 0) {
-      throw new ValidationError(
+    } else if (typeof points !== 'number' || points < 0) {
+      throw new ClientValidationError(
         ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')
       );
     }
@@ -581,13 +574,13 @@ export async function updateUser({
           ...(email ? { email } : {}),
           ...(salt ? { salt: salt.toLowerCase() } : {}),
           ...(key ? { key: key.toLowerCase() } : {}),
-          ...(typeof points == 'number' ? { points } : {})
+          ...(typeof points === 'number' ? { points } : {})
         },
         ...(pointsUpdateOp
           ? {
               $inc: {
                 points:
-                  pointsUpdateOp.op == 'decrement'
+                  pointsUpdateOp.op === 'decrement'
                     ? -pointsUpdateOp.amount
                     : pointsUpdateOp.amount
               }
@@ -597,15 +590,15 @@ export async function updateUser({
     );
 
     if (!result.matchedCount) {
-      throw new ItemNotFoundError(username, 'user');
+      throw new NotFoundError(ErrorMessage.ItemNotFound(username, 'user'));
     }
   } catch (error) {
     if (
       error instanceof MongoServerError &&
-      error.code == 11_000 &&
+      error.code === 11_000 &&
       error.keyPattern?.email !== undefined
     ) {
-      throw new ValidationError(ErrorMessage.DuplicateFieldValue('email'));
+      throw new ClientValidationError(ErrorMessage.DuplicateFieldValue('email'));
     }
 
     throw error;
@@ -618,7 +611,7 @@ export async function deleteUser({
   username: Username | undefined;
 }): Promise<void> {
   if (!username) {
-    throw new InvalidItemError('username', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('username', 'parameter'));
   }
 
   const db = await getDb({ name: 'app' });
@@ -626,7 +619,7 @@ export async function deleteUser({
   const result = await userDb.deleteOne({ username });
 
   if (!result.deletedCount) {
-    throw new ItemNotFoundError(username, 'user');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(username, 'user'));
   }
 }
 
@@ -653,7 +646,7 @@ export async function getUserMessages({
   after_id: string | undefined;
 }): Promise<PublicMail[]> {
   if (!username) {
-    throw new InvalidItemError('username', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('username', 'parameter'));
   }
 
   const db = await getDb({ name: 'app' });
@@ -662,11 +655,11 @@ export async function getUserMessages({
   const afterId = after_id ? itemToObjectId<MailId>(after_id) : undefined;
 
   if (!(await itemExists(userDb, { key: 'username', id: username }))) {
-    throw new ItemNotFoundError(username, 'user');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(username, 'user'));
   }
 
   if (afterId && !(await itemExists(mailDb, afterId))) {
-    throw new ItemNotFoundError(after_id, 'mail_id');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(after_id, 'mail_id'));
   }
 
   return mailDb
@@ -689,23 +682,23 @@ export async function createMessage({
 }: {
   data: NewMail | undefined;
 }): Promise<PublicMail> {
-  if (!isPlainObject(data)) {
-    throw new ValidationError(ErrorMessage.InvalidJSON());
+  if (!isRecord(data)) {
+    throw new ClientValidationError(ErrorMessage.InvalidJSON());
   }
 
   const { sender, receiver, subject, text, ...rest } = data as Required<NewMail>;
   const restKeys = Object.keys(rest);
 
-  if (restKeys.length != 0) {
-    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  if (restKeys.length !== 0) {
+    throw new ClientValidationError(ErrorMessage.UnknownField(restKeys[0]!));
   }
 
   if (!receiver) {
-    throw new ValidationError(ErrorMessage.InvalidFieldValue('receiver'));
+    throw new ClientValidationError(ErrorMessage.InvalidFieldValue('receiver'));
   }
 
   if (!sender) {
-    throw new ValidationError(ErrorMessage.InvalidFieldValue('sender'));
+    throw new ClientValidationError(ErrorMessage.InvalidFieldValue('sender'));
   }
 
   const {
@@ -713,14 +706,14 @@ export async function createMessage({
     MAX_MAIL_BODY_LENGTH_BYTES: maxBodyLength
   } = getEnv();
 
-  if (typeof subject != 'string' || !subject || subject.length > maxSubjectLength) {
-    throw new ValidationError(
+  if (typeof subject !== 'string' || !subject || subject.length > maxSubjectLength) {
+    throw new ClientValidationError(
       ErrorMessage.InvalidStringLength('subject', 1, maxSubjectLength, 'string')
     );
   }
 
-  if (typeof text != 'string' || !text || text.length > maxBodyLength) {
-    throw new ValidationError(
+  if (typeof text !== 'string' || !text || text.length > maxBodyLength) {
+    throw new ClientValidationError(
       ErrorMessage.InvalidStringLength('text', 1, maxBodyLength, 'string')
     );
   }
@@ -730,11 +723,11 @@ export async function createMessage({
   const userDb = db.collection<InternalUser>('users');
 
   if (!(await itemExists(userDb, { key: 'username', id: receiver }))) {
-    throw new ItemNotFoundError(receiver, 'user');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(receiver, 'user'));
   }
 
   if (!(await itemExists(userDb, { key: 'username', id: sender }))) {
-    throw new ItemNotFoundError(sender, 'user');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(sender, 'user'));
   }
 
   const latestMail: InternalMail = {
@@ -758,7 +751,7 @@ export async function deleteMessage({
   mail_id: string | undefined;
 }): Promise<void> {
   if (!mail_id) {
-    throw new InvalidItemError('mail_id', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('mail_id', 'parameter'));
   }
 
   const db = await getDb({ name: 'app' });
@@ -766,7 +759,7 @@ export async function deleteMessage({
   const result = await mailDb.deleteOne({ _id: itemToObjectId(mail_id) });
 
   if (!result.deletedCount) {
-    throw new ItemNotFoundError(mail_id, 'mail message');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(mail_id, 'mail message'));
   }
 }
 
@@ -779,6 +772,7 @@ export async function searchQuestions({
   after_id: string | undefined;
   match: {
     [specifier: string]:
+      | null
       | string
       | number
       | boolean
@@ -793,24 +787,24 @@ export async function searchQuestions({
   // ? Validate sort parameter
   if (
     sort !== undefined &&
-    (typeof sort != 'string' || !['u', 'uvc', 'uvac'].includes(sort))
+    (typeof sort !== 'string' || !['u', 'uvc', 'uvac'].includes(sort))
   ) {
-    throw new ValidationError(ErrorMessage.InvalidItem('nope', 'sort parameter'));
+    throw new ClientValidationError(ErrorMessage.InvalidItem('nope', 'sort parameter'));
   }
 
   const { RESULTS_PER_PAGE } = getEnv();
   const afterId = after_id ? itemToObjectId<QuestionId>(after_id) : undefined;
 
   // ? Initial matcher validation
-  if (!isPlainObject(match)) {
-    throw new ValidationError(ErrorMessage.InvalidMatcher('match'));
-  } else if (!isPlainObject(regexMatch)) {
-    throw new ValidationError(ErrorMessage.InvalidMatcher('regexMatch'));
+  if (!isRecord(match)) {
+    throw new ClientValidationError(ErrorMessage.InvalidMatcher('match'));
+  } else if (!isRecord(regexMatch)) {
+    throw new ClientValidationError(ErrorMessage.InvalidMatcher('regexMatch'));
   }
 
   // ? Handle aliasing/proxying
   [regexMatch, match].forEach((matchSpec) => {
-    if (typeof matchSpec.title == 'string') {
+    if (typeof matchSpec.title === 'string') {
       matchSpec['title-lowercase'] = matchSpec.title.toLowerCase();
       delete matchSpec.title;
     }
@@ -824,11 +818,11 @@ export async function searchQuestions({
   const sortByField =
     sort === undefined
       ? '_id'
-      : sort == 'u'
-      ? 'upvotes'
-      : sort == 'uvc'
-      ? 'sorter.uvc'
-      : 'sorter.uvac';
+      : sort === 'u'
+        ? 'upvotes'
+        : sort === 'uvc'
+          ? 'sorter.uvc'
+          : 'sorter.uvac';
 
   let afterCriterion = undefined;
 
@@ -841,29 +835,29 @@ export async function searchQuestions({
     if (afterItem) {
       afterCriterion = afterItem[sortByField];
     } else {
-      throw new ItemNotFoundError(after_id, 'question_id');
+      throw new NotFoundError(ErrorMessage.ItemNotFound(after_id, 'question_id'));
     }
   }
 
   // ? Validate the match object
   for (const [key, val] of Object.entries(match)) {
     if (!matchableStrings.has(key)) {
-      throw new ValidationError(ErrorMessage.UnknownSpecifier(key));
+      throw new ClientValidationError(ErrorMessage.UnknownSpecifier(key));
     }
 
-    if (isPlainObject(val)) {
+    if (isRecord(val)) {
       let valNotEmpty = false;
 
       for (const [subkey, subval] of Object.entries(val)) {
-        if (subkey == '$or') {
-          if (!Array.isArray(subval) || subval.length != 2) {
-            throw new ValidationError(ErrorMessage.InvalidOrSpecifier());
+        if (subkey === '$or') {
+          if (!Array.isArray(subval) || subval.length !== 2) {
+            throw new ClientValidationError(ErrorMessage.InvalidOrSpecifier());
           }
 
           if (
             subval.every((sv, ndx) => {
-              if (!isPlainObject(sv)) {
-                throw new ValidationError(
+              if (!isRecord(sv)) {
+                throw new ClientValidationError(
                   ErrorMessage.InvalidOrSpecifierNonObject(ndx)
                 );
               }
@@ -871,21 +865,21 @@ export async function searchQuestions({
               const entries = Object.entries(sv);
 
               if (!entries.length) return false;
-              if (entries.length != 1) {
-                throw new ValidationError(
+              if (entries.length !== 1) {
+                throw new ClientValidationError(
                   ErrorMessage.InvalidOrSpecifierBadLength(ndx)
                 );
               }
 
               entries.forEach(([k, v]) => {
                 if (!matchableSubStrings.has(k)) {
-                  throw new ValidationError(
+                  throw new ClientValidationError(
                     ErrorMessage.InvalidOrSpecifierInvalidKey(ndx, k)
                   );
                 }
 
-                if (typeof v != 'number') {
-                  throw new ValidationError(
+                if (typeof v !== 'number') {
+                  throw new ClientValidationError(
                     ErrorMessage.InvalidOrSpecifierInvalidValueType(ndx, k)
                   );
                 }
@@ -899,11 +893,11 @@ export async function searchQuestions({
         } else {
           valNotEmpty = true;
           if (!matchableSubStrings.has(subkey)) {
-            throw new ValidationError(ErrorMessage.UnknownSpecifier(subkey, true));
+            throw new ClientValidationError(ErrorMessage.UnknownSpecifier(subkey, true));
           }
 
-          if (typeof subval != 'number') {
-            throw new ValidationError(
+          if (typeof subval !== 'number') {
+            throw new ClientValidationError(
               ErrorMessage.InvalidSpecifierValueType(subkey, 'a number', true)
             );
           }
@@ -911,14 +905,11 @@ export async function searchQuestions({
       }
 
       if (!valNotEmpty)
-        throw new ValidationError(
+        throw new ClientValidationError(
           ErrorMessage.InvalidSpecifierValueType(key, 'a non-empty object')
         );
-    } else if (
-      val !== null &&
-      !['number', 'string', 'boolean'].includes(typeof val)
-    ) {
-      throw new ValidationError(
+    } else if (val !== null && !['number', 'string', 'boolean'].includes(typeof val)) {
+      throw new ClientValidationError(
         ErrorMessage.InvalidSpecifierValueType(
           key,
           'a number, string, boolean, or sub-specifier object'
@@ -930,11 +921,11 @@ export async function searchQuestions({
   // ? Validate the regexMatch object
   for (const [key, val] of Object.entries(regexMatch)) {
     if (!regexMatchableStrings.has(key)) {
-      throw new ValidationError(ErrorMessage.UnknownSpecifier(key));
+      throw new ClientValidationError(ErrorMessage.UnknownSpecifier(key));
     }
 
-    if (!val || typeof val != 'string') {
-      throw new ValidationError(ErrorMessage.InvalidRegexString(key));
+    if (!val || typeof val !== 'string') {
+      throw new ClientValidationError(ErrorMessage.InvalidRegexString(key));
     }
   }
 
@@ -950,7 +941,7 @@ export async function searchQuestions({
 
   // ? Separate out the $or sub-specifiers for special treatment
   Object.entries(match).forEach(([spec, val]) => {
-    if (isPlainObject(val)) {
+    if (isRecord(val)) {
       const obj = val as { $or?: unknown };
 
       if (obj.$or) {
@@ -963,7 +954,8 @@ export async function searchQuestions({
       }
 
       // ? Delete useless matchers if they've been emptied out
-      if (obj && !Object.keys(obj).length) delete match[spec];
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      if (!Object.keys(obj).length) delete match[spec];
     }
   });
 
@@ -972,7 +964,7 @@ export async function searchQuestions({
       ? {
           [sortByField]: {
             // ? "$lte" for all fields that are not guaranteed to be unique!
-            [sortByField == '_id' ? '$lt' : '$lte']: afterCriterion
+            [sortByField === '_id' ? '$lt' : '$lte']: afterCriterion
           }
         }
       : {}),
@@ -987,11 +979,11 @@ export async function searchQuestions({
       $sort: {
         [sortByField]: -1,
         // ? Ensure stable sorting when sortByField values are not unique
-        ...(sortByField != '_id' ? { _id: -1 } : {})
+        ...(sortByField !== '_id' ? { _id: -1 } : {})
       }
     },
     // ? If we sorted by a non-unique field...
-    ...(afterId && sortByField != '_id'
+    ...(afterId && sortByField !== '_id'
       ? [
           {
             $match: {
@@ -1022,7 +1014,9 @@ export async function getQuestion({
   question_id: string | undefined;
 }): Promise<PublicQuestion> {
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   const db = await getDb({ name: 'app' });
@@ -1034,7 +1028,8 @@ export async function getQuestion({
         { _id: itemToObjectId<QuestionId>(question_id) },
         { projection: publicQuestionProjection }
       )
-      .next()) || toss(new ItemNotFoundError(question_id, 'question'))
+      .next()) ||
+    toss(new NotFoundError(ErrorMessage.ItemNotFound(question_id, 'question')))
   );
 }
 
@@ -1048,12 +1043,12 @@ export async function createQuestion({
   const { creator, title, text, ...rest } = data as Required<NewQuestion>;
   const restKeys = Object.keys(rest);
 
-  if (restKeys.length != 0) {
-    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  if (restKeys.length !== 0) {
+    throw new ClientValidationError(ErrorMessage.UnknownField(restKeys[0]!));
   }
 
   if (!creator) {
-    throw new ValidationError(ErrorMessage.InvalidFieldValue('creator'));
+    throw new ClientValidationError(ErrorMessage.InvalidFieldValue('creator'));
   }
 
   const db = await getDb({ name: 'app' });
@@ -1061,7 +1056,7 @@ export async function createQuestion({
   const questionDb = db.collection<InternalQuestion>('questions');
 
   if (!(await itemExists(userDb, { key: 'username', id: creator }))) {
-    throw new ItemNotFoundError(creator, 'user');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(creator, 'user'));
   }
 
   const latestQuestion: InternalQuestion = {
@@ -1106,7 +1101,9 @@ export async function updateQuestion({
   data: PatchQuestion | undefined;
 }): Promise<void> {
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   // ? Optimization
@@ -1114,28 +1111,27 @@ export async function updateQuestion({
 
   validateQuestionData(data, { required: false });
 
-  const { title, text, status, upvotes, downvotes, views, ...rest } =
-    data as Required<PatchQuestion>;
+  const { title, text, status, upvotes, downvotes, views, ...rest } = data;
   const restKeys = Object.keys(rest);
 
-  if (restKeys.length != 0) {
-    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  if (restKeys.length !== 0) {
+    throw new ClientValidationError(ErrorMessage.UnknownField(restKeys[0]!));
   }
 
   if (status !== undefined && !questionStatuses.includes(status)) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidFieldValue('status', undefined, questionStatuses)
     );
   }
 
-  if (upvotes !== undefined && (typeof upvotes != 'number' || upvotes < 0)) {
-    throw new ValidationError(
+  if (upvotes !== undefined && (typeof upvotes !== 'number' || upvotes < 0)) {
+    throw new ClientValidationError(
       ErrorMessage.InvalidNumberValue('upvotes', 0, null, 'integer')
     );
   }
 
-  if (downvotes !== undefined && (typeof downvotes != 'number' || downvotes < 0)) {
-    throw new ValidationError(
+  if (downvotes !== undefined && (typeof downvotes !== 'number' || downvotes < 0)) {
+    throw new ClientValidationError(
       ErrorMessage.InvalidNumberValue('downvotes', 0, null, 'integer')
     );
   }
@@ -1143,9 +1139,9 @@ export async function updateQuestion({
   if (
     views !== undefined &&
     views !== 'increment' &&
-    (typeof views != 'number' || views < 0)
+    (typeof views !== 'number' || views < 0)
   ) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidNumberValue('views', 0, null, 'integer')
     );
   }
@@ -1173,7 +1169,7 @@ export async function updateQuestion({
       incrementor.views = { $add: ['$$ROOT.views', 1] };
       incrementor['sorter.uvc']!.$add[1]++;
       incrementor['sorter.uvac']!.$add[1]++;
-    } else if (typeof views == 'number') {
+    } else if (typeof views === 'number') {
       incrementor.views = views;
 
       incrementor['sorter.uvc']!.$add.push({
@@ -1185,7 +1181,7 @@ export async function updateQuestion({
       });
     }
 
-    if (typeof upvotes == 'number') {
+    if (typeof upvotes === 'number') {
       incrementor.upvotes = upvotes;
 
       incrementor['sorter.uvc']!.$add.push({
@@ -1206,7 +1202,7 @@ export async function updateQuestion({
           ...(title ? { title, 'title-lowercase': title.toLowerCase() } : {}),
           ...(text ? { text } : {}),
           ...(status ? { status } : {}),
-          ...(typeof downvotes == 'number' ? { downvotes } : {}),
+          ...(typeof downvotes === 'number' ? { downvotes } : {}),
           ...incrementor
         }
       }
@@ -1214,7 +1210,7 @@ export async function updateQuestion({
   );
 
   if (!result.matchedCount) {
-    throw new ItemNotFoundError(question_id, 'question');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(question_id, 'question'));
   }
 }
 
@@ -1224,7 +1220,9 @@ export async function deleteQuestion({
   question_id: string | undefined;
 }): Promise<void> {
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   const db = await getDb({ name: 'app' });
@@ -1232,13 +1230,13 @@ export async function deleteQuestion({
   const questionDb = db.collection<InternalQuestion>('questions');
   const questionId = itemToObjectId<QuestionId>(question_id);
 
-  const { value: deletedQuestion } = await questionDb.findOneAndDelete(
+  const deletedQuestion = await questionDb.findOneAndDelete(
     { _id: questionId },
     { projection: { creator: true } }
   );
 
   if (!deletedQuestion) {
-    throw new ItemNotFoundError(questionId, 'question');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(questionId, 'question'));
   }
 
   await userDb.updateOne(
@@ -1261,7 +1259,9 @@ export async function getAnswers({
   after_id: string | undefined;
 }): Promise<PublicAnswer[]> {
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   const afterId = after_id ? itemToObjectId<AnswerId>(after_id) : undefined;
@@ -1277,7 +1277,7 @@ export async function getAnswers({
       }));
     } catch (error) {
       if (error instanceof MongoServerError) {
-        throw new ItemNotFoundError(afterId, 'answer_id');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(afterId, 'answer_id'));
       }
 
       /* istanbul ignore next */
@@ -1318,7 +1318,7 @@ export async function getAnswers({
 
   const { answers } =
     (await questionDb.aggregate<{ answers: PublicAnswer[] }>(pipeline).next()) ||
-    toss(new ItemNotFoundError(question_id, 'question'));
+    toss(new NotFoundError(ErrorMessage.ItemNotFound(question_id, 'question')));
 
   return answers;
 }
@@ -1331,7 +1331,9 @@ export async function createAnswer({
   data: NewAnswer | undefined;
 }): Promise<PublicAnswer> {
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   validateAnswerData(data, { required: true });
@@ -1339,12 +1341,12 @@ export async function createAnswer({
   const { creator, text, ...rest } = data as Required<NewAnswer>;
   const restKeys = Object.keys(rest);
 
-  if (restKeys.length != 0) {
-    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  if (restKeys.length !== 0) {
+    throw new ClientValidationError(ErrorMessage.UnknownField(restKeys[0]!));
   }
 
   if (!creator) {
-    throw new ValidationError(ErrorMessage.InvalidFieldValue('creator'));
+    throw new ClientValidationError(ErrorMessage.InvalidFieldValue('creator'));
   }
 
   const db = await getDb({ name: 'app' });
@@ -1352,7 +1354,7 @@ export async function createAnswer({
   const questionId = itemToObjectId<QuestionId>(question_id);
 
   if (!(await itemExists(userDb, { key: 'username', id: creator }))) {
-    throw new ItemNotFoundError(creator, 'user');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(creator, 'user'));
   }
 
   try {
@@ -1393,7 +1395,7 @@ export async function createAnswer({
   });
 
   if (!result.matchedCount) {
-    throw new ItemNotFoundError(question_id, 'question');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(question_id, 'question'));
   }
 
   await userDb.updateOne(
@@ -1414,11 +1416,13 @@ export async function updateAnswer({
   data: PatchAnswer | undefined;
 }): Promise<void> {
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   if (!answer_id) {
-    throw new InvalidItemError('answer_id', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('answer_id', 'parameter'));
   }
 
   // ? Optimization
@@ -1426,28 +1430,27 @@ export async function updateAnswer({
 
   validateAnswerData(data, { required: false });
 
-  const { text, accepted, upvotes, downvotes, ...rest } =
-    data as Required<PatchAnswer>;
+  const { text, accepted, upvotes, downvotes, ...rest } = data;
   const restKeys = Object.keys(rest);
 
-  if (restKeys.length != 0) {
-    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  if (restKeys.length !== 0) {
+    throw new ClientValidationError(ErrorMessage.UnknownField(restKeys[0]!));
   }
 
   if (accepted !== undefined && !accepted) {
-    throw new ValidationError(
+    throw new ClientValidationError(
       ErrorMessage.InvalidFieldValue('accepted', undefined, ['true'])
     );
   }
 
-  if (upvotes !== undefined && (typeof upvotes != 'number' || upvotes < 0)) {
-    throw new ValidationError(
+  if (upvotes !== undefined && (typeof upvotes !== 'number' || upvotes < 0)) {
+    throw new ClientValidationError(
       ErrorMessage.InvalidNumberValue('upvotes', 0, null, 'integer')
     );
   }
 
-  if (downvotes !== undefined && (typeof downvotes != 'number' || downvotes < 0)) {
-    throw new ValidationError(
+  if (downvotes !== undefined && (typeof downvotes !== 'number' || downvotes < 0)) {
+    throw new ClientValidationError(
       ErrorMessage.InvalidNumberValue('downvotes', 0, null, 'integer')
     );
   }
@@ -1462,8 +1465,7 @@ export async function updateAnswer({
 
   if (
     accepted &&
-    (await questionDb.countDocuments({ _id: questionId, hasAcceptedAnswer: true })) !=
-      0
+    (await questionDb.countDocuments({ _id: questionId, hasAcceptedAnswer: true })) !== 0
   ) {
     throw new ClientValidationError(ErrorMessage.QuestionAlreadyAcceptedAnswer());
   }
@@ -1476,7 +1478,7 @@ export async function updateAnswer({
     }));
   } catch (error) {
     if (error instanceof MongoServerError) {
-      throw new ItemNotFoundError(answerId, 'answer');
+      throw new NotFoundError(ErrorMessage.ItemNotFound(answerId, 'answer'));
     }
 
     /* istanbul ignore next */
@@ -1490,14 +1492,14 @@ export async function updateAnswer({
       $set: {
         ...(text ? { text } : {}),
         ...(accepted ? { accepted } : {}),
-        ...(typeof upvotes == 'number' ? { upvotes } : {}),
-        ...(typeof downvotes == 'number' ? { downvotes } : {})
+        ...(typeof upvotes === 'number' ? { upvotes } : {}),
+        ...(typeof downvotes === 'number' ? { downvotes } : {})
       }
     }
   });
 
   if (!result.matchedCount) {
-    throw new ItemNotFoundError(question_id, 'question');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(question_id, 'question'));
   }
 
   if (accepted) {
@@ -1516,11 +1518,13 @@ export async function deleteAnswer({
   answer_id: string | undefined;
 }): Promise<void> {
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   if (!answer_id) {
-    throw new InvalidItemError('answer_id', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('answer_id', 'parameter'));
   }
 
   const db = await getDb({ name: 'app' });
@@ -1539,7 +1543,7 @@ export async function deleteAnswer({
       return result || { creator: null };
     } catch (error) {
       if (error instanceof MongoServerError) {
-        throw new ItemNotFoundError(answerId, 'answer');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(answerId, 'answer'));
       }
 
       /* istanbul ignore next */
@@ -1548,7 +1552,7 @@ export async function deleteAnswer({
   })();
 
   if (!creator) {
-    throw new ItemNotFoundError(question_id, 'question');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(question_id, 'question'));
   }
 
   await removeAnswerFromDb({
@@ -1572,7 +1576,9 @@ export async function getComments({
   after_id: string | undefined;
 }): Promise<PublicComment[]> {
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   const db = await getDb({ name: 'app' });
@@ -1590,7 +1596,7 @@ export async function getComments({
       }));
     } catch (error) {
       if (error instanceof MongoServerError) {
-        throw new ItemNotFoundError(answerId, 'answer');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(answerId, 'answer'));
       }
 
       /* istanbul ignore next */
@@ -1609,7 +1615,7 @@ export async function getComments({
       });
     } catch (error) {
       if (error instanceof MongoServerError) {
-        throw new ItemNotFoundError(afterId, 'comment_id');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(afterId, 'comment_id'));
       }
 
       /* istanbul ignore next */
@@ -1667,7 +1673,7 @@ export async function getComments({
 
   const { comments } =
     (await questionDb.aggregate<{ comments: PublicComment[] }>(pipeline).next()) ||
-    toss(new ItemNotFoundError(question_id, 'question'));
+    toss(new NotFoundError(ErrorMessage.ItemNotFound(question_id, 'question')));
 
   return comments;
 }
@@ -1682,28 +1688,30 @@ export async function createComment({
   data: NewComment | undefined;
 }): Promise<PublicComment> {
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
-  if (!isPlainObject(data)) {
-    throw new ValidationError(ErrorMessage.InvalidJSON());
+  if (!isRecord(data)) {
+    throw new ClientValidationError(ErrorMessage.InvalidJSON());
   }
 
   const { creator, text, ...rest } = data as Required<NewComment>;
   const restKeys = Object.keys(rest);
 
-  if (restKeys.length != 0) {
-    throw new ValidationError(ErrorMessage.UnknownField(restKeys[0]));
+  if (restKeys.length !== 0) {
+    throw new ClientValidationError(ErrorMessage.UnknownField(restKeys[0]!));
   }
 
   if (!creator) {
-    throw new ValidationError(ErrorMessage.InvalidFieldValue('creator'));
+    throw new ClientValidationError(ErrorMessage.InvalidFieldValue('creator'));
   }
 
   const { MAX_COMMENT_LENGTH: maxTextLength } = getEnv();
 
-  if (typeof text != 'string' || !text || text.length > maxTextLength) {
-    throw new ValidationError(
+  if (typeof text !== 'string' || !text || text.length > maxTextLength) {
+    throw new ClientValidationError(
       ErrorMessage.InvalidStringLength('text', 1, maxTextLength, 'string')
     );
   }
@@ -1714,7 +1722,7 @@ export async function createComment({
   const answerId = answer_id ? itemToObjectId<AnswerId>(answer_id) : undefined;
 
   if (!(await itemExists(userDb, { key: 'username', id: creator }))) {
-    throw new ItemNotFoundError(creator, 'user');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(creator, 'user'));
   }
 
   if (answerId) {
@@ -1726,7 +1734,7 @@ export async function createComment({
       });
     } catch (error) {
       if (error instanceof MongoServerError) {
-        throw new ItemNotFoundError(answerId, 'answer');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(answerId, 'answer'));
       }
 
       /* istanbul ignore next */
@@ -1755,7 +1763,7 @@ export async function createComment({
   });
 
   if (!result.matchedCount) {
-    throw new ItemNotFoundError(question_id, 'question');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(question_id, 'question'));
   }
 
   return toPublicComment(latestComment);
@@ -1771,11 +1779,13 @@ export async function deleteComment({
   comment_id: string | undefined;
 }): Promise<void> {
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   if (!comment_id) {
-    throw new InvalidItemError('comment_id', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('comment_id', 'parameter'));
   }
 
   const questionId = itemToObjectId<QuestionId>(question_id);
@@ -1791,7 +1801,7 @@ export async function deleteComment({
       }));
     } catch (error) {
       if (error instanceof MongoServerError) {
-        throw new ItemNotFoundError(answerId, 'answer');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(answerId, 'answer'));
       }
 
       /* istanbul ignore next */
@@ -1808,7 +1818,7 @@ export async function deleteComment({
     }));
   } catch (error) {
     if (error instanceof MongoServerError) {
-      throw new ItemNotFoundError(commentId, 'comment');
+      throw new NotFoundError(ErrorMessage.ItemNotFound(commentId, 'comment'));
     }
 
     /* istanbul ignore next */
@@ -1822,7 +1832,7 @@ export async function deleteComment({
   });
 
   if (!result.matchedCount) {
-    throw new ItemNotFoundError(question_id, 'question');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(question_id, 'question'));
   }
 }
 
@@ -1838,11 +1848,13 @@ export async function getHowUserVoted({
   comment_id: string | undefined;
 }): Promise<VoterStatus> {
   if (!username) {
-    throw new InvalidItemError('username', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('username', 'parameter'));
   }
 
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   const db = await getDb({ name: 'app' });
@@ -1850,7 +1862,7 @@ export async function getHowUserVoted({
   const questionDb = db.collection<InternalQuestion>('questions');
 
   if (!(await itemExists(userDb, { key: 'username', id: username }))) {
-    throw new ItemNotFoundError(username, 'user');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(username, 'user'));
   }
 
   const questionId = itemToObjectId<QuestionId>(question_id);
@@ -1867,7 +1879,7 @@ export async function getHowUserVoted({
       });
 
       if (!result) {
-        throw new ItemNotFoundError(questionId, 'question');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(questionId, 'question'));
       }
 
       if (!commentId) {
@@ -1875,7 +1887,7 @@ export async function getHowUserVoted({
       }
     } catch (error) {
       if (error instanceof MongoServerError) {
-        throw new ItemNotFoundError(answerId, 'answer');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(answerId, 'answer'));
       }
 
       throw error;
@@ -1892,13 +1904,13 @@ export async function getHowUserVoted({
       });
 
       if (!result) {
-        throw new ItemNotFoundError(questionId, 'question');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(questionId, 'question'));
       }
 
       return result.voterStatus;
     } catch (error) {
       if (error instanceof MongoServerError) {
-        throw new ItemNotFoundError(commentId, 'comment');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(commentId, 'comment'));
       }
 
       throw error;
@@ -1913,7 +1925,7 @@ export async function getHowUserVoted({
   );
 
   if (!result) {
-    throw new ItemNotFoundError(questionId, 'question');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(questionId, 'question'));
   }
 
   return result.voterStatus;
@@ -1933,15 +1945,17 @@ export async function applyVotesUpdateOperation({
   operation: Partial<VotesUpdateOperation> | undefined;
 }): Promise<void> {
   if (!username) {
-    throw new InvalidItemError('username', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('username', 'parameter'));
   }
 
   if (!question_id) {
-    throw new InvalidItemError('question_id', 'parameter');
+    throw new ClientValidationError(
+      ErrorMessage.InvalidItem('question_id', 'parameter')
+    );
   }
 
   if (!operation) {
-    throw new InvalidItemError('operation', 'parameter');
+    throw new ClientValidationError(ErrorMessage.InvalidItem('operation', 'parameter'));
   }
 
   validateVotesUpdateOperation(operation);
@@ -1951,7 +1965,7 @@ export async function applyVotesUpdateOperation({
   const questionDb = db.collection<InternalQuestion>('questions');
 
   if (!(await itemExists(userDb, { key: 'username', id: username }))) {
-    throw new ItemNotFoundError(username, 'user');
+    throw new NotFoundError(ErrorMessage.ItemNotFound(username, 'user'));
   }
 
   const questionId = itemToObjectId<QuestionId>(question_id);
@@ -1963,56 +1977,55 @@ export async function applyVotesUpdateOperation({
     { skip }: { skip: boolean }
   ) => {
     if (!selectResult) {
-      throw new ItemNotFoundError(questionId, 'question');
+      throw new NotFoundError(ErrorMessage.ItemNotFound(questionId, 'question'));
     }
 
     if (!skip) {
       if (selectResult.isCreator) {
-        throw new NotAuthorizedError(ErrorMessage.IllegalOperation());
+        throw new AuthError(ErrorMessage.IllegalOperation());
       }
 
       if (selectResult.voterStatus !== null) {
-        if (operation.op == 'increment') {
+        if (operation.op === 'increment') {
           if (
-            (operation.target == 'upvotes' &&
-              selectResult.voterStatus == 'upvoted') ||
-            (operation.target == 'downvotes' &&
-              selectResult.voterStatus == 'downvoted')
+            (operation.target === 'upvotes' && selectResult.voterStatus === 'upvoted') ||
+            (operation.target === 'downvotes' &&
+              selectResult.voterStatus === 'downvoted')
           ) {
-            throw new NotAuthorizedError(ErrorMessage.DuplicateIncrementOperation());
+            throw new AuthError(ErrorMessage.DuplicateIncrementOperation());
           }
 
-          throw new NotAuthorizedError(ErrorMessage.MultipleIncrementTargets());
+          throw new AuthError(ErrorMessage.MultipleIncrementTargets());
         } else {
           if (
             !(
-              (operation.target == 'upvotes' &&
-                selectResult.voterStatus == 'upvoted') ||
-              (operation.target == 'downvotes' &&
-                selectResult.voterStatus == 'downvoted')
+              (operation.target === 'upvotes' &&
+                selectResult.voterStatus === 'upvoted') ||
+              (operation.target === 'downvotes' &&
+                selectResult.voterStatus === 'downvoted')
             )
           ) {
-            throw new NotAuthorizedError(ErrorMessage.MultitargetDecrement());
+            throw new AuthError(ErrorMessage.MultitargetDecrement());
           }
         }
-      } else if (operation.op == 'decrement') {
-        throw new NotAuthorizedError(ErrorMessage.InvalidDecrementOperation());
+      } else if (operation.op === 'decrement') {
+        throw new AuthError(ErrorMessage.InvalidDecrementOperation());
       }
     }
   };
 
   const calculateUpdateOps = ({ includeSorter }: { includeSorter: boolean }) => {
     const { op, target } = operation;
-    const delta = op == 'increment' ? 1 : -1;
+    const delta = op === 'increment' ? 1 : -1;
 
     return {
       $inc: {
         [target]: delta,
-        ...(includeSorter && target == 'upvotes'
+        ...(includeSorter && target === 'upvotes'
           ? { 'sorter.uvc': delta, 'sorter.uvac': delta }
           : {})
       },
-      [op == 'increment' ? '$push' : '$pull']: {
+      [op === 'increment' ? '$push' : '$pull']: {
         [`${target.slice(0, -1)}rUsernames`]: username
       }
     };
@@ -2041,7 +2054,7 @@ export async function applyVotesUpdateOperation({
       }
     } catch (error) {
       if (error instanceof MongoServerError) {
-        throw new ItemNotFoundError(answerId, 'answer');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(answerId, 'answer'));
       }
 
       throw error;
@@ -2068,7 +2081,7 @@ export async function applyVotesUpdateOperation({
       }));
     } catch (error) {
       if (error instanceof MongoServerError) {
-        throw new ItemNotFoundError(commentId, 'comment');
+        throw new NotFoundError(ErrorMessage.ItemNotFound(commentId, 'comment'));
       }
 
       throw error;
@@ -2087,4 +2100,27 @@ export async function applyVotesUpdateOperation({
     { _id: questionId },
     calculateUpdateOps({ includeSorter: true })
   );
+}
+
+/**
+ * This type guard function accepts any type and returns `true` if it is a plain
+ * record object and not an array, class, primitive, or some other type.
+ */
+export function isRecord(o: unknown): o is Record<PropertyKey, unknown> {
+  if (!o || typeof o !== 'object') {
+    return false;
+  }
+
+  const oPrototype = Object.getPrototypeOf(o);
+
+  if (
+    // ? Sometimes objects are created using Object.create(null)
+    oPrototype !== null &&
+    // ? Essentially `instanceof Object` that doesn't crawl the prototype chain
+    oPrototype !== Object.prototype
+  ) {
+    return false;
+  }
+
+  return true;
 }

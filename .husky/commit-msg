@@ -4,4 +4,3 @@
 npx commitlint -e
 if [ -z $GAC_VERIFY_SIMPLE ]; then npm run test; fi
 echo
-node spellcheck-commit.js

@@ -1,12 +1,13 @@
-import { withMiddleware } from 'universe/backend/middleware';
-import { sendHttpOk } from 'multiverse/next-api-respond';
-import { deleteComment } from 'universe/backend';
+import { sendHttpOk } from '@-xun/respond';
 
-// ? This is a NextJS special "config" export
+import { deleteComment } from 'universe/backend';
+import { withMiddleware } from 'universe/backend/middleware';
+
 export { defaultConfig as config } from 'universe/backend/api';
 
 export const metadata = {
-  descriptor: '/questions/:question_id/comments/:comment_id'
+  descriptor: '/v1/questions/:question_id/comments/:comment_id',
+  apiVersion: '1'
 };
 
 export default withMiddleware(
@@ -22,6 +23,10 @@ export default withMiddleware(
   },
   {
     descriptor: metadata.descriptor,
-    options: { allowedMethods: ['DELETE'], apiVersion: '1' }
+    options: {
+      requiresAuth: true,
+      allowedMethods: ['DELETE'],
+      apiVersion: metadata.apiVersion
+    }
   }
 );

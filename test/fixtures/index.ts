@@ -1,5 +1,3 @@
-import { asMockedFunction } from '@xunnamius/jest-types';
-
 import {
   applyVotesUpdateOperation,
   authAppUser,
@@ -8,11 +6,15 @@ import {
   createMessage,
   createQuestion,
   createUser,
+  deleteAnswer,
   deleteComment,
+  deleteMessage,
+  deleteQuestion,
   deleteUser,
   getAllUsers,
   getAnswers,
   getComments,
+  getHowUserVoted,
   getQuestion,
   getUser,
   getUserAnswers,
@@ -21,42 +23,8 @@ import {
   searchQuestions,
   updateAnswer,
   updateQuestion,
-  updateUser,
-  deleteAnswer,
-  deleteMessage,
-  deleteQuestion,
-  getHowUserVoted
+  updateUser
 } from 'universe/backend';
-
-import V1EndpointUsers, {
-  config as V1ConfigUsers,
-  metadata as V1MetadataUsers
-} from 'universe/pages/api/v1/users';
-
-import V1EndpointUsersUsername, {
-  config as V1ConfigUsersUsername,
-  metadata as V1MetadataUsersUsername
-} from 'universe/pages/api/v1/users/[username]';
-
-import V1EndpointUsersUsernameAuth, {
-  config as V1ConfigUsersUsernameAuth,
-  metadata as V1MetadataUsersUsernameAuth
-} from 'universe/pages/api/v1/users/[username]/auth';
-
-import V1EndpointUsersUsernameQuestions, {
-  config as V1ConfigUsersUsernameQuestions,
-  metadata as V1MetadataUsersUsernameQuestions
-} from 'universe/pages/api/v1/users/[username]/questions';
-
-import V1EndpointUsersUsernameAnswers, {
-  config as V1ConfigUsersUsernameAnswers,
-  metadata as V1MetadataUsersUsernameAnswers
-} from 'universe/pages/api/v1/users/[username]/answers';
-
-import V1EndpointUsersUsernamePoints, {
-  config as V1ConfigUsersUsernamePoints,
-  metadata as V1MetadataUsersUsernamePoints
-} from 'universe/pages/api/v1/users/[username]/points';
 
 import V1EndpointMail, {
   config as V1ConfigMail,
@@ -68,11 +36,6 @@ import V1EndpointMailUsername, {
   metadata as V1MetadataMailUsername
 } from 'universe/pages/api/v1/mail/[username]';
 
-import V1EndpointQuestionsSearch, {
-  config as V1ConfigQuestionsSearch,
-  metadata as V1MetadataQuestionsSearch
-} from 'universe/pages/api/v1/questions/search';
-
 import V1EndpointQuestions, {
   config as V1ConfigQuestions,
   metadata as V1MetadataQuestions
@@ -83,26 +46,6 @@ import V1EndpointQuestionsQuestionId, {
   metadata as V1MetadataQuestionsQuestionId
 } from 'universe/pages/api/v1/questions/[question_id]';
 
-import V1EndpointQuestionsQuestionIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdVoteUsername,
-  metadata as V1MetadataQuestionsQuestionIdVoteUsername
-} from 'universe/pages/api/v1/questions/[question_id]/vote/[username]';
-
-import V1EndpointQuestionsQuestionIdComments, {
-  config as V1ConfigQuestionsQuestionIdComments,
-  metadata as V1MetadataQuestionsQuestionIdComments
-} from 'universe/pages/api/v1/questions/[question_id]/comments';
-
-import V1EndpointQuestionsQuestionIdCommentsCommentId, {
-  config as V1ConfigQuestionsQuestionIdCommentsCommentId,
-  metadata as V1MetadataQuestionsQuestionIdCommentsCommentId
-} from 'universe/pages/api/v1/questions/[question_id]/comments/[comment_id]';
-
-import V1EndpointQuestionsQuestionIdCommentsCommentIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdCommentsCommentIdVoteUsername,
-  metadata as V1MetadataQuestionsQuestionIdCommentsCommentIdVoteUsername
-} from 'universe/pages/api/v1/questions/[question_id]/comments/[comment_id]/vote/[username]';
-
 import V1EndpointQuestionsQuestionIdAnswers, {
   config as V1ConfigQuestionsQuestionIdAnswers,
   metadata as V1MetadataQuestionsQuestionIdAnswers
@@ -112,11 +55,6 @@ import V1EndpointQuestionsQuestionIdAnswersAnswerId, {
   config as V1ConfigQuestionsQuestionIdAnswersAnswerId,
   metadata as V1MetadataQuestionsQuestionIdAnswersAnswerId
 } from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]';
-
-import V1EndpointQuestionsQuestionIdAnswersAnswerIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdVoteUsername,
-  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdVoteUsername
-} from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/vote/[username]';
 
 import V1EndpointQuestionsQuestionIdAnswersAnswerIdComments, {
   config as V1ConfigQuestionsQuestionIdAnswersAnswerIdComments,
@@ -133,8 +71,71 @@ import V1EndpointQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername
   metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername
 } from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/comments/[comment_id]/vote/[username]';
 
+import V1EndpointQuestionsQuestionIdAnswersAnswerIdVoteUsername, {
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdVoteUsername
+} from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/vote/[username]';
+
+import V1EndpointQuestionsQuestionIdComments, {
+  config as V1ConfigQuestionsQuestionIdComments,
+  metadata as V1MetadataQuestionsQuestionIdComments
+} from 'universe/pages/api/v1/questions/[question_id]/comments';
+
+import V1EndpointQuestionsQuestionIdCommentsCommentId, {
+  config as V1ConfigQuestionsQuestionIdCommentsCommentId,
+  metadata as V1MetadataQuestionsQuestionIdCommentsCommentId
+} from 'universe/pages/api/v1/questions/[question_id]/comments/[comment_id]';
+
+import V1EndpointQuestionsQuestionIdCommentsCommentIdVoteUsername, {
+  config as V1ConfigQuestionsQuestionIdCommentsCommentIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdCommentsCommentIdVoteUsername
+} from 'universe/pages/api/v1/questions/[question_id]/comments/[comment_id]/vote/[username]';
+
+import V1EndpointQuestionsQuestionIdVoteUsername, {
+  config as V1ConfigQuestionsQuestionIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdVoteUsername
+} from 'universe/pages/api/v1/questions/[question_id]/vote/[username]';
+
+import V1EndpointQuestionsSearch, {
+  config as V1ConfigQuestionsSearch,
+  metadata as V1MetadataQuestionsSearch
+} from 'universe/pages/api/v1/questions/search';
+
+import V1EndpointUsers, {
+  config as V1ConfigUsers,
+  metadata as V1MetadataUsers
+} from 'universe/pages/api/v1/users';
+
+import V1EndpointUsersUsername, {
+  config as V1ConfigUsersUsername,
+  metadata as V1MetadataUsersUsername
+} from 'universe/pages/api/v1/users/[username]';
+
+import V1EndpointUsersUsernameAnswers, {
+  config as V1ConfigUsersUsernameAnswers,
+  metadata as V1MetadataUsersUsernameAnswers
+} from 'universe/pages/api/v1/users/[username]/answers';
+
+import V1EndpointUsersUsernameAuth, {
+  config as V1ConfigUsersUsernameAuth,
+  metadata as V1MetadataUsersUsernameAuth
+} from 'universe/pages/api/v1/users/[username]/auth';
+
+import V1EndpointUsersUsernamePoints, {
+  config as V1ConfigUsersUsernamePoints,
+  metadata as V1MetadataUsersUsernamePoints
+} from 'universe/pages/api/v1/users/[username]/points';
+
+import V1EndpointUsersUsernameQuestions, {
+  config as V1ConfigUsersUsernameQuestions,
+  metadata as V1MetadataUsersUsernameQuestions
+} from 'universe/pages/api/v1/users/[username]/questions';
+
+import { asMocked } from 'testverse/util';
+
 import type { NextApiHandler, PageConfig } from 'next';
-import {
+
+import type {
   PublicAnswer,
   PublicComment,
   PublicMail,
@@ -197,8 +198,7 @@ api.v1.mailUsername.config = V1ConfigMailUsername;
 api.v1.questions.config = V1ConfigQuestions;
 api.v1.questionsSearch.config = V1ConfigQuestionsSearch;
 api.v1.questionsQuestionId.config = V1ConfigQuestionsQuestionId;
-api.v1.questionsQuestionIdVoteUsername.config =
-  V1ConfigQuestionsQuestionIdVoteUsername;
+api.v1.questionsQuestionIdVoteUsername.config = V1ConfigQuestionsQuestionIdVoteUsername;
 api.v1.questionsQuestionIdComments.config = V1ConfigQuestionsQuestionIdComments;
 api.v1.questionsQuestionIdCommentsCommentId.config =
   V1ConfigQuestionsQuestionIdCommentsCommentId;
@@ -235,8 +235,7 @@ api.v1.questionsQuestionIdCommentsCommentId.uri =
   V1MetadataQuestionsQuestionIdCommentsCommentId.descriptor;
 api.v1.questionsQuestionIdCommentsCommentIdVoteUsername.uri =
   V1MetadataQuestionsQuestionIdCommentsCommentIdVoteUsername.descriptor;
-api.v1.questionsQuestionIdAnswers.uri =
-  V1MetadataQuestionsQuestionIdAnswers.descriptor;
+api.v1.questionsQuestionIdAnswers.uri = V1MetadataQuestionsQuestionIdAnswers.descriptor;
 api.v1.questionsQuestionIdAnswersAnswerId.uri =
   V1MetadataQuestionsQuestionIdAnswersAnswerId.descriptor;
 api.v1.questionsQuestionIdAnswersAnswerIdVoteUsername.uri =
@@ -256,31 +255,31 @@ api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername.uri =
  * function!**
  */
 export function setupMockBackend() {
-  const mockedApplyVotesUpdateOperation = asMockedFunction(applyVotesUpdateOperation);
-  const mockedAuthAppUser = asMockedFunction(authAppUser);
-  const mockedCreateAnswer = asMockedFunction(createAnswer);
-  const mockedCreateComment = asMockedFunction(createComment);
-  const mockedCreateMessage = asMockedFunction(createMessage);
-  const mockedCreateQuestion = asMockedFunction(createQuestion);
-  const mockedCreateUser = asMockedFunction(createUser);
-  const mockedDeleteComment = asMockedFunction(deleteComment);
-  const mockedDeleteUser = asMockedFunction(deleteUser);
-  const mockedGetAllUsers = asMockedFunction(getAllUsers);
-  const mockedGetAnswers = asMockedFunction(getAnswers);
-  const mockedGetComments = asMockedFunction(getComments);
-  const mockedGetQuestion = asMockedFunction(getQuestion);
-  const mockedGetUser = asMockedFunction(getUser);
-  const mockedGetUserAnswers = asMockedFunction(getUserAnswers);
-  const mockedGetUserMessages = asMockedFunction(getUserMessages);
-  const mockedGetUserQuestions = asMockedFunction(getUserQuestions);
-  const mockedSearchQuestions = asMockedFunction(searchQuestions);
-  const mockedUpdateAnswer = asMockedFunction(updateAnswer);
-  const mockedUpdateQuestion = asMockedFunction(updateQuestion);
-  const mockedUpdateUser = asMockedFunction(updateUser);
-  const mockedDeleteAnswer = asMockedFunction(deleteAnswer);
-  const mockedDeleteMessage = asMockedFunction(deleteMessage);
-  const mockedDeleteQuestion = asMockedFunction(deleteQuestion);
-  const mockedGetHowUserVoted = asMockedFunction(getHowUserVoted);
+  const mockedApplyVotesUpdateOperation = asMocked(applyVotesUpdateOperation);
+  const mockedAuthAppUser = asMocked(authAppUser);
+  const mockedCreateAnswer = asMocked(createAnswer);
+  const mockedCreateComment = asMocked(createComment);
+  const mockedCreateMessage = asMocked(createMessage);
+  const mockedCreateQuestion = asMocked(createQuestion);
+  const mockedCreateUser = asMocked(createUser);
+  const mockedDeleteComment = asMocked(deleteComment);
+  const mockedDeleteUser = asMocked(deleteUser);
+  const mockedGetAllUsers = asMocked(getAllUsers);
+  const mockedGetAnswers = asMocked(getAnswers);
+  const mockedGetComments = asMocked(getComments);
+  const mockedGetQuestion = asMocked(getQuestion);
+  const mockedGetUser = asMocked(getUser);
+  const mockedGetUserAnswers = asMocked(getUserAnswers);
+  const mockedGetUserMessages = asMocked(getUserMessages);
+  const mockedGetUserQuestions = asMocked(getUserQuestions);
+  const mockedSearchQuestions = asMocked(searchQuestions);
+  const mockedUpdateAnswer = asMocked(updateAnswer);
+  const mockedUpdateQuestion = asMocked(updateQuestion);
+  const mockedUpdateUser = asMocked(updateUser);
+  const mockedDeleteAnswer = asMocked(deleteAnswer);
+  const mockedDeleteMessage = asMocked(deleteMessage);
+  const mockedDeleteQuestion = asMocked(deleteQuestion);
+  const mockedGetHowUserVoted = asMocked(getHowUserVoted);
 
   beforeEach(() => {
     mockedApplyVotesUpdateOperation.mockReturnValue(Promise.resolve());

@@ -1,18 +1,19 @@
+import { getEnv as getDefaultEnv } from '@-xun/next-env';
 import { parse as parseAsBytes } from 'bytes';
-import { getEnv as getDefaultEnv } from 'multiverse/next-env';
-import { InvalidAppEnvironmentError } from 'universe/error';
 
-import type { Environment } from 'multiverse/next-env';
+import { ServerValidationError } from 'universe/error';
+
+import type { Environment } from '@-xun/next-env';
+
+// TODO: replace validation logic with arktype instead (including defaults)
 
 /**
  * Returns an object representing the application's runtime environment.
  */
-// eslint-disable-next-line @typescript-eslint/ban-types
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export function getEnv<T extends Environment = Environment>() {
   const env = getDefaultEnv({
-    STACKAPPS_INTERVAL_PERIOD_MS: Number(
-      process.env.STACKAPPS_INTERVAL_PERIOD_MS || 0
-    ),
+    STACKAPPS_INTERVAL_PERIOD_MS: Number(process.env.STACKAPPS_INTERVAL_PERIOD_MS || 0),
     STACKAPPS_MAX_REQUESTS_PER_INTERVAL:
       Number(process.env.STACKAPPS_MAX_REQUESTS_PER_INTERVAL) || null,
     STACKAPPS_TOTAL_API_GENERATED_QUESTIONS:
@@ -51,14 +52,8 @@ export function getEnv<T extends Environment = Environment>() {
       parseAsBytes(process.env.PRUNE_DATA_MAX_USERS_BYTES ?? '-Infinity') || null
   });
 
-  // TODO: retire all of the following logic when expect-env is created. Also,
-  // TODO: expect-env should have the ability to skip runs on certain NODE_ENV
-  // TODO: unless OVERRIDE_EXPECT_ENV is properly defined.
   /* istanbul ignore next */
-  if (
-    (env.NODE_ENV != 'test' && env.OVERRIDE_EXPECT_ENV != 'force-no-check') ||
-    env.OVERRIDE_EXPECT_ENV == 'force-check'
-  ) {
+  if (env.NODE_ENV !== 'test') {
     const errors: string[] = [];
 
     (
@@ -77,9 +72,9 @@ export function getEnv<T extends Environment = Environment>() {
       ] as (keyof typeof env)[]
     ).forEach((name) => {
       const value = env[name];
-      if (!value || (Number.isInteger(value) && (value as number) <= 0)) {
+      if (!value || !Number.isSafeInteger(value) || (value as number) <= 0) {
         errors.push(
-          `bad ${name}, saw "${env[name]}" (expected a non-negative number)`
+          `bad ${name}, saw "${String(env[name])}" (expected a safe non-negative number)`
         );
       }
     });
@@ -96,12 +91,8 @@ export function getEnv<T extends Environment = Environment>() {
       );
     }
 
-    // TODO: make it easier to reuse error code from getDefaultEnv. Or is it
-    // TODO: obsoleted by expect-env package? Either way, factor this logic out!
     if (errors.length) {
-      throw new InvalidAppEnvironmentError(
-        `bad variables:\n - ${errors.join('\n - ')}`
-      );
+      throw new ServerValidationError(`bad variables:\n - ${errors.join('\n - ')}`);
     }
   }
 

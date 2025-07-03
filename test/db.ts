@@ -1,13 +1,10 @@
+import { getCommonDummyData } from '@-xun/api-strategy/mongo/dummy';
 import { ObjectId } from 'mongodb';
-import { getCommonDummyData, mockDateNowMs } from 'multiverse/mongo-common';
 
-import type { DummyData } from 'multiverse/mongo-test';
+import { mockDateNowMs } from 'testverse/util';
 
-import type {
-  InternalUser,
-  InternalMail,
-  InternalQuestion
-} from 'universe/backend/db';
+import type { DummyData } from '@-xun/mongo-test';
+import type { InternalMail, InternalQuestion, InternalUser } from 'universe/backend/db';
 
 /**
  * Returns data used to hydrate databases and their collections.
@@ -109,9 +106,9 @@ const questions: InternalQuestion[] = [
     status: 'open',
     hasAcceptedAnswer: false,
     upvotes: 25,
-    upvoterUsernames: [users[1].username],
+    upvoterUsernames: [users[1]!.username],
     downvotes: 6,
-    downvoterUsernames: [users[2].username],
+    downvoterUsernames: [users[2]!.username],
     views: 1024,
     answers: 3,
     answerItems: [
@@ -122,7 +119,7 @@ const questions: InternalQuestion[] = [
         text: 'It has got to be Java.',
         accepted: false,
         upvotes: 4,
-        upvoterUsernames: [users[0].username],
+        upvoterUsernames: [users[0]!.username],
         downvotes: 1,
         downvoterUsernames: [],
         commentItems: [
@@ -145,7 +142,7 @@ const questions: InternalQuestion[] = [
         text: '**Fullstack JavaScript** is da way.',
         accepted: false,
         upvotes: 14,
-        upvoterUsernames: [users[0].username],
+        upvoterUsernames: [users[0]!.username],
         downvotes: 0,
         downvoterUsernames: [],
         commentItems: [
@@ -155,7 +152,7 @@ const questions: InternalQuestion[] = [
             createdAt: mockDateNowMs - 106_584,
             text: 'This was going to be my answer',
             upvotes: 1,
-            upvoterUsernames: [users[1].username],
+            upvoterUsernames: [users[1]!.username],
             downvotes: 0,
             downvoterUsernames: []
           },
@@ -167,7 +164,7 @@ const questions: InternalQuestion[] = [
             upvotes: 0,
             upvoterUsernames: [],
             downvotes: 1,
-            downvoterUsernames: [users[2].username]
+            downvoterUsernames: [users[2]!.username]
           },
           {
             _id: new ObjectId(),
@@ -175,7 +172,7 @@ const questions: InternalQuestion[] = [
             createdAt: mockDateNowMs - 104_584,
             text: "@User2 You mean they're not related?",
             upvotes: 0,
-            upvoterUsernames: [users[0].username],
+            upvoterUsernames: [users[0]!.username],
             downvotes: 0,
             downvoterUsernames: []
           }
@@ -204,7 +201,7 @@ const questions: InternalQuestion[] = [
         upvotes: 0,
         upvoterUsernames: [],
         downvotes: 43,
-        downvoterUsernames: [users[0].username]
+        downvoterUsernames: [users[0]!.username]
       },
       {
         _id: new ObjectId(),
@@ -232,7 +229,7 @@ const questions: InternalQuestion[] = [
     status: 'protected',
     hasAcceptedAnswer: true,
     upvotes: 2504,
-    upvoterUsernames: [users[1].username, users[2].username],
+    upvoterUsernames: [users[1]!.username, users[2]!.username],
     downvotes: 11,
     downvoterUsernames: [],
     views: 8192,
@@ -259,7 +256,7 @@ const questions: InternalQuestion[] = [
         createdAt: mockDateNowMs - 97_765,
         text: "Make sure to pay attention at the next coordinator's meeting!",
         upvotes: 2,
-        upvoterUsernames: [users[2].username],
+        upvoterUsernames: [users[2]!.username],
         downvotes: 0,
         downvoterUsernames: []
       }
@@ -325,7 +322,7 @@ const questions: InternalQuestion[] = [
     status: 'open',
     hasAcceptedAnswer: true,
     upvotes: 2,
-    upvoterUsernames: [users[0].username, users[1].username],
+    upvoterUsernames: [users[0]!.username, users[1]!.username],
     downvotes: 1,
     downvoterUsernames: [],
     views: 8,
@@ -399,22 +396,22 @@ const questions: InternalQuestion[] = [
   }
 ];
 
-users[0].questionIds.push(questions[0]._id, questions[1]._id);
-users[1].questionIds.push(questions[2]._id, questions[5]._id);
-users[2].questionIds.push(questions[3]._id, questions[4]._id);
+users[0]!.questionIds.push(questions[0]!._id, questions[1]!._id);
+users[1]!.questionIds.push(questions[2]!._id, questions[5]!._id);
+users[2]!.questionIds.push(questions[3]!._id, questions[4]!._id);
 
-users[0].answerIds.push(
-  [questions[0]._id, questions[0].answerItems[2]._id],
-  [questions[4]._id, questions[4].answerItems[1]._id]
+users[0]!.answerIds.push(
+  [questions[0]!._id, questions[0]!.answerItems[2]!._id],
+  [questions[4]!._id, questions[4]!.answerItems[1]!._id]
 );
 
-users[1].answerIds.push(
-  [questions[0]._id, questions[0].answerItems[0]._id],
-  [questions[1]._id, questions[1].answerItems[0]._id],
-  [questions[4]._id, questions[4].answerItems[0]._id]
+users[1]!.answerIds.push(
+  [questions[0]!._id, questions[0]!.answerItems[0]!._id],
+  [questions[1]!._id, questions[1]!.answerItems[0]!._id],
+  [questions[4]!._id, questions[4]!.answerItems[0]!._id]
 );
 
-users[2].answerIds.push([questions[0]._id, questions[0].answerItems[1]._id]);
+users[2]!.answerIds.push([questions[0]!._id, questions[0]!.answerItems[1]!._id]);
 
 /**
  * Test data for the application database.

@@ -2,26 +2,21 @@
 // * Every now and then, we adopt best practices from CRA
 // * https://tinyurl.com/yakv4ggx
 
-// TODO: replace with 'package'
-const pkgName = require('./package.json').name;
-const debug = require('debug')(`${pkgName}:babel-config`);
+const debug = require('debug')(`${require('./package.json').name}:babel-config`);
 
-debug('NODE_ENV: %O', process.env.NODE_ENV);
-
-// ! This is pretty aggressive. It targets modern browsers only.
-// ? For some projects, less aggressive targets will make much more
-// ? sense!
-const browserTargets =
-  'Chrome >= 60, Safari >= 10.1, iOS >= 10.3, Firefox >= 54, Edge >= 15';
-// ? Something like the following might be more appropriate:
-//const targets = '>1% in US and not ie 11';
+// * https://babeljs.io/docs/babel-preset-react
+const sharedReactConfig = {
+  runtime: 'automatic',
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  development: !process.env.NODE_ENV?.startsWith('production')
+};
 
 // ? Next.js-specific Babel settings
 const nextBabelPreset = [
   'next/babel',
   {
     'preset-env': {
-      targets: browserTargets,
+      targets: 'defaults',
 
       // ? If users import all core-js they're probably not concerned with
       // ? bundle size. We shouldn't rely on magic to try and shrink it.
@@ -36,27 +31,19 @@ const nextBabelPreset = [
     },
     'preset-typescript': {
       allowDeclareFields: true
-    }
+    },
+    'preset-react': sharedReactConfig
   }
 ];
 
-/**
- * @type {import('@babel/core').TransformOptions}
- */
 module.exports = {
   comments: false,
   parserOpts: { strictMode: true },
+  generatorOpts: { importAttributesKeyword: 'with' },
+  assumptions: { constantReexports: true },
   plugins: [
-    '@babel/plugin-proposal-export-default-from',
-    '@babel/plugin-syntax-import-assertions'
-
-    // ? Interoperable named CJS imports for free
-    // [
-    //   'transform-default-named-imports',
-    //   {
-    //     exclude: [/^next([/?#].+)?/, /^mongodb([/?#].+)?/]
-    //   }
-    // ]
+    // {@symbiote/notExtraneous @babel/plugin-proposal-export-default-from}
+    '@babel/plugin-proposal-export-default-from'
   ],
   // ? Sub-keys under the "env" config key will augment the above
   // ? configuration depending on the value of NODE_ENV and friends. Default
@@ -64,11 +51,10 @@ module.exports = {
   env: {
     // * Used by Jest and `npm test`
     test: {
-      comments: true,
       sourceMaps: 'both',
       presets: [
         ['@babel/preset-env', { targets: { node: true } }],
-        '@babel/preset-react',
+        ['@babel/preset-react', sharedReactConfig],
         ['@babel/preset-typescript', { allowDeclareFields: true }]
         // ? We don't care about minification
       ],
@@ -87,18 +73,8 @@ module.exports = {
     // * Used by `npm run dev`; is also the default environment
     development: {
       // ? Source maps are handled by Next.js and Webpack
-      presets: [nextBabelPreset],
-      // ? https://reactjs.org/docs/error-boundaries.html#how-about-event-handlers
-      plugins: ['@babel/plugin-transform-react-jsx-source']
+      presets: [nextBabelPreset]
       // ? We don't care about minification
-    },
-    // * Used by `npm run build-externals`
-    external: {
-      presets: [
-        ['@babel/preset-env', { targets: { node: true } }],
-        ['@babel/preset-typescript', { allowDeclareFields: true }]
-        // ? Minification is handled by Webpack
-      ]
     }
   }
 };

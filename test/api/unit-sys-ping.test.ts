@@ -1,22 +1,31 @@
 /* eslint-disable no-global-assign */
-import { useMockDateNow } from 'multiverse/jest-mock-date';
-import { getDb } from 'multiverse/mongo-schema';
-import { setupMemoryServerOverride } from 'multiverse/mongo-test';
-import { BANNED_BEARER_TOKEN, DUMMY_BEARER_TOKEN } from 'multiverse/next-auth';
+import { BANNED_BEARER_TOKEN, DUMMY_BEARER_TOKEN } from '@-xun/api-strategy/auth';
+import { getCommonSchemaConfig } from '@-xun/api-strategy/mongo';
+import { getCommonDummyData } from '@-xun/api-strategy/mongo/dummy';
+import { getDb } from '@-xun/mongo-schema';
+import { setupMemoryServerOverride } from '@-xun/mongo-test';
 import { testApiHandler } from 'next-test-api-route-handler';
 
 import Endpoint, { config as Config } from 'universe/pages/api/sys/ping';
 
-import type { InternalAuthBearerEntry } from 'multiverse/next-auth';
+import { useMockDateNow } from 'testverse/util';
 
-const handler = Endpoint as typeof Endpoint & { config?: typeof Config };
-handler.config = Config;
+import type { InternalAuthEntry } from '@-xun/api-strategy/auth';
 
-setupMemoryServerOverride();
+const pagesHandler = Endpoint as typeof Endpoint & { config?: typeof Config };
+pagesHandler.config = Config;
+
+// ! Note how these tests only rely on commonly available schema and data
+
 useMockDateNow();
+setupMemoryServerOverride({
+  schema: getCommonSchemaConfig(),
+  data: getCommonDummyData()
+});
 
-// * This suite blurs the line between unit and integration tests for portability
-// * reasons.
+// * This suite blurs the line between unit and integration tests for
+// * portability reasons.
+
 // TODO: replace with next-fable (formerly / in addition to: @xunnamius/fable)
 
 describe('middleware correctness tests', () => {
@@ -24,7 +33,7 @@ describe('middleware correctness tests', () => {
     expect.hasAssertions();
 
     await testApiHandler({
-      handler,
+      pagesHandler,
       test: async ({ fetch }) => {
         await expect(fetch().then((r) => r.status)).resolves.toBe(200);
       }
@@ -35,7 +44,7 @@ describe('middleware correctness tests', () => {
     expect.hasAssertions();
 
     await testApiHandler({
-      handler,
+      pagesHandler,
       test: async ({ fetch }) => {
         await expect(
           fetch({
@@ -50,14 +59,14 @@ describe('middleware correctness tests', () => {
     expect.hasAssertions();
 
     await (await getDb({ name: 'root' }))
-      .collection<InternalAuthBearerEntry>('auth')
+      .collection<InternalAuthEntry>('auth')
       .updateOne(
         { token: { bearer: BANNED_BEARER_TOKEN } },
         { $set: { 'attributes.isGlobalAdmin': true } }
       );
 
     await testApiHandler({
-      handler,
+      pagesHandler,
       test: async ({ fetch }) => {
         await expect(
           fetch({
@@ -82,19 +91,18 @@ describe('api/sys/ping', () => {
           super(...args);
         }
 
-        toLocaleString(): string;
-        toLocaleString(
+        override toLocaleString(): string;
+        override toLocaleString(
           locales?: string | string[],
           options?: Intl.DateTimeFormatOptions
         ): string;
-        toLocaleString(locales?: unknown, options?: unknown): string {
-          void locales, options;
+        override toLocaleString(_locales?: unknown, _options?: unknown): string {
           return 'fake date, fake time';
         }
       };
 
       await testApiHandler({
-        handler,
+        pagesHandler,
         test: async ({ fetch }) => {
           const res = await fetch();
           expect(res.status).toBe(200);
@@ -106,7 +114,7 @@ describe('api/sys/ping', () => {
       });
 
       await testApiHandler({
-        handler,
+        pagesHandler,
         params: { name: 'Ms. Universe' },
         test: async ({ fetch }) => {
           const res = await fetch();

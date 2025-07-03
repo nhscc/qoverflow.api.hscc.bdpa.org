@@ -1,21 +1,22 @@
-import { withMiddleware } from 'universe/backend/middleware';
-import { getUser, updateUser, deleteUser } from 'universe/backend';
-import { sendHttpOk } from 'multiverse/next-api-respond';
+import { sendHttpOk } from '@-xun/respond';
 
-// ? This is a NextJS special "config" export
+import { deleteUser, getUser, updateUser } from 'universe/backend';
+import { withMiddleware } from 'universe/backend/middleware';
+
 export { defaultConfig as config } from 'universe/backend/api';
 
 export const metadata = {
-  descriptor: '/users/:username'
+  descriptor: '/v1/users/:username',
+  apiVersion: '1'
 };
 
 export default withMiddleware(
   async (req, res) => {
     const username = req.query.username?.toString();
 
-    if (req.method == 'GET') {
+    if (req.method === 'GET') {
       sendHttpOk(res, { user: await getUser({ username }) });
-    } else if (req.method == 'DELETE') {
+    } else if (req.method === 'DELETE') {
       await deleteUser({ username });
       sendHttpOk(res);
     } // * PATCH
@@ -26,6 +27,10 @@ export default withMiddleware(
   },
   {
     descriptor: metadata.descriptor,
-    options: { allowedMethods: ['GET', 'DELETE', 'PATCH'], apiVersion: '1' }
+    options: {
+      requiresAuth: true,
+      allowedMethods: ['GET', 'DELETE', 'PATCH'],
+      apiVersion: metadata.apiVersion
+    }
   }
 );

@@ -1,17 +1,18 @@
-import { withMiddleware } from 'universe/backend/middleware';
-import { sendHttpNotFound, sendHttpOk } from 'multiverse/next-api-respond';
-import { applyVotesUpdateOperation, getHowUserVoted } from 'universe/backend';
+import { sendHttpNotFound, sendHttpOk } from '@-xun/respond';
 
-// ? This is a NextJS special "config" export
+import { applyVotesUpdateOperation, getHowUserVoted } from 'universe/backend';
+import { withMiddleware } from 'universe/backend/middleware';
+
 export { defaultConfig as config } from 'universe/backend/api';
 
 export const metadata = {
-  descriptor: '/questions/:question_id/comments/:comment_id/vote/:username'
+  descriptor: '/v1/questions/:question_id/comments/:comment_id/vote/:username',
+  apiVersion: '1'
 };
 
 export default withMiddleware(
   async (req, res) => {
-    if (req.method == 'GET') {
+    if (req.method === 'GET') {
       const vote = await getHowUserVoted({
         username: req.query.username?.toString(),
         question_id: req.query.question_id?.toString(),
@@ -45,6 +46,10 @@ export default withMiddleware(
   },
   {
     descriptor: metadata.descriptor,
-    options: { allowedMethods: ['GET', 'PATCH'], apiVersion: '1' }
+    options: {
+      requiresAuth: true,
+      allowedMethods: ['GET', 'PATCH'],
+      apiVersion: metadata.apiVersion
+    }
   }
 );

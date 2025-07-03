@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
-import * as React from 'react';
 import Head from 'next/head';
+import React from 'react';
 
 import type { AppProps } from 'next/app';
 

@@ -1,12 +1,13 @@
-import { withMiddleware } from 'universe/backend/middleware';
-import { sendHttpOk } from 'multiverse/next-api-respond';
-import { getUserAnswers } from 'universe/backend';
+import { sendHttpOk } from '@-xun/respond';
 
-// ? This is a NextJS special "config" export
+import { getUserAnswers } from 'universe/backend';
+import { withMiddleware } from 'universe/backend/middleware';
+
 export { defaultConfig as config } from 'universe/backend/api';
 
 export const metadata = {
-  descriptor: '/users/:username/answers'
+  descriptor: '/v1/users/:username/answers',
+  apiVersion: '1'
 };
 
 export default withMiddleware(
@@ -21,6 +22,10 @@ export default withMiddleware(
   },
   {
     descriptor: metadata.descriptor,
-    options: { allowedMethods: ['GET'], apiVersion: '1' }
+    options: {
+      requiresAuth: true,
+      allowedMethods: ['GET'],
+      apiVersion: metadata.apiVersion
+    }
   }
 );
