@@ -1,9 +1,9 @@
-import { getEnv as getDefaultEnv } from '@-xun/next-env';
+import { getEnv as getDefaultEnv } from '@-xun/env';
 import { parse as parseAsBytes } from 'bytes';
 
 import { ServerValidationError } from 'universe/error';
 
-import type { Environment } from '@-xun/next-env';
+import type { Environment } from '@-xun/env';
 
 // TODO: replace validation logic with arktype instead (including defaults)
 
