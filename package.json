@@ -22,15 +22,15 @@
     "prepare": "symbiote project prepare --env NODE_NO_WARNINGS=1",
     "start": "next start",
     "test": "npm run test-unit --",
-    "test-all": "NODE_OPTIONS='--experimental-vm-modules' NODE_ENV=test jest $JEST_CLI --coverage",
-    "test-e2e": "NODE_OPTIONS='--experimental-vm-modules' NODE_ENV=test jest $JEST_CLI '/e2e.*?\\.test\\.tsx?' --testPathIgnorePatterns '/dist/'",
-    "test-integration": "NODE_OPTIONS='--experimental-vm-modules' NODE_ENV=test jest $JEST_CLI '/integration.*?\\.test\\.tsx?' --testPathIgnorePatterns '/dist/'",
-    "test-integration-client": "NODE_OPTIONS='--experimental-vm-modules' NODE_ENV=test jest $JEST_CLI '/integration-client.*?\\.test\\.tsx?' --testPathIgnorePatterns '/dist/'",
-    "test-integration-compile": "NODE_OPTIONS='--experimental-vm-modules' NODE_ENV=test jest $JEST_CLI '/integration-compile.*?\\.test\\.tsx?' --testPathIgnorePatterns '/dist/'",
-    "test-integration-node": "NODE_OPTIONS='--experimental-vm-modules' NODE_ENV=test jest $JEST_CLI '/integration-node.*?\\.test\\.tsx?' --testPathIgnorePatterns '/dist/'",
+    "test-all": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' NODE_ENV=test jest $JEST_CLI --coverage",
+    "test-e2e": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' NODE_ENV=test jest $JEST_CLI '/e2e.*?\\.test\\.tsx?' --testPathIgnorePatterns '/dist/'",
+    "test-integration": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' NODE_ENV=test jest $JEST_CLI '/integration.*?\\.test\\.tsx?' --testPathIgnorePatterns '/dist/'",
+    "test-integration-client": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' NODE_ENV=test jest $JEST_CLI '/integration-client.*?\\.test\\.tsx?' --testPathIgnorePatterns '/dist/'",
+    "test-integration-compile": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' NODE_ENV=test jest $JEST_CLI '/integration-compile.*?\\.test\\.tsx?' --testPathIgnorePatterns '/dist/'",
+    "test-integration-node": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' NODE_ENV=test jest $JEST_CLI '/integration-node.*?\\.test\\.tsx?' --testPathIgnorePatterns '/dist/'",
     "test-repeat-all": "npm run __test-repeat-all --silent",
     "test-repeat-unit": "npm run __test-repeat-unit --silent",
-    "test-unit": "NODE_OPTIONS='--experimental-vm-modules' NODE_ENV=test jest $JEST_CLI --coverage --testPathIgnorePatterns '/(integration|e2e).*?\\.test\\.tsx?' '/dist/'"
+    "test-unit": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' NODE_ENV=test jest $JEST_CLI --coverage --testPathIgnorePatterns '/(integration|e2e).*?\\.test\\.tsx?' '/dist/'"
   },
   "dependencies": {
     "@-xun/api": "^1.0.2",

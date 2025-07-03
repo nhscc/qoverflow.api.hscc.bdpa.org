@@ -14,7 +14,7 @@ import { ErrorMessage } from 'universe/error';
 import { getDummyData } from 'testverse/db';
 import { api } from 'testverse/fixtures';
 import { getFixtures } from 'testverse/fixtures/integration';
-import { mockEnvFactory } from 'testverse/util';
+import { mockEnvFactory, withMockedOutput } from 'testverse/util';
 
 import type { TestResult, TestResultset } from 'testverse/fixtures/integration';
 
@@ -169,76 +169,82 @@ describe('> fable integration tests', () => {
             typeof params === 'function' ? await params(memory) : params;
           const requestBody = typeof body === 'function' ? await body(memory) : body;
 
-          await withMockedEnv(
-            async () => {
-              assert(handler, ErrorMessage.GuruMeditation());
+          await withMockedOutput(async ({ errorSpy, warnSpy }) => {
+            await withMockedEnv(
+              async () => {
+                assert(handler, ErrorMessage.GuruMeditation());
 
-              await testApiHandler({
-                pagesHandler: handler,
-                params: requestParams,
-                requestPatcher: (req) => {
-                  req.headers.authorization = `bearer ${DUMMY_BEARER_TOKEN}`;
-                  req.headers['content-type'] = 'application/json';
-                },
-                test: async ({ fetch }) => {
-                  const res = await fetch({
-                    method: method,
-                    ...(requestBody ? { body: JSON.stringify(requestBody) } : {})
-                  });
+                await testApiHandler({
+                  pagesHandler: handler,
+                  params: requestParams,
+                  requestPatcher: (req) => {
+                    req.headers.authorization = `bearer ${DUMMY_BEARER_TOKEN}`;
+                    req.headers['content-type'] = 'application/json';
+                  },
+                  test: async ({ fetch }) => {
+                    const res = await fetch({
+                      method: method,
+                      ...(requestBody ? { body: JSON.stringify(requestBody) } : {})
+                    });
 
-                  const expectedStatus =
-                    typeof response?.status === 'function'
-                      ? await response.status(res.status, memory)
-                      : response?.status;
+                    const expectedStatus =
+                      typeof response?.status === 'function'
+                        ? await response.status(res.status, memory)
+                        : response?.status;
 
-                  let json: ReturnType<typeof JSON.parse>;
+                    let json: ReturnType<typeof JSON.parse>;
 
-                  try {
-                    const jsonText = await res.text();
-                    json = `<invalid JSON>${jsonText}`;
-                    json = JSON.parse(jsonText);
-                  } catch {}
+                    try {
+                      const jsonText = await res.text();
+                      json = `<invalid JSON>${jsonText}`;
+                      json = JSON.parse(jsonText);
+                    } catch {}
 
-                  if (expectedStatus) {
-                    if (res.status !== expectedStatus) {
-                      // eslint-disable-next-line no-console
-                      console.warn('unexpected status for result:', json);
+                    if (expectedStatus) {
+                      if (res.status !== expectedStatus) {
+                        // eslint-disable-next-line no-console
+                        console.warn('unexpected status for result:', json);
+                      }
+
+                      expect(res.status).toBe(expectedStatus);
+
+                      expect(json.success)[
+                        res.status === 200 ? 'toBeTrue' : 'toBeFalsy'
+                      ]();
+                      delete json.success;
                     }
 
-                    expect(res.status).toBe(expectedStatus);
+                    const expectedJson =
+                      typeof response?.json === 'function'
+                        ? await response.json(json, memory)
+                        : response?.json;
 
-                    expect(json.success)[
-                      res.status === 200 ? 'toBeTrue' : 'toBeFalsy'
-                    ]();
-                    delete json.success;
+                    if (expectedJson) {
+                      expect(json).toStrictEqual(expectedJson);
+                    }
+
+                    const memorize = { status: res.status, json } as TestResult;
+
+                    if (id) {
+                      memory.idMap[id] = memorize;
+                    }
+
+                    memory[displayIndex] = memorize;
+                    memory.latest = memorize;
+                    lastRunSuccess = true;
                   }
+                });
+              },
+              {
+                REQUESTS_PER_CONTRIVED_ERROR: '10',
+                IGNORE_RATE_LIMITS: 'true'
+              }
+            );
 
-                  const expectedJson =
-                    typeof response?.json === 'function'
-                      ? await response.json(json, memory)
-                      : response?.json;
-
-                  if (expectedJson) {
-                    expect(json).toStrictEqual(expectedJson);
-                  }
-
-                  const memorize = { status: res.status, json } as TestResult;
-
-                  if (id) {
-                    memory.idMap[id] = memorize;
-                  }
-
-                  memory[displayIndex] = memorize;
-                  memory.latest = memorize;
-                  lastRunSuccess = true;
-                }
-              });
-            },
-            {
-              REQUESTS_PER_CONTRIVED_ERROR: '10',
-              IGNORE_RATE_LIMITS: 'true'
-            }
-          );
+            // ? Ignore logged errors and warnings by accessing any prop
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+            (void errorSpy.mock, warnSpy.mock);
+          });
         }
       );
     }
