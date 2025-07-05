@@ -33,7 +33,7 @@
     "test-unit": "NODE_OPTIONS='--experimental-vm-modules --no-warnings' NODE_ENV=test jest $JEST_CLI --coverage --testPathIgnorePatterns '/(integration|e2e).*?\\.test\\.tsx?' '/dist/'"
   },
   "dependencies": {
-    "@-xun/api": "^1.0.2",
+    "@-xun/api": "^1.0.3",
     "@-xun/env": "^1.1.0",
     "@-xun/jest": "^2.2.5",
     "@-xun/js": "^2.0.0",
