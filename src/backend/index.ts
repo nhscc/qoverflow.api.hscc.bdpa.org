@@ -3,7 +3,7 @@ import { getDb } from '@-xun/mongo-schema';
 import { MongoServerError, ObjectId } from 'mongodb';
 import { toss } from 'toss-expression';
 
-// TODO: replace validation logic with ArkType!
+// TODO: replace all validation logic with ArkType!
 
 import {
   addAnswerToDb,

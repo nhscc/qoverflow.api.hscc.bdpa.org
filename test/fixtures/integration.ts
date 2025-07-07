@@ -297,7 +297,7 @@ export function getFixtures(
       params: { username: 'does-not-exist' },
       response: { status: 404 }
     },
-    {
+    { // * 10
       subject: `delete ${dummyAppData.users[0]!.username}`,
       pagesHandler: api.v1.usersUsername,
       method: 'DELETE',
@@ -428,7 +428,7 @@ export function getFixtures(
       } as PatchUser,
       response: { status: 400 }
     },
-    {
+    { // * 20
       subject: 'attempt to update baracko with no key',
       pagesHandler: api.v1.usersUsername,
       method: 'PATCH',
@@ -472,7 +472,7 @@ export function getFixtures(
       params: { after: 'bad-id' },
       response: { status: 400 }
     },
-    {
+    {// * 25
       subject: 'attempt to fetch all users in LIFO order using non-existent after_id',
       pagesHandler: api.v1.users,
       method: 'GET',
@@ -511,7 +511,7 @@ export function getFixtures(
       body: { salt: 'xyz' },
       response: { status: 400 }
     },
-    {
+    { // * 30
       subject: `attempt to update ${dummyAppData.users[2]!.username} using a short non-hex key`,
       pagesHandler: api.v1.usersUsername,
       params: { username: dummyAppData.users[2]!.username },
@@ -1161,7 +1161,8 @@ export function getFixtures(
     }
   ];
 
-  // TODO: XXX: ability to specify "depends" via index or name/id
+  // TODO: XXX: ability to specify "depends" via index or name/id, and then
+  // TODO: XXX: always enable tests in RUN_ONLY that are depended upon
 
   const willSkipFixture = (fixture: (typeof fixtures)[number]) => {
     const shouldSkip =
