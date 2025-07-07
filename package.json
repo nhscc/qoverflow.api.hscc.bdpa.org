@@ -38,7 +38,7 @@
     "@-xun/jest": "^2.2.5",
     "@-xun/js": "^2.0.0",
     "@-xun/mongo-schema": "^1.2.0",
-    "@-xun/mongo-test": "^1.1.5",
+    "@-xun/mongo-test": "^1.1.6",
     "@-xun/symbiote": "^4.6.1",
     "@-xun/types": "^1.1.0",
     "@testing-library/jest-dom": "^6.6.3",
