@@ -27,7 +27,12 @@ import { getEnv } from 'universe/backend/env';
 import { ErrorMessage, SanityError } from 'universe/error';
 
 import { dummyAppData, getDummyData } from 'testverse/db';
-import { mockEnvFactory, useMockDateNow } from 'testverse/util';
+
+import {
+  expectExceptionsWithMatchingErrors,
+  mockEnvFactory,
+  useMockDateNow
+} from 'testverse/util';
 
 import type {
   InternalMail,
@@ -41,13 +46,14 @@ import type {
   PatchAnswer,
   PatchQuestion,
   PatchUser,
-  PointsUpdateOperation,
   PublicAnswer,
   PublicComment,
   PublicMail,
   PublicQuestion,
   PublicUser
 } from 'universe/backend/db';
+
+import type { ExpectExceptionsWithMatchingErrorsSpec as Spec } from 'testverse/util';
 
 useMockDateNow();
 setupMemoryServerOverride({
@@ -719,7 +725,7 @@ describe('::updateUser', () => {
     await expect(
       Backend.updateUser({
         username: dummyAppData.users[0]!.username,
-        data: { salt: dummyAppData.users[0]!.salt }
+        data: { salt: dummyAppData.users[0]!.salt, key: dummyAppData.users[0]!.key }
       })
     ).resolves.toBeUndefined();
   });
@@ -788,9 +794,9 @@ describe('::updateUser', () => {
       USER_KEY_LENGTH: keyLength
     } = getEnv();
 
-    const patchUsers: [PatchUser, string][] = [
-      [undefined as unknown as PatchUser, ErrorMessage.InvalidJSON()],
-      ['string data' as PatchUser, ErrorMessage.InvalidJSON()],
+    const patchUsers = [
+      [undefined, ErrorMessage.InvalidJSON()],
+      ['string data', ErrorMessage.InvalidJSON()],
       [
         { email: '' },
         ErrorMessage.InvalidStringLength('email', minELength, maxELength, 'string')
@@ -816,36 +822,28 @@ describe('::updateUser', () => {
         ErrorMessage.InvalidStringLength('salt', saltLength, null, 'hexadecimal')
       ],
       [
+        // ? Not valid hex
         { salt: 'x'.repeat(saltLength) },
         ErrorMessage.InvalidStringLength('salt', saltLength, null, 'hexadecimal')
       ],
       [
-        { key: '' },
+        { salt: 'a'.repeat(saltLength), key: '' },
         ErrorMessage.InvalidStringLength('key', keyLength, null, 'hexadecimal')
       ],
       [
-        { key: '0'.repeat(keyLength - 1) },
+        { salt: 'a'.repeat(saltLength), key: '0'.repeat(keyLength - 1) },
         ErrorMessage.InvalidStringLength('key', keyLength, null, 'hexadecimal')
       ],
       [
-        { key: 'x'.repeat(keyLength) },
+        { salt: 'a'.repeat(saltLength), key: 'x'.repeat(keyLength) },
         ErrorMessage.InvalidStringLength('key', keyLength, null, 'hexadecimal')
       ],
       [{ points: -1 }, ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')],
+      [{ points: null }, ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')],
+      [{ points: '10' }, ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')],
+      [{ points: {} }, ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')],
       [
-        { points: null as unknown as number },
-        ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')
-      ],
-      [
-        { points: '10' as unknown as number },
-        ErrorMessage.InvalidNumberValue('points', 0, null, 'integer')
-      ],
-      [
-        { points: {} as PointsUpdateOperation },
-        ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
-      ],
-      [
-        { points: { amount: 5 } as PointsUpdateOperation },
+        { points: { amount: 5 } },
         ErrorMessage.InvalidFieldValue('operation', undefined, [
           'increment',
           'decrement'
@@ -856,21 +854,21 @@ describe('::updateUser', () => {
           points: {
             amount: '5',
             op: 'decrement'
-          } as unknown as PointsUpdateOperation
+          }
         },
         ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
       ],
       [
-        { points: { op: 'decrement' } as PointsUpdateOperation },
+        { points: { op: 'decrement' } },
         ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
       ],
       [
-        { points: { amount: -1, op: 'decrement' } as PointsUpdateOperation },
+        { points: { amount: -1, op: 'decrement' } },
         ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
       ],
       [
         {
-          points: { amount: 5, op: 'nope' } as unknown as PointsUpdateOperation
+          points: { amount: 5, op: 'nope' }
         },
         ErrorMessage.InvalidFieldValue('operation', 'nope', ['increment', 'decrement'])
       ],
@@ -879,7 +877,7 @@ describe('::updateUser', () => {
           points: {
             amount: 'x',
             op: 'nope'
-          } as unknown as PointsUpdateOperation
+          }
         },
         ErrorMessage.InvalidNumberValue('amount', 0, null, 'integer')
       ],
@@ -889,12 +887,12 @@ describe('::updateUser', () => {
             amount: 5,
             op: 'increment',
             bad: 'bad not good'
-          } as unknown as PointsUpdateOperation
+          }
         },
         ErrorMessage.UnknownField('bad')
       ],
-      [{ data: 1 } as NewUser, ErrorMessage.UnknownField('data')],
-      [{ name: 'username' } as NewUser, ErrorMessage.UnknownField('name')],
+      [{ data: 1 }, ErrorMessage.UnknownField('data')],
+      [{ name: 'username' }, ErrorMessage.UnknownField('name')],
       [
         {
           email: 'valid@email.address',
@@ -902,17 +900,20 @@ describe('::updateUser', () => {
           key: '0'.repeat(keyLength),
           points: 0,
           username: 'new-username'
-        } as PatchUser,
+        },
         ErrorMessage.UnknownField('username')
       ]
-    ];
+    ] as Spec<[PatchUser], 'single-parameter'>;
 
-    await Promise.all(
-      patchUsers.map(([data, message]) =>
-        expect(
-          Backend.updateUser({ username: dummyAppData.users[0]!.username, data })
-        ).rejects.toMatchObject({ message })
-      )
+    await expectExceptionsWithMatchingErrors(
+      patchUsers,
+      ([data]) => {
+        return Backend.updateUser({
+          username: dummyAppData.users[0]!.username,
+          data
+        });
+      },
+      { singleParameter: true }
     );
   });
 });

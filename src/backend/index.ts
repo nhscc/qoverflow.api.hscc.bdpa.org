@@ -210,7 +210,7 @@ function validateUserData(
   }
 
   if (
-    (required || data.salt !== undefined) &&
+    (required || data.salt !== undefined || !!data.salt !== !!data.key) &&
     (typeof data.salt !== 'string' ||
       !hexadecimalRegex.test(data.salt) ||
       data.salt.length !== USER_SALT_LENGTH)
@@ -221,7 +221,7 @@ function validateUserData(
   }
 
   if (
-    (required || data.key !== undefined) &&
+    (required || data.key !== undefined || !!data.key !== !!data.salt) &&
     (typeof data.key !== 'string' ||
       !hexadecimalRegex.test(data.key) ||
       data.key.length !== USER_KEY_LENGTH)
