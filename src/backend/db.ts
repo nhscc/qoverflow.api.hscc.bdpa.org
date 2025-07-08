@@ -5,6 +5,7 @@ import { getDb } from '@-xun/mongo-schema';
 import type { DbSchema } from '@-xun/mongo-schema';
 import type { UnixEpochMs } from '@-xun/types';
 import type { Document, ObjectId, WithId, WithoutId } from 'mongodb';
+import { ServerValidationError } from 'universe/error.ts';
 
 /**
  * A generic projection specification.
@@ -627,7 +628,7 @@ async function genericSelectAggregation<T>({
 }): Promise<T> {
   /* istanbul ignore next */
   if ((!answerId && !answer_creator && !commentId) || (answerId && answer_creator)) {
-    throw new Error('illegal parameter combination');
+    throw new ServerValidationError('illegal parameter combination');
   }
 
   return (await getDb({ name: 'app' }))
