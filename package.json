@@ -37,7 +37,7 @@
     "@-xun/env": "^1.1.1",
     "@-xun/jest": "^2.2.5",
     "@-xun/js": "^2.0.0",
-    "@-xun/mongo-schema": "^1.2.0",
+    "@-xun/mongo-schema": "^1.2.1",
     "@-xun/mongo-test": "^1.1.6",
     "@-xun/symbiote": "^4.6.2",
     "@-xun/types": "^1.1.0",
