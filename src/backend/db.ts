@@ -2,10 +2,11 @@
 import { getCommonSchemaConfig } from '@-xun/api-strategy/mongo';
 import { getDb } from '@-xun/mongo-schema';
 
+import { ServerValidationError } from 'universe/error.ts';
+
 import type { DbSchema } from '@-xun/mongo-schema';
 import type { UnixEpochMs } from '@-xun/types';
 import type { Document, ObjectId, WithId, WithoutId } from 'mongodb';
-import { ServerValidationError } from 'universe/error.ts';
 
 /**
  * A generic projection specification.
@@ -13,7 +14,7 @@ import { ServerValidationError } from 'universe/error.ts';
 export type Projection = { [key in keyof InternalAnswer]?: unknown } & Document;
 
 /**
- * A JSON representation of the backend Mongo database structure. This is used
+ * A JSON representation of the backend Mongo database structure. This ised
  * for consistent app-wide db access across projects and to generate transient
  * versions of the db during testing.
  */
