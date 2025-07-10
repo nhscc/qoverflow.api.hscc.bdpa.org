@@ -12,6 +12,10 @@
   "license": "MIT",
   "author": "Xunnamius",
   "type": "commonjs",
+  "workspaces": [
+    "!packages/*.ignore*",
+    "packages/*"
+  ],
   "scripts": {
     "build": "next build",
     "clean": "symbiote clean --env NODE_NO_WARNINGS=1",
