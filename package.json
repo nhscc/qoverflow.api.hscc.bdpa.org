@@ -53,7 +53,7 @@
     "next": "^15.3.5",
     "next-test-api-route-handler": "^4.0.16",
     "react": "^19.1.0",
-    "rejoinder": "^2.0.1",
+    "rejoinder": "^2.0.2",
     "toss-expression": "^0.1.2",
     "type-fest": "^4.41.0"
   },
