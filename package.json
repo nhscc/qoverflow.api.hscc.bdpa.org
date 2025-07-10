@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "@-xun/api": "^1.0.10",
-    "@-xun/env": "^1.1.1",
+    "@-xun/env": "^1.1.2",
     "@-xun/jest": "^2.2.5",
     "@-xun/js": "^2.0.0",
     "@-xun/mongo-schema": "^1.2.1",
