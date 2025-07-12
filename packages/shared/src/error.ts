@@ -1,33 +1,70 @@
+import { ErrorMessage as UpstreamErrorMessage } from '@-xun/api-strategy/error';
+
+/* eslint-disable @typescript-eslint/no-base-to-string */
 /**
  * A collection of possible error and warning messages.
  */
+/* istanbul ignore next */
 export const ErrorMessage = {
-  GuruMeditation: () => 'an impossible scenario occurred',
+  GuruMeditation: UpstreamErrorMessage.GuruMeditation,
+  ItemNotFound: (item: unknown, itemName: string) =>
+    item ? `${itemName} "${String(item)}" was not found` : 'item was not found',
   InvalidItem: (item: unknown, itemName: string) =>
-    // eslint-disable-next-line @typescript-eslint/no-base-to-string
     `invalid ${itemName}${item !== undefined ? ` "${String(item)}"` : ''}`,
-  InvalidSecret: (secretType?: string) =>
-    ErrorMessage.InvalidItem(undefined, secretType ?? 'secret'),
-  TooManyItemsRequested: (itemsName: string) => `too many ${itemsName} requested`,
-  DuplicateFieldValue: (item: string) => `an item with that "${item}" already exists`,
-  InvalidFieldValue: (item: string) =>
-    `\`${item}\` field has a missing, invalid, or illegal value`,
-  InvalidArrayValue: (item: string, value: string) =>
-    `the \`${item}\` array element "${value}" is invalid or illegal`,
-  InvalidObjectKeyValue: (item: string) =>
-    `a \`${item}\` object key has an invalid or illegal value`,
-  IllegalUsername: () => 'a user with that username cannot be created',
+  DuplicateFieldValue: (property: string) =>
+    `an item with that "${property}" already exists`,
+  InvalidFieldValue: (
+    property: string,
+    value?: string,
+    validValues?: readonly string[]
+  ) =>
+    `\`${property}\` field has ${
+      value
+        ? `invalid or illegal value "${value}"`
+        : 'a missing, invalid, or illegal value'
+    }${validValues ? `. Valid values: ${validValues.join(', ')}` : ''}`,
+  InvalidArrayValue: (
+    property: string,
+    value: string,
+    validValues?: readonly string[]
+  ) =>
+    `the \`${property}\` array element "${value}" is invalid or illegal${
+      validValues ? `. Valid values: ${validValues.join(', ')}` : ''
+    }`,
+  InvalidObjectKeyValue: (
+    property: string,
+    value?: string,
+    validValues?: readonly string[]
+  ) =>
+    `a \`${property}\` object key has ${
+      value
+        ? `invalid or illegal value "${value}"`
+        : 'a missing, invalid, or illegal value'
+    }${validValues ? `. Valid values: ${validValues.join(', ')}` : ''}`,
   InvalidJSON: (property?: string) =>
     'encountered invalid JSON' + (property ? ` in property \`${property}\`` : ''),
-  InvalidStringLength: (
-    item: string,
+  InvalidNumberValue: (
+    property: string,
     min: number | string,
     max: number | string | null,
-    syntax: 'string' | 'alphanumeric' | 'hexadecimal' | 'bytes' = 'alphanumeric',
+    type: 'number' | 'integer',
     nullable = false,
     isArray = false
   ) =>
-    `${isArray ? `each \`${item}\` element` : `\`${item}\``} must be a${
+    `${isArray ? `each \`${property}\` element` : `\`${property}\``} must be a${
+      type === 'integer' ? 'n integer' : ' number'
+    } ${max ? `between ${min} and ${max} (inclusive)` : `>= ${min}`}${
+      nullable ? ' or null' : ''
+    }`,
+  InvalidStringLength: (
+    property: string,
+    min: number | string,
+    max: number | string | null,
+    syntax: 'string' | 'alphanumeric' | 'hexadecimal' | 'bytes',
+    nullable = false,
+    isArray = false
+  ) =>
+    `${isArray ? `each \`${property}\` element` : `\`${property}\``} must be a${
       syntax === 'alphanumeric'
         ? 'n alphanumeric'
         : syntax === 'hexadecimal'
@@ -41,15 +78,17 @@ export const ErrorMessage = {
         : `${min} ${syntax === 'bytes' ? 'byte' : 'character'} string`
     }${nullable ? ' or null' : ''}`,
   InvalidObjectId: (id: string) => `invalid ObjectId "${id}"`,
-  UnknownField: (item: string) => `encountered unknown or illegal field \`${item}\``,
-  UnknownSpecifier: (item: string, sub = false) =>
-    `encountered unknown or illegal ${sub ? 'sub-' : ''}specifier \`${item}\``,
-  UnknownPermissionsSpecifier: () =>
-    'encountered unknown specifier `permissions`. Did you mean to use `permissions.username-goes-here`?',
-  InvalidSpecifierValueType: (item: string, type: string, sub = false) =>
-    `\`${item}\` has invalid ${sub ? 'sub-' : ''}specifier value type (must be ${type})`,
-  InvalidRegexString: (item: string) => `\`${item}\` has invalid or illegal regex value`,
-  InvalidMatcher: (item: string) => `invalid \`${item}\`: must be object`,
+  UnknownField: (property: string) =>
+    `encountered unknown or illegal field \`${property}\``,
+  UnknownSpecifier: (property: string, sub = false) =>
+    `encountered unknown or illegal ${sub ? 'sub-' : ''}specifier \`${property}\``,
+  InvalidSpecifierValueType: (property: string, type: string, sub = false) =>
+    `\`${property}\` has invalid ${
+      sub ? 'sub-' : ''
+    }specifier value type (must be ${type})`,
+  InvalidRegexString: (property: string) =>
+    `\`${property}\` has invalid or illegal regex value`,
+  InvalidMatcher: (property: string) => `invalid \`${property}\`: must be object`,
   InvalidOrSpecifier: () =>
     'invalid "$or" sub-specifier: must be array with exactly two elements',
   InvalidOrSpecifierNonObject: (index: number) =>
@@ -60,11 +99,18 @@ export const ErrorMessage = {
     `invalid "$or" sub-specifier at index ${index}: invalid sub-key "${key}"`,
   InvalidOrSpecifierInvalidValueType: (index: number, key: string) =>
     `invalid "$or" sub-specifier at index ${index}: sub-key "${key}" has invalid value type (must be number)`,
-  NotFound: () => 'item or resource was not found',
-  ItemNotFound: (item: unknown, itemName: string) =>
-    // eslint-disable-next-line @typescript-eslint/no-base-to-string
-    item ? `${itemName} "${String(item)}" was not found` : 'item was not found',
-  ItemOrItemsNotFound: (itemsName: string) => `one or more ${itemsName} were not found`
+  UserAlreadyAnswered: () => 'cannot answer the same question more than once',
+  QuestionAlreadyAcceptedAnswer: () => 'question already has an accepted answer',
+  DuplicateIncrementOperation: () =>
+    'cannot execute duplicate increment without preceding decrement',
+  InvalidDecrementOperation: () =>
+    'cannot execute decrement on this target without preceding increment',
+  MultipleIncrementTargets: () =>
+    'cannot execute increment without preceding decrement on other target',
+  MultitargetDecrement: () =>
+    'cannot execute decrement while other target is incremented',
+  IllegalOperation: () =>
+    'this user is not authorized to execute operations on this item'
 };
 
 export {
