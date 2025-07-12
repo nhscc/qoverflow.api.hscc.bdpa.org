@@ -1,5 +1,4 @@
 // * Fix some super bad weirdness in Next.js that's been around for 5+ years
-// TODO: still needed?
 
 import type { ServerResponse } from 'node:http';
 

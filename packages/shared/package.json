@@ -1,0 +1,17 @@
+{
+  "name": "shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Common unpublished multiversal imports (beware the dual package hazard!)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nhscc/drive.api.hscc.bdpa.org.git"
+  },
+  "license": "MIT",
+  "author": "Xunnamius",
+  "sideEffects": false,
+  "type": "commonjs",
+  "engines": {
+    "node": "^20.18.0 || >=22.12.0"
+  }
+}

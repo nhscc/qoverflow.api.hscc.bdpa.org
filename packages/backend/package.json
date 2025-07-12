@@ -1,0 +1,109 @@
+{
+  "name": "@nhscc/backend-qoverflow",
+  "version": "1.0.0",
+  "description": "https://qoverflow.api.hscc.bdpa.org",
+  "keywords": [],
+  "homepage": "https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/tree/main/packages/backend#readme",
+  "bugs": {
+    "url": "https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nhscc/qoverflow.api.hscc.bdpa.org.git"
+  },
+  "license": "MIT",
+  "author": "Xunnamius",
+  "sideEffects": false,
+  "type": "commonjs",
+  "exports": {
+    ".": {
+      "types": "./dist/packages/backend/src/index.d.ts",
+      "default": "./dist/packages/backend/src/index.js"
+    },
+    "./api": {
+      "types": "./dist/packages/backend/src/api.d.ts",
+      "default": "./dist/packages/backend/src/api.js"
+    },
+    "./db": {
+      "types": "./dist/packages/backend/src/db.d.ts",
+      "default": "./dist/packages/backend/src/db.js"
+    },
+    "./env": {
+      "types": "./dist/packages/backend/src/env.d.ts",
+      "default": "./dist/packages/backend/src/env.js"
+    },
+    "./package": "./package.json",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "index": [
+        "dist/packages/backend/src/index.d.ts"
+      ],
+      "api": [
+        "dist/packages/backend/src/api.d.ts"
+      ],
+      "db": [
+        "dist/packages/backend/src/db.d.ts"
+      ],
+      "env": [
+        "dist/packages/backend/src/env.d.ts"
+      ],
+      "package": [
+        "package.json"
+      ]
+    }
+  },
+  "files": [
+    "/dist",
+    "/LICENSE",
+    "/package.json",
+    "/README.md"
+  ],
+  "scripts": {
+    "build": "npm run build:dist --",
+    "build:changelog": "symbiote build changelog --env NODE_NO_WARNINGS=1",
+    "build:dist": "symbiote build distributables --env NODE_NO_WARNINGS=1 --multiversal",
+    "build:docs": "symbiote build docs --env NODE_NO_WARNINGS=1",
+    "clean": "symbiote clean --env NODE_NO_WARNINGS=1",
+    "format": "symbiote format --env NODE_NO_WARNINGS=1 --hush",
+    "info": "symbiote project info --env NODE_NO_WARNINGS=1",
+    "lint": "npm run lint:package --",
+    "lint:package": "symbiote lint --env NODE_NO_WARNINGS=1 --hush",
+    "lint:packages": "symbiote lint --env NODE_NO_WARNINGS=1 --hush --scope unlimited",
+    "lint:project": "symbiote project lint --env NODE_NO_WARNINGS=1",
+    "list-tasks": "symbiote list-tasks --env NODE_NO_WARNINGS=1 --scope this-package",
+    "release": "symbiote release --env NODE_NO_WARNINGS=1",
+    "start": "symbiote start --env NODE_NO_WARNINGS=1 --",
+    "test": "npm run test:package:unit --",
+    "test:package:all": "symbiote test --env NODE_NO_WARNINGS=1 --tests all-local --coverage",
+    "test:package:e2e": "symbiote test --env NODE_NO_WARNINGS=1 --tests e2e-local",
+    "test:package:integration": "symbiote test --env NODE_NO_WARNINGS=1 --tests integration",
+    "test:package:unit": "symbiote test --env NODE_NO_WARNINGS=1 --tests unit type",
+    "test:packages:all": "symbiote test --env NODE_NO_WARNINGS=1 --tests all-local --scope unlimited --coverage"
+  },
+  "dependencies": {
+    "@-xun/api-strategy": "^1.3.5",
+    "@-xun/env": "^1.1.2",
+    "@-xun/js": "^2.0.0",
+    "@-xun/mongo-item": "^1.2.1",
+    "@-xun/mongo-schema": "^1.2.1",
+    "@-xun/types": "^1.1.0",
+    "@types/bytes": "^3.1.5",
+    "bytes": "^3.1.2",
+    "core-js": "^3.44.0",
+    "mongodb": "^6.17.0",
+    "next": "^15.3.5",
+    "toss-expression": "^0.1.2"
+  },
+  "devDependencies": {
+    "@-xun/mongo-test": "^1.1.7"
+  },
+  "engines": {
+    "node": "^20.18.0 || >=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}
