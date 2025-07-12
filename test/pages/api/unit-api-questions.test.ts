@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { testApiHandler } from 'next-test-api-route-handler';
 
-import { api, setupMockBackend } from 'testverse/fixtures';
+import { api, setupMockBackend } from 'testverse:fixtures/index.ts';
 
-jest.mock('universe/backend');
-jest.mock<typeof import('universe/backend/middleware')>(
-  'universe/backend/middleware',
+jest.mock('@nhscc/backend-qoverflow');
+jest.mock<typeof import('universe:route-wrapper.ts')>(
+  'universe:route-wrapper.ts',
   () => {
     const { middlewareFactory } = require('@-xun/api') as typeof import('@-xun/api');
     const { makeMiddleware: makeErrorHandlingMiddleware } =
@@ -19,7 +19,7 @@ jest.mock<typeof import('universe/backend/middleware')>(
           options: { legacyMode: true }
         })
       )
-    } as unknown as typeof import('universe/backend/middleware');
+    } as unknown as typeof import('universe:route-wrapper.ts');
   }
 );
 

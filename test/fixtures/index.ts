@@ -1,3 +1,115 @@
+import CatchAllForNotFoundEndpoint, {
+  config as CatchAllForNotFoundConfig,
+  metadata as CatchAllForNotFoundMetadata
+} from 'universe:pages/api/[[...catchAllForNotFound]].ts';
+
+import V1EndpointMailUsername, {
+  config as V1ConfigMailUsername,
+  metadata as V1MetadataMailUsername
+} from 'universe:pages/api/v1/mail/[username].ts';
+
+import V1EndpointMail, {
+  config as V1ConfigMail,
+  metadata as V1MetadataMail
+} from 'universe:pages/api/v1/mail/index.ts';
+
+import V1EndpointQuestionsQuestionIdAnswersAnswerIdCommentsCommentId, {
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentId,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdCommentsCommentId
+} from 'universe:pages/api/v1/questions/[question_id]/answers/[answer_id]/comments/[comment_id]/index.ts';
+
+import V1EndpointQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername, {
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername
+} from 'universe:pages/api/v1/questions/[question_id]/answers/[answer_id]/comments/[comment_id]/vote/[username].ts';
+
+import V1EndpointQuestionsQuestionIdAnswersAnswerIdComments, {
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdComments,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdComments
+} from 'universe:pages/api/v1/questions/[question_id]/answers/[answer_id]/comments/index.ts';
+
+import V1EndpointQuestionsQuestionIdAnswersAnswerId, {
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerId,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerId
+} from 'universe:pages/api/v1/questions/[question_id]/answers/[answer_id]/index.ts';
+
+import V1EndpointQuestionsQuestionIdAnswersAnswerIdVoteUsername, {
+  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdVoteUsername
+} from 'universe:pages/api/v1/questions/[question_id]/answers/[answer_id]/vote/[username].ts';
+
+import V1EndpointQuestionsQuestionIdAnswers, {
+  config as V1ConfigQuestionsQuestionIdAnswers,
+  metadata as V1MetadataQuestionsQuestionIdAnswers
+} from 'universe:pages/api/v1/questions/[question_id]/answers/index.ts';
+
+import V1EndpointQuestionsQuestionIdCommentsCommentId, {
+  config as V1ConfigQuestionsQuestionIdCommentsCommentId,
+  metadata as V1MetadataQuestionsQuestionIdCommentsCommentId
+} from 'universe:pages/api/v1/questions/[question_id]/comments/[comment_id]/index.ts';
+
+import V1EndpointQuestionsQuestionIdCommentsCommentIdVoteUsername, {
+  config as V1ConfigQuestionsQuestionIdCommentsCommentIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdCommentsCommentIdVoteUsername
+} from 'universe:pages/api/v1/questions/[question_id]/comments/[comment_id]/vote/[username].ts';
+
+import V1EndpointQuestionsQuestionIdComments, {
+  config as V1ConfigQuestionsQuestionIdComments,
+  metadata as V1MetadataQuestionsQuestionIdComments
+} from 'universe:pages/api/v1/questions/[question_id]/comments/index.ts';
+
+import V1EndpointQuestionsQuestionId, {
+  config as V1ConfigQuestionsQuestionId,
+  metadata as V1MetadataQuestionsQuestionId
+} from 'universe:pages/api/v1/questions/[question_id]/index.ts';
+
+import V1EndpointQuestionsQuestionIdVoteUsername, {
+  config as V1ConfigQuestionsQuestionIdVoteUsername,
+  metadata as V1MetadataQuestionsQuestionIdVoteUsername
+} from 'universe:pages/api/v1/questions/[question_id]/vote/[username].ts';
+
+import V1EndpointQuestions, {
+  config as V1ConfigQuestions,
+  metadata as V1MetadataQuestions
+} from 'universe:pages/api/v1/questions/index.ts';
+
+import V1EndpointQuestionsSearch, {
+  config as V1ConfigQuestionsSearch,
+  metadata as V1MetadataQuestionsSearch
+} from 'universe:pages/api/v1/questions/search.ts';
+
+import V1EndpointUsersUsernameAnswers, {
+  config as V1ConfigUsersUsernameAnswers,
+  metadata as V1MetadataUsersUsernameAnswers
+} from 'universe:pages/api/v1/users/[username]/answers.ts';
+
+import V1EndpointUsersUsernameAuth, {
+  config as V1ConfigUsersUsernameAuth,
+  metadata as V1MetadataUsersUsernameAuth
+} from 'universe:pages/api/v1/users/[username]/auth.ts';
+
+import V1EndpointUsersUsername, {
+  config as V1ConfigUsersUsername,
+  metadata as V1MetadataUsersUsername
+} from 'universe:pages/api/v1/users/[username]/index.ts';
+
+import V1EndpointUsersUsernamePoints, {
+  config as V1ConfigUsersUsernamePoints,
+  metadata as V1MetadataUsersUsernamePoints
+} from 'universe:pages/api/v1/users/[username]/points.ts';
+
+import V1EndpointUsersUsernameQuestions, {
+  config as V1ConfigUsersUsernameQuestions,
+  metadata as V1MetadataUsersUsernameQuestions
+} from 'universe:pages/api/v1/users/[username]/questions.ts';
+
+import V1EndpointUsers, {
+  config as V1ConfigUsers,
+  metadata as V1MetadataUsers
+} from 'universe:pages/api/v1/users/index.ts';
+
+import { asMocked } from 'testverse:util.ts';
+
 import {
   applyVotesUpdateOperation,
   authAppUser,
@@ -24,114 +136,7 @@ import {
   updateAnswer,
   updateQuestion,
   updateUser
-} from 'universe/backend';
-
-import V1EndpointMail, {
-  config as V1ConfigMail,
-  metadata as V1MetadataMail
-} from 'universe/pages/api/v1/mail';
-
-import V1EndpointMailUsername, {
-  config as V1ConfigMailUsername,
-  metadata as V1MetadataMailUsername
-} from 'universe/pages/api/v1/mail/[username]';
-
-import V1EndpointQuestions, {
-  config as V1ConfigQuestions,
-  metadata as V1MetadataQuestions
-} from 'universe/pages/api/v1/questions';
-
-import V1EndpointQuestionsQuestionId, {
-  config as V1ConfigQuestionsQuestionId,
-  metadata as V1MetadataQuestionsQuestionId
-} from 'universe/pages/api/v1/questions/[question_id]';
-
-import V1EndpointQuestionsQuestionIdAnswers, {
-  config as V1ConfigQuestionsQuestionIdAnswers,
-  metadata as V1MetadataQuestionsQuestionIdAnswers
-} from 'universe/pages/api/v1/questions/[question_id]/answers';
-
-import V1EndpointQuestionsQuestionIdAnswersAnswerId, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerId,
-  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerId
-} from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]';
-
-import V1EndpointQuestionsQuestionIdAnswersAnswerIdComments, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdComments,
-  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdComments
-} from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/comments';
-
-import V1EndpointQuestionsQuestionIdAnswersAnswerIdCommentsCommentId, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentId,
-  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdCommentsCommentId
-} from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/comments/[comment_id]';
-
-import V1EndpointQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername,
-  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername
-} from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/comments/[comment_id]/vote/[username]';
-
-import V1EndpointQuestionsQuestionIdAnswersAnswerIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdAnswersAnswerIdVoteUsername,
-  metadata as V1MetadataQuestionsQuestionIdAnswersAnswerIdVoteUsername
-} from 'universe/pages/api/v1/questions/[question_id]/answers/[answer_id]/vote/[username]';
-
-import V1EndpointQuestionsQuestionIdComments, {
-  config as V1ConfigQuestionsQuestionIdComments,
-  metadata as V1MetadataQuestionsQuestionIdComments
-} from 'universe/pages/api/v1/questions/[question_id]/comments';
-
-import V1EndpointQuestionsQuestionIdCommentsCommentId, {
-  config as V1ConfigQuestionsQuestionIdCommentsCommentId,
-  metadata as V1MetadataQuestionsQuestionIdCommentsCommentId
-} from 'universe/pages/api/v1/questions/[question_id]/comments/[comment_id]';
-
-import V1EndpointQuestionsQuestionIdCommentsCommentIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdCommentsCommentIdVoteUsername,
-  metadata as V1MetadataQuestionsQuestionIdCommentsCommentIdVoteUsername
-} from 'universe/pages/api/v1/questions/[question_id]/comments/[comment_id]/vote/[username]';
-
-import V1EndpointQuestionsQuestionIdVoteUsername, {
-  config as V1ConfigQuestionsQuestionIdVoteUsername,
-  metadata as V1MetadataQuestionsQuestionIdVoteUsername
-} from 'universe/pages/api/v1/questions/[question_id]/vote/[username]';
-
-import V1EndpointQuestionsSearch, {
-  config as V1ConfigQuestionsSearch,
-  metadata as V1MetadataQuestionsSearch
-} from 'universe/pages/api/v1/questions/search';
-
-import V1EndpointUsers, {
-  config as V1ConfigUsers,
-  metadata as V1MetadataUsers
-} from 'universe/pages/api/v1/users';
-
-import V1EndpointUsersUsername, {
-  config as V1ConfigUsersUsername,
-  metadata as V1MetadataUsersUsername
-} from 'universe/pages/api/v1/users/[username]';
-
-import V1EndpointUsersUsernameAnswers, {
-  config as V1ConfigUsersUsernameAnswers,
-  metadata as V1MetadataUsersUsernameAnswers
-} from 'universe/pages/api/v1/users/[username]/answers';
-
-import V1EndpointUsersUsernameAuth, {
-  config as V1ConfigUsersUsernameAuth,
-  metadata as V1MetadataUsersUsernameAuth
-} from 'universe/pages/api/v1/users/[username]/auth';
-
-import V1EndpointUsersUsernamePoints, {
-  config as V1ConfigUsersUsernamePoints,
-  metadata as V1MetadataUsersUsernamePoints
-} from 'universe/pages/api/v1/users/[username]/points';
-
-import V1EndpointUsersUsernameQuestions, {
-  config as V1ConfigUsersUsernameQuestions,
-  metadata as V1MetadataUsersUsernameQuestions
-} from 'universe/pages/api/v1/users/[username]/questions';
-
-import { asMocked } from 'testverse/util';
+} from '@nhscc/backend-qoverflow';
 
 import type { NextApiHandler, PageConfig } from 'next';
 
@@ -141,7 +146,7 @@ import type {
   PublicMail,
   PublicQuestion,
   PublicUser
-} from 'universe/backend/db';
+} from '@nhscc/backend-qoverflow/db';
 
 export type NextApiHandlerMixin = NextApiHandler & {
   config?: PageConfig;
@@ -152,6 +157,7 @@ export type NextApiHandlerMixin = NextApiHandler & {
  * The entire live API topology gathered together into one convenient object.
  */
 export const api = {
+  catchAllForNotFound: CatchAllForNotFoundEndpoint as NextApiHandlerMixin,
   v1: {
     users: V1EndpointUsers as NextApiHandlerMixin,
     usersUsername: V1EndpointUsersUsername as NextApiHandlerMixin,
@@ -187,6 +193,12 @@ export const api = {
   }
 };
 
+// **                           **
+// ** Add configuration objects **
+// **                           **
+
+api.catchAllForNotFound.config = CatchAllForNotFoundConfig;
+
 api.v1.users.config = V1ConfigUsers;
 api.v1.usersUsername.config = V1ConfigUsersUsername;
 api.v1.usersUsernameAuth.config = V1ConfigUsersUsernameAuth;
@@ -215,6 +227,12 @@ api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentId.config =
   V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentId;
 api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername.config =
   V1ConfigQuestionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername;
+
+// **                           **
+// ** Add metadata descriptors  **
+// **                           **
+
+api.catchAllForNotFound.uri = CatchAllForNotFoundMetadata.descriptor;
 
 api.v1.users.uri = V1MetadataUsers.descriptor;
 api.v1.usersUsername.uri = V1MetadataUsersUsername.descriptor;
@@ -251,8 +269,8 @@ api.v1.questionsQuestionIdAnswersAnswerIdCommentsCommentIdVoteUsername.uri =
  * A convenience function that mocks the entire backend and returns the mock
  * functions. Uses `beforeEach` under the hood.
  *
- * **WARNING: YOU MUST CALL `jest.mock('universe/backend')` before calling this
- * function!**
+ * **WARNING: YOU MUST CALL `jest.mock('@nhscc/backend-qoverflow')` before
+ * calling this function!**
  */
 export function setupMockBackend() {
   const mockedApplyVotesUpdateOperation = asMocked(applyVotesUpdateOperation);

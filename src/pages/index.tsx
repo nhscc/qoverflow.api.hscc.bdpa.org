@@ -1,8 +1,8 @@
+import { getEnv } from '@nhscc/backend-qoverflow~npm/env';
 import * as React from 'react';
 
-import { getEnv } from 'universe/backend/env';
+import { version as packageVersion } from 'rootverse:package.json';
 
-import { version as packageVersion } from 'package';
 //import { hydrateDb } from '@-xun/mongo-test';
 
 export async function getServerSideProps() {

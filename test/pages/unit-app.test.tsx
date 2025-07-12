@@ -3,7 +3,7 @@
  */
 import { render, screen } from '@testing-library/react';
 
-import App from 'universe/pages/_app';
+import App from 'universe:pages/_app.tsx';
 
 import type { AppProps } from 'next/app';
 

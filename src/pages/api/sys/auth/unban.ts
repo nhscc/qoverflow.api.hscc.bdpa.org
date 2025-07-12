@@ -1,10 +1,10 @@
 import { getAllRateLimits, removeRateLimit } from '@-xun/api-strategy/limit';
 import { sendHttpOk } from '@-xun/respond';
 
-import { withSysMiddleware } from 'universe/backend/middleware';
+import { withSysMiddleware } from 'universe:route-wrapper.ts';
 
 // ? https://nextjs.org/docs/api-routes/api-middlewares#custom-config
-export { defaultConfig as config } from 'universe/backend/api';
+export { defaultConfig as config } from '@nhscc/backend-qoverflow~npm/api';
 
 /**
  * An endpoint to test if the API is up and reachable.
@@ -24,7 +24,6 @@ export default withSysMiddleware(
   {
     descriptor: '/sys/auth/unban',
     options: {
-      requiresAuth: true,
       allowedMethods: ['DELETE', 'GET']
     }
   }

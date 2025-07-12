@@ -7,10 +7,10 @@ import {
 
 import { sendHttpOk } from '@-xun/respond';
 
-import { withSysMiddleware } from 'universe/backend/middleware';
+import { withSysMiddleware } from 'universe:route-wrapper.ts';
 
 // ? https://nextjs.org/docs/api-routes/api-middlewares#custom-config
-export { defaultConfig as config } from 'universe/backend/api';
+export { defaultConfig as config } from '@nhscc/backend-qoverflow~npm/api';
 
 export default withSysMiddleware(
   async (req, res) => {
@@ -42,6 +42,6 @@ export default withSysMiddleware(
   },
   {
     descriptor: '/sys/auth/:auth_id',
-    options: { requiresAuth: true, allowedMethods: ['GET', 'PATCH', 'DELETE'] }
+    options: { allowedMethods: ['GET', 'PATCH', 'DELETE'] }
   }
 );

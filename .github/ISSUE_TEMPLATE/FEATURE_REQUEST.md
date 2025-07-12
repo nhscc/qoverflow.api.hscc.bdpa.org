@@ -1,8 +1,7 @@
 ---
-
-name: 🤩 Feature request about: Tell us about your awesome idea labels:
-enhancement
-
+name: 🤩 Feature request
+about: Tell us about your awesome idea
+labels: enhancement
 ---
 
 <!-- THANK YOU for taking a moment to improve this project. 🤘🏿 You rock! 🎸 |-->

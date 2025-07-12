@@ -8,7 +8,6 @@ updates:
       prefix: 'chore'
       prefix-development: 'chore'
       include: 'scope'
-    target-branch: 'canary'
 
   - package-ecosystem: npm
     directory: /
@@ -18,4 +17,3 @@ updates:
       prefix: 'build'
       prefix-development: 'chore'
       include: 'scope'
-    target-branch: 'canary'

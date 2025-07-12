@@ -1,9 +1,9 @@
 import { sendHttpOk } from '@-xun/respond';
+import { getUserAnswers } from '@nhscc/backend-qoverflow~npm';
 
-import { getUserAnswers } from 'universe/backend';
-import { withMiddleware } from 'universe/backend/middleware';
+import { withMiddleware } from 'universe:route-wrapper.ts';
 
-export { defaultConfig as config } from 'universe/backend/api';
+export { defaultConfig as config } from '@nhscc/backend-qoverflow~npm/api';
 
 export const metadata = {
   descriptor: '/v1/users/:username/answers',
@@ -23,7 +23,6 @@ export default withMiddleware(
   {
     descriptor: metadata.descriptor,
     options: {
-      requiresAuth: true,
       allowedMethods: ['GET'],
       apiVersion: metadata.apiVersion
     }

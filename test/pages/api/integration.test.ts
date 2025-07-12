@@ -8,15 +8,16 @@ import { setupMemoryServerOverride } from '@-xun/mongo-test';
 import { get as dotPath } from 'dot-prop';
 import { testApiHandler } from 'next-test-api-route-handler';
 
-import { getSchemaConfig } from 'universe/backend/db';
-import { ErrorMessage } from 'universe/error';
+import { ErrorMessage } from 'multiverse+shared:error.ts';
 
-import { getDummyData } from 'testverse/db';
-import { api } from 'testverse/fixtures';
-import { getFixtures } from 'testverse/fixtures/integration';
-import { mockEnvFactory, withMockedOutput } from 'testverse/util';
+import { getDummyData } from 'testverse:db.ts';
+import { api } from 'testverse:fixtures/index.ts';
+import { getFixtures } from 'testverse:fixtures/integration.ts';
+import { mockEnvFactory, withMockedOutput } from 'testverse:util.ts';
 
-import type { TestResult, TestResultset } from 'testverse/fixtures/integration';
+import { getSchemaConfig } from '@nhscc/backend-qoverflow/db';
+
+import type { TestResult, TestResultset } from 'testverse:fixtures/integration.ts';
 
 setupMemoryServerOverride({
   // ? Ensure all tests share the same database state
@@ -44,7 +45,7 @@ let lastRunSuccess = true;
 
 describe('> middleware correctness tests', () => {
   Object.values(api)
-    .flatMap((v) => Object.values(v))
+    .flatMap((v) => (typeof v === 'function' ? [] : Object.values(v)))
     .forEach((endpoint) => {
       assert(endpoint.uri, ErrorMessage.GuruMeditation());
 

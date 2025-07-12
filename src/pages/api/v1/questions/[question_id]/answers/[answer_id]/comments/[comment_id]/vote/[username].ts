@@ -1,9 +1,13 @@
 import { sendHttpNotFound, sendHttpOk } from '@-xun/respond';
 
-import { applyVotesUpdateOperation, getHowUserVoted } from 'universe/backend';
-import { withMiddleware } from 'universe/backend/middleware';
+import {
+  applyVotesUpdateOperation,
+  getHowUserVoted
+} from '@nhscc/backend-qoverflow~npm';
 
-export { defaultConfig as config } from 'universe/backend/api';
+import { withMiddleware } from 'universe:route-wrapper.ts';
+
+export { defaultConfig as config } from '@nhscc/backend-qoverflow~npm/api';
 
 export const metadata = {
   descriptor:
@@ -48,7 +52,6 @@ export default withMiddleware(
   {
     descriptor: metadata.descriptor,
     options: {
-      requiresAuth: true,
       allowedMethods: ['GET', 'PATCH'],
       apiVersion: metadata.apiVersion
     }

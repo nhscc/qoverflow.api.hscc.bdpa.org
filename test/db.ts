@@ -1,10 +1,15 @@
 import { getCommonDummyData } from '@-xun/api-strategy/mongo/dummy';
 import { ObjectId } from 'mongodb';
 
-import { mockDateNowMs } from 'testverse/util';
+import { mockDateNowMs } from 'testverse:util.ts';
 
 import type { DummyData } from '@-xun/mongo-test';
-import type { InternalMail, InternalQuestion, InternalUser } from 'universe/backend/db';
+
+import type {
+  InternalMail,
+  InternalQuestion,
+  InternalUser
+} from '@nhscc/backend-qoverflow/db';
 
 /**
  * Returns data used to hydrate databases and their collections.

@@ -1,4 +1,4 @@
-import { ClientValidationError, ErrorMessage } from 'universe/error';
+import { ClientValidationError, ErrorMessage } from 'multiverse+shared:error.ts';
 
 import type { JsonValue } from 'type-fest';
 

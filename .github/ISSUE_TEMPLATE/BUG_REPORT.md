@@ -1,7 +1,7 @@
 ---
-
-name: 🤯 Bug report about: Alert us about an issue labels: bug
-
+name: 🤯 Bug report
+about: Alert us about an issue
+labels: bug
 ---
 
 <!-- THANK YOU for taking a moment to improve this project. 🤘🏿 You rock! 🎸 -->
@@ -30,7 +30,7 @@ instead the simplest most basic possible steps to reproduce your problem; e.g.:
 2. Run `npm install`
 3. Run `npx jest`
 4. See error "xyz" at test 2, which shouldn't be happening
-   -->
+-->
 
 </details>
 

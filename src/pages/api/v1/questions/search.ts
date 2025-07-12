@@ -1,10 +1,11 @@
 import { sendHttpOk } from '@-xun/respond';
+import { searchQuestions } from '@nhscc/backend-qoverflow~npm';
 
-import { searchQuestions } from 'universe/backend';
-import { withMiddleware } from 'universe/backend/middleware';
-import { ClientValidationError, ErrorMessage } from 'universe/error';
+import { ClientValidationError, ErrorMessage } from 'multiverse+shared:error.ts';
 
-export { defaultConfig as config } from 'universe/backend/api';
+import { withMiddleware } from 'universe:route-wrapper.ts';
+
+export { defaultConfig as config } from '@nhscc/backend-qoverflow~npm/api';
 
 export const metadata = {
   descriptor: '/v1/questions/search',
@@ -42,7 +43,6 @@ export default withMiddleware(
   {
     descriptor: metadata.descriptor,
     options: {
-      requiresAuth: true,
       allowedMethods: ['GET'],
       apiVersion: metadata.apiVersion
     }

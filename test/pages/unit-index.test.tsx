@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react';
 // add custom jest matchers from jest-dom
 import '@testing-library/jest-dom';
 
-import IndexPage, { getServerSideProps } from 'universe/pages/index';
+import IndexPage, { getServerSideProps } from 'universe:pages/index.tsx';
 
 it('renders without crashing', async () => {
   expect.hasAssertions();

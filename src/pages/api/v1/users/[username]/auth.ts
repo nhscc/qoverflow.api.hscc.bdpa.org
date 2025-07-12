@@ -1,9 +1,9 @@
 import { sendHttpOk, sendHttpUnauthorized } from '@-xun/respond';
+import { authAppUser } from '@nhscc/backend-qoverflow~npm';
 
-import { authAppUser } from 'universe/backend';
-import { withMiddleware } from 'universe/backend/middleware';
+import { withMiddleware } from 'universe:route-wrapper.ts';
 
-export { defaultConfig as config } from 'universe/backend/api';
+export { defaultConfig as config } from '@nhscc/backend-qoverflow~npm/api';
 
 export const metadata = {
   descriptor: '/v1/users/:username/auth',
@@ -44,7 +44,6 @@ export default withMiddleware(
   {
     descriptor: metadata.descriptor,
     options: {
-      requiresAuth: true,
       allowedMethods: ['POST'],
       apiVersion: metadata.apiVersion
     }

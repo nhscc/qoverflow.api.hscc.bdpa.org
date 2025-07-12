@@ -1,9 +1,9 @@
 import { sendHttpOk } from '@-xun/respond';
+import { deleteComment } from '@nhscc/backend-qoverflow~npm';
 
-import { deleteComment } from 'universe/backend';
-import { withMiddleware } from 'universe/backend/middleware';
+import { withMiddleware } from 'universe:route-wrapper.ts';
 
-export { defaultConfig as config } from 'universe/backend/api';
+export { defaultConfig as config } from '@nhscc/backend-qoverflow~npm/api';
 
 export const metadata = {
   descriptor: '/v1/questions/:question_id/answers/:answer_id/comments/:comment_id',
@@ -24,7 +24,6 @@ export default withMiddleware(
   {
     descriptor: metadata.descriptor,
     options: {
-      requiresAuth: true,
       allowedMethods: ['DELETE'],
       apiVersion: metadata.apiVersion
     }

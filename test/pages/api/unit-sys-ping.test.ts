@@ -6,9 +6,9 @@ import { getDb } from '@-xun/mongo-schema';
 import { setupMemoryServerOverride } from '@-xun/mongo-test';
 import { testApiHandler } from 'next-test-api-route-handler';
 
-import Endpoint, { config as Config } from 'universe/pages/api/sys/ping';
+import Endpoint, { config as Config } from 'universe:pages/api/sys/ping.ts';
 
-import { useMockDateNow } from 'testverse/util';
+import { useMockDateNow } from 'testverse:util.ts';
 
 import type { InternalAuthEntry } from '@-xun/api-strategy/auth';
 

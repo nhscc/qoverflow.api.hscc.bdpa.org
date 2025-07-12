@@ -61,3 +61,6 @@ __*__
 .DS_Store
 
 # Custom
+# TODO: remove these when we do something about integration tests
+!**/test/**/fixtures/index.ts
+!**/test/**/fixtures/integration.ts

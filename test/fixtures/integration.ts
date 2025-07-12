@@ -3,17 +3,18 @@ import createDebugLogger from 'debug';
 import { ObjectId } from 'mongodb';
 import { toss } from 'toss-expression';
 
-import { toPublicUser } from 'universe/backend/db';
-import { getEnv } from 'universe/backend/env';
-import { SanityError } from 'universe/error';
+import { SanityError } from 'multiverse+shared:error.ts';
 
-import { dummyAppData } from 'testverse/db';
+import { name as packageName } from 'rootverse:package.json';
 
-import { name as packageName } from 'package';
+import { dummyAppData } from 'testverse:db.ts';
+
+import { toPublicUser } from '@nhscc/backend-qoverflow/db';
+import { getEnv } from '@nhscc/backend-qoverflow/env';
 
 import type { Promisable } from 'type-fest';
-import type { NewUser, PatchUser, PublicUser } from 'universe/backend/db';
-import type { NextApiHandlerMixin } from 'testverse/fixtures';
+import type { NextApiHandlerMixin } from 'testverse:fixtures/index.ts';
+import type { NewUser, PatchUser, PublicUser } from '@nhscc/backend-qoverflow/db';
 
 // TODO: turn a lot of this into some kind of package; needs to be generic
 // TODO: enough to handle various use cases though :) Maybe
@@ -154,7 +155,7 @@ export type TestFixture = {
 };
 
 export function getFixtures(
-  api: typeof import('testverse/fixtures').api
+  api: typeof import('testverse:fixtures/index.ts').api
 ): TestFixture[] {
   const runOnly = process.env.RUN_ONLY?.split(',')
     .flatMap((n) => {
@@ -297,7 +298,8 @@ export function getFixtures(
       params: { username: 'does-not-exist' },
       response: { status: 404 }
     },
-    { // * 10
+    {
+      // * 10
       subject: `delete ${dummyAppData.users[0]!.username}`,
       pagesHandler: api.v1.usersUsername,
       method: 'DELETE',
@@ -428,7 +430,8 @@ export function getFixtures(
       } as PatchUser,
       response: { status: 400 }
     },
-    { // * 20
+    {
+      // * 20
       subject: 'attempt to update baracko with no key',
       pagesHandler: api.v1.usersUsername,
       method: 'PATCH',
@@ -472,7 +475,8 @@ export function getFixtures(
       params: { after: 'bad-id' },
       response: { status: 400 }
     },
-    {// * 25
+    {
+      // * 25
       subject: 'attempt to fetch all users in LIFO order using non-existent after_id',
       pagesHandler: api.v1.users,
       method: 'GET',
@@ -511,7 +515,8 @@ export function getFixtures(
       body: { salt: 'xyz' },
       response: { status: 400 }
     },
-    { // * 30
+    {
+      // * 30
       subject: `attempt to update ${dummyAppData.users[2]!.username} using a short non-hex key`,
       pagesHandler: api.v1.usersUsername,
       params: { username: dummyAppData.users[2]!.username },
@@ -1186,8 +1191,7 @@ export function getFixtures(
 
       (fixture as TestFixture).displayIndex = !runOnly
         ? displayIndex
-        : (runOnly.shift() ??
-          toss(new SanityError('ran out of RUN_ONLY indices')));
+        : (runOnly.shift() ?? toss(new SanityError('ran out of RUN_ONLY indices')));
 
       return true;
     }
