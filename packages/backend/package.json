@@ -85,7 +85,6 @@
   "dependencies": {
     "@-xun/api-strategy": "^1.3.5",
     "@-xun/env": "^1.1.2",
-    "@-xun/js": "^2.0.0",
     "@-xun/mongo-item": "^1.2.1",
     "@-xun/mongo-schema": "^1.2.1",
     "@-xun/types": "^1.1.0",
@@ -94,10 +93,12 @@
     "core-js": "^3.44.0",
     "mongodb": "^6.17.0",
     "next": "^15.3.5",
-    "toss-expression": "^0.1.2"
+    "toss-expression": "^0.1.2",
+    "type-fest": "^4.41.0"
   },
   "devDependencies": {
-    "@-xun/mongo-test": "^1.1.7"
+    "@-xun/mongo-test": "^1.1.7",
+    "random-case": "^1.0.0"
   },
   "engines": {
     "node": "^20.18.0 || >=22.12.0"
