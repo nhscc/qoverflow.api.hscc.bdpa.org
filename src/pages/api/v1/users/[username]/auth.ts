@@ -10,6 +10,7 @@ export const metadata = {
   apiVersion: '1'
 };
 
+// TODO: 2025: didn't we implement this already?
 // * The next version of this should use GET and POST as follows:
 // TODO: 1. GET to get the permanent user salt and a one-time fresh salt
 // TODO:    Fresh salts are stored per-ip and expire after 15 seconds
