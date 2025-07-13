@@ -97,7 +97,7 @@
     "type-fest": "^4.41.0"
   },
   "devDependencies": {
-    "@-xun/mongo-test": "^1.1.7",
+    "@-xun/mongo-test": "^2.0.0",
     "random-case": "^1.0.0"
   },
   "engines": {
