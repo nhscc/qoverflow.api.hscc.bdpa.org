@@ -59,7 +59,7 @@
     "@-xun/symbiote": "^4.11.0",
     "@-xun/types": "^1.1.0",
     "@nhscc/backend-qoverflow": "^1.0.0",
-    "@nhscc/backend-qoverflow~npm": "npm:@nhscc/backend-qoverflow@^1.0.0",
+    "@nhscc/backend-qoverflow~npm": "npm:@nhscc/backend-qoverflow",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/bytes": "^3.1.5",
