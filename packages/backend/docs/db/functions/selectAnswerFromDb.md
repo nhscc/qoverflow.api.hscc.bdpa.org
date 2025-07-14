@@ -8,7 +8,7 @@
 
 > **selectAnswerFromDb**\<`T`\>(`__namedParameters`): `Promise`\<`T`\>
 
-Defined in: [packages/backend/src/db.ts:691](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/427e25011f0e71265852f81f85026e1290417c2b/packages/backend/src/db.ts#L691)
+Defined in: [packages/backend/src/db.ts:691](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/b629239838bf73900bba2996b8dcfbc432755e21/packages/backend/src/db.ts#L691)
 
 Returns a nested answer object via aggregation pipeline, optionally applying
 a projection to the result.

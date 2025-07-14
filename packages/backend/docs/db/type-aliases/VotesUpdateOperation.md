@@ -8,7 +8,7 @@
 
 > **VotesUpdateOperation** = `object`
 
-Defined in: [packages/backend/src/db.ts:105](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/427e25011f0e71265852f81f85026e1290417c2b/packages/backend/src/db.ts#L105)
+Defined in: [packages/backend/src/db.ts:105](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/b629239838bf73900bba2996b8dcfbc432755e21/packages/backend/src/db.ts#L105)
 
 The shape of an update operation on a question or comment's
 upvotes/downvotes.
@@ -19,7 +19,7 @@ upvotes/downvotes.
 
 > **op**: `"increment"` \| `"decrement"`
 
-Defined in: [packages/backend/src/db.ts:106](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/427e25011f0e71265852f81f85026e1290417c2b/packages/backend/src/db.ts#L106)
+Defined in: [packages/backend/src/db.ts:106](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/b629239838bf73900bba2996b8dcfbc432755e21/packages/backend/src/db.ts#L106)
 
 ***
 
@@ -27,4 +27,4 @@ Defined in: [packages/backend/src/db.ts:106](https://github.com/nhscc/qoverflow.
 
 > **target**: `"upvotes"` \| `"downvotes"`
 
-Defined in: [packages/backend/src/db.ts:107](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/427e25011f0e71265852f81f85026e1290417c2b/packages/backend/src/db.ts#L107)
+Defined in: [packages/backend/src/db.ts:107](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/b629239838bf73900bba2996b8dcfbc432755e21/packages/backend/src/db.ts#L107)
