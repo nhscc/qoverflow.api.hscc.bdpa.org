@@ -7,9 +7,8 @@ import { SanityError } from 'multiverse+shared:error.ts';
 
 import { name as packageName } from 'rootverse:package.json';
 
-import { dummyAppData } from '@nhscc/backend-qoverflow/dummy';
-
 import { toPublicUser } from '@nhscc/backend-qoverflow/db';
+import { dummyAppData } from '@nhscc/backend-qoverflow/dummy';
 import { getEnv } from '@nhscc/backend-qoverflow/env';
 
 import type { Promisable } from 'type-fest';
