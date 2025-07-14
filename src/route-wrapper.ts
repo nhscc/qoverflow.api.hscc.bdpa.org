@@ -84,8 +84,8 @@ const withMiddleware = middlewareFactory<
       data() {
         const { getDummyData } = require(
           // ? This expression prevents webpack/turbopack from bundling things
-          'testverse:db.ts'.toString()
-        ) as typeof import('testverse:db.ts');
+          '@nhscc/backend-qoverflow~npm/dummy'.toString()
+        ) as typeof import('@nhscc/backend-qoverflow~npm/dummy');
 
         return getDummyData();
       }
@@ -127,8 +127,8 @@ const withSysMiddleware = middlewareFactory<
       data() {
         const { getDummyData } = require(
           // ? This expression prevents webpack/turbopack from bundling things
-          'testverse:db.ts'.toString()
-        ) as typeof import('testverse:db.ts');
+          '@nhscc/backend-qoverflow~npm/dummy'.toString()
+        ) as typeof import('@nhscc/backend-qoverflow~npm/dummy');
 
         return getDummyData();
       }
