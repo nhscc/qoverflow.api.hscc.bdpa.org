@@ -25,9 +25,8 @@ import {
   toPublicUser
 } from 'universe+backend:db.ts';
 
+import { dummyAppData, getDummyData } from 'universe+backend:dummy.ts';
 import { getEnv } from 'universe+backend:env.ts';
-
-import { dummyAppData, getDummyData } from 'testverse:db.ts';
 
 import {
   expectExceptionsWithMatchingErrors,
