@@ -3,11 +3,8 @@ import * as React from 'react';
 
 import { version as packageVersion } from 'rootverse:package.json';
 
-//import { hydrateDb } from '@-xun/mongo-test';
-
 export async function getServerSideProps() {
   const env = getEnv();
-  //await hydrateDb({ name: 'app' });
 
   return {
     props: {
