@@ -5,6 +5,8 @@ import { ServerValidationError } from 'multiverse+shared:error.ts';
 
 import type { Environment } from '@-xun/env';
 
+let envOverrides: Environment = {};
+
 // TODO: replace validation logic with arktype instead (including defaults)
 
 /**
@@ -12,46 +14,28 @@ import type { Environment } from '@-xun/env';
  */
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export function getEnv<T extends Environment = Environment>() {
-  const env = getDefaultEnv({
-    // TODO: probably good to separate out configs that belong to bdpa-cron
-    STACKAPPS_INTERVAL_PERIOD_MS: Number(process.env.STACKAPPS_INTERVAL_PERIOD_MS || 0),
-    STACKAPPS_MAX_REQUESTS_PER_INTERVAL:
-      Number(process.env.STACKAPPS_MAX_REQUESTS_PER_INTERVAL) || null,
-    STACKAPPS_TOTAL_API_GENERATED_QUESTIONS:
-      Number(process.env.STACKAPPS_TOTAL_API_GENERATED_QUESTIONS) || null,
-    STACKAPPS_COLLECTALL_QUESTION_ANSWERS:
-      Number(process.env.STACKAPPS_COLLECTALL_QUESTION_ANSWERS) || null,
-    STACKAPPS_COLLECTALL_QUESTION_COMMENTS:
-      Number(process.env.STACKAPPS_COLLECTALL_QUESTION_COMMENTS) || null,
-    STACKAPPS_COLLECTALL_FIRST_ANSWER_COMMENTS:
-      Number(process.env.STACKAPPS_COLLECTALL_FIRST_ANSWER_COMMENTS) || null,
-    STACKAPPS_MAX_PAGE_SIZE: Number(process.env.STACKAPPS_MAX_PAGE_SIZE) || null,
-    STACKAPPS_AUTH_KEY: process.env.STACKAPPS_AUTH_KEY || null,
-    MAX_PARAMS_PER_REQUEST: Number(process.env.MAX_PARAMS_PER_REQUEST) || 100,
-    MIN_USER_NAME_LENGTH: Number(process.env.MIN_USER_NAME_LENGTH) || 4,
-    MAX_USER_NAME_LENGTH: Number(process.env.MAX_USER_NAME_LENGTH) || 16,
-    MIN_USER_EMAIL_LENGTH: Number(process.env.MIN_USER_EMAIL_LENGTH) || 4,
-    MAX_USER_EMAIL_LENGTH: Number(process.env.MAX_USER_EMAIL_LENGTH) || 75,
-    USER_SALT_LENGTH: Number(process.env.USER_SALT_LENGTH) || 32,
-    USER_KEY_LENGTH: Number(process.env.USER_KEY_LENGTH) || 128,
-    MAX_COMMENT_LENGTH: Number(process.env.MAX_COMMENT_LENGTH) || 150,
-    MAX_QUESTION_TITLE_LENGTH: Number(process.env.MAX_QUESTION_TITLE_LENGTH) || 150,
-    MAX_QUESTION_BODY_LENGTH_BYTES:
-      parseAsBytes(process.env.MAX_QUESTION_BODY_LENGTH_BYTES ?? '-Infinity') || 3000,
-    MAX_ANSWER_BODY_LENGTH_BYTES:
-      parseAsBytes(process.env.MAX_ANSWER_BODY_LENGTH_BYTES ?? '-Infinity') || 3000,
-    MAX_MAIL_SUBJECT_LENGTH:
-      parseAsBytes(process.env.MAX_MAIL_SUBJECT_LENGTH ?? '-Infinity') || 75,
-    MAX_MAIL_BODY_LENGTH_BYTES:
-      parseAsBytes(process.env.MAX_MAIL_BODY_LENGTH_BYTES ?? '-Infinity') || 512,
-
-    PRUNE_DATA_MAX_MAIL_BYTES:
-      parseAsBytes(process.env.PRUNE_DATA_MAX_MAIL_BYTES ?? '-Infinity') || null,
-    PRUNE_DATA_MAX_QUESTIONS_BYTES:
-      parseAsBytes(process.env.PRUNE_DATA_MAX_QUESTIONS_BYTES ?? '-Infinity') || null,
-    PRUNE_DATA_MAX_USERS_BYTES:
-      parseAsBytes(process.env.PRUNE_DATA_MAX_USERS_BYTES ?? '-Infinity') || null
-  });
+  const env = {
+    ...getDefaultEnv({
+      MAX_PARAMS_PER_REQUEST: Number(process.env.MAX_PARAMS_PER_REQUEST) || 100,
+      MIN_USER_NAME_LENGTH: Number(process.env.MIN_USER_NAME_LENGTH) || 4,
+      MAX_USER_NAME_LENGTH: Number(process.env.MAX_USER_NAME_LENGTH) || 16,
+      MIN_USER_EMAIL_LENGTH: Number(process.env.MIN_USER_EMAIL_LENGTH) || 4,
+      MAX_USER_EMAIL_LENGTH: Number(process.env.MAX_USER_EMAIL_LENGTH) || 75,
+      USER_SALT_LENGTH: Number(process.env.USER_SALT_LENGTH) || 32,
+      USER_KEY_LENGTH: Number(process.env.USER_KEY_LENGTH) || 128,
+      MAX_COMMENT_LENGTH: Number(process.env.MAX_COMMENT_LENGTH) || 150,
+      MAX_QUESTION_TITLE_LENGTH: Number(process.env.MAX_QUESTION_TITLE_LENGTH) || 150,
+      MAX_QUESTION_BODY_LENGTH_BYTES:
+        parseAsBytes(process.env.MAX_QUESTION_BODY_LENGTH_BYTES ?? '-Infinity') || 3000,
+      MAX_ANSWER_BODY_LENGTH_BYTES:
+        parseAsBytes(process.env.MAX_ANSWER_BODY_LENGTH_BYTES ?? '-Infinity') || 3000,
+      MAX_MAIL_SUBJECT_LENGTH:
+        parseAsBytes(process.env.MAX_MAIL_SUBJECT_LENGTH ?? '-Infinity') || 75,
+      MAX_MAIL_BODY_LENGTH_BYTES:
+        parseAsBytes(process.env.MAX_MAIL_BODY_LENGTH_BYTES ?? '-Infinity') || 512
+    }),
+    ...envOverrides
+  };
 
   /* istanbul ignore next */
   if (env.NODE_ENV !== 'test') {
@@ -98,4 +82,18 @@ export function getEnv<T extends Environment = Environment>() {
   }
 
   return env as typeof env & T;
+}
+
+/**
+ * Set an internal `overrides` object that will be merged over any environment
+ * variables coming from `process.env`. The values of `overrides` _must_ be in
+ * their final form, e.g. of type `number` (✅ `42`) instead of a string (🚫
+ * `"42"`), the latter being what the real `process.env` would provide but that
+ * this function does not support.
+ *
+ * This function should only be used in a multitenant situation where relying on
+ * exclusive access to `process.env` is not possible (e.g. `@nhscc/bdpa-cli`).
+ */
+export function overwriteEnv(overrides: typeof envOverrides) {
+  envOverrides = overrides;
 }
