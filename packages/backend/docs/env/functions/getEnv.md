@@ -6,9 +6,9 @@
 
 # Function: getEnv()
 
-> **getEnv**\<`T`\>(): `object` & `object` & `T`
+> **getEnv**\<`T`\>(): `object` & `T`
 
-Defined in: [packages/backend/src/env.ts:14](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/f5ce596891ef5639d9d2800df6d35c0e862108c3/packages/backend/src/env.ts#L14)
+Defined in: [packages/backend/src/env.ts:16](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/7f72ded3e1b4a649a6466e0d002164176291fadc/packages/backend/src/env.ts#L16)
 
 Returns an object representing the application's runtime environment.
 
@@ -20,4 +20,4 @@ Returns an object representing the application's runtime environment.
 
 ## Returns
 
-`object` & `object` & `T`
+`object` & `T`

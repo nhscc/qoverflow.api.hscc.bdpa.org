@@ -1,6 +1,6 @@
 {
   "name": "@nhscc/backend-qoverflow",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "https://qoverflow.api.hscc.bdpa.org",
   "keywords": [],
   "homepage": "https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/tree/main/packages/backend#readme",
