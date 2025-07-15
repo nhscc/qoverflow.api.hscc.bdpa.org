@@ -91,7 +91,7 @@
   },
   "dependencies": {
     "@-xun/api-strategy": "^1.3.8",
-    "@-xun/env": "^1.1.2",
+    "@-xun/env": "^1.1.3",
     "@-xun/jest": "^2.2.7",
     "@-xun/mongo-item": "^1.3.0",
     "@-xun/mongo-schema": "^1.3.0",
