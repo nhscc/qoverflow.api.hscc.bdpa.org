@@ -8,7 +8,7 @@
 
 > **createMessage**(`__namedParameters`): `Promise`\<[`PublicMail`](../../db/type-aliases/PublicMail.md)\>
 
-Defined in: [packages/backend/src/index.ts:682](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/7f72ded3e1b4a649a6466e0d002164176291fadc/packages/backend/src/index.ts#L682)
+Defined in: [packages/backend/src/index.ts:682](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/e58635515aaccbecfff868b37cbae9a64bb762c2/packages/backend/src/index.ts#L682)
 
 ## Parameters
 

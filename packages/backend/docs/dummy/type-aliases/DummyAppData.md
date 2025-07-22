@@ -8,7 +8,7 @@
 
 > **DummyAppData** = `object`
 
-Defined in: [packages/backend/src/dummy.ts:23](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/7f72ded3e1b4a649a6466e0d002164176291fadc/packages/backend/src/dummy.ts#L23)
+Defined in: [packages/backend/src/dummy.ts:23](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/e58635515aaccbecfff868b37cbae9a64bb762c2/packages/backend/src/dummy.ts#L23)
 
 The shape of the application database's test data.
 
@@ -18,7 +18,7 @@ The shape of the application database's test data.
 
 > **\_generatedAt**: `number`
 
-Defined in: [packages/backend/src/dummy.ts:24](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/7f72ded3e1b4a649a6466e0d002164176291fadc/packages/backend/src/dummy.ts#L24)
+Defined in: [packages/backend/src/dummy.ts:24](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/e58635515aaccbecfff868b37cbae9a64bb762c2/packages/backend/src/dummy.ts#L24)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [packages/backend/src/dummy.ts:24](https://github.com/nhscc/qoverflo
 
 > **mail**: `InternalMail`[]
 
-Defined in: [packages/backend/src/dummy.ts:26](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/7f72ded3e1b4a649a6466e0d002164176291fadc/packages/backend/src/dummy.ts#L26)
+Defined in: [packages/backend/src/dummy.ts:26](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/e58635515aaccbecfff868b37cbae9a64bb762c2/packages/backend/src/dummy.ts#L26)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [packages/backend/src/dummy.ts:26](https://github.com/nhscc/qoverflo
 
 > **questions**: `InternalQuestion`[]
 
-Defined in: [packages/backend/src/dummy.ts:27](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/7f72ded3e1b4a649a6466e0d002164176291fadc/packages/backend/src/dummy.ts#L27)
+Defined in: [packages/backend/src/dummy.ts:27](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/e58635515aaccbecfff868b37cbae9a64bb762c2/packages/backend/src/dummy.ts#L27)
 
 ***
 
@@ -42,4 +42,4 @@ Defined in: [packages/backend/src/dummy.ts:27](https://github.com/nhscc/qoverflo
 
 > **users**: `InternalUser`[]
 
-Defined in: [packages/backend/src/dummy.ts:25](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/7f72ded3e1b4a649a6466e0d002164176291fadc/packages/backend/src/dummy.ts#L25)
+Defined in: [packages/backend/src/dummy.ts:25](https://github.com/nhscc/qoverflow.api.hscc.bdpa.org/blob/e58635515aaccbecfff868b37cbae9a64bb762c2/packages/backend/src/dummy.ts#L25)
