@@ -56,7 +56,7 @@
     "@-xun/js": "^2.0.0",
     "@-xun/mongo-schema": "^1.5.0",
     "@-xun/mongo-test": "^3.0.4",
-    "@-xun/symbiote": "^4.11.1",
+    "@-xun/symbiote": "^4.11.4",
     "@-xun/types": "^1.2.0",
     "@nhscc/backend-qoverflow": "^1.2.0",
     "@nhscc/backend-qoverflow~npm": "npm:@nhscc/backend-qoverflow@^1.2.0",
