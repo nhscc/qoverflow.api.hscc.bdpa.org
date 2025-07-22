@@ -1,6 +1,6 @@
 {
   "name": "qoverflow.api.hscc.bdpa.org",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "private": true,
   "description": "https://qoverflow.api.hscc.bdpa.org",
   "homepage": "https://github.com/nhscc/qoverflow.api.hscc.bdpa.org#readme",
@@ -36,7 +36,7 @@
     "list-tasks": "symbiote list-tasks --env NODE_NO_WARNINGS=1 --scope this-package",
     "prepare": "symbiote project prepare --env NODE_NO_WARNINGS=1",
     "release": "rejoin This package is not releasable",
-    "release:topological": "symbiote project topology --run release --env NODE_NO_WARNINGS=1",
+    "release:topological": "symbiote project topology --run release --env NODE_NO_WARNINGS=1 --skip qoverflow.api.hscc.bdpa.org",
     "renovate": "symbiote project renovate --env NODE_NO_WARNINGS=1 --github-reconfigure-repo --regenerate-assets --assets-preset nextjs",
     "renovate:aliases": "symbiote project renovate --env NODE_NO_WARNINGS=1 --regenerate-assets --assets-preset nextjs --only-aliases",
     "start": "symbiote start --env NODE_NO_WARNINGS=1 --",
