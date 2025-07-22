@@ -71,7 +71,7 @@
     "jest-fixed-jsdom": "^0.0.9",
     "mongodb": "^6.18.0",
     "next": "^15.4.3",
-    "next-test-api-route-handler": "^4.0.16",
+    "next-test-api-route-handler": "^5.0.0",
     "react": "^19.1.0",
     "rejoinder": "^2.0.2",
     "toss-expression": "^0.1.2",
