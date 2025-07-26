@@ -60,7 +60,7 @@
     "@-xun/types": "^1.2.0",
     "@nhscc/backend-qoverflow": "^1.2.1",
     "@nhscc/backend-qoverflow~npm": "npm:@nhscc/backend-qoverflow@^1.2.0",
-    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
     "@types/bytes": "^3.1.5",
     "@types/jest": "^30.0.0",
