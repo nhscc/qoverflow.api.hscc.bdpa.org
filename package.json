@@ -67,7 +67,7 @@
     "@types/node": "^24.1.0",
     "@types/react": "^19.1.8",
     "bytes": "^3.1.2",
-    "dotenv": "^17.2.0",
+    "dotenv": "^17.2.1",
     "jest-fixed-jsdom": "^0.0.9",
     "mongodb": "^6.18.0",
     "next": "^15.4.3",
