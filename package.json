@@ -72,7 +72,7 @@
     "mongodb": "^6.18.0",
     "next": "^15.4.4",
     "next-test-api-route-handler": "^5.0.0",
-    "react": "^19.1.0",
+    "react": "^19.1.1",
     "rejoinder": "^2.0.2",
     "toss-expression": "^0.1.2",
     "type-fest": "^4.41.0"
