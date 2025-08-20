@@ -99,7 +99,7 @@
     "@-xun/types": "^1.2.0",
     "@types/bytes": "^3.1.5",
     "bytes": "^3.1.2",
-    "core-js": "^3.44.0",
+    "core-js": "^3.45.1",
     "mongodb": "^6.18.0",
     "next": "^15.4.4",
     "toss-expression": "^0.1.2",
